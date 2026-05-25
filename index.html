@@ -8,193 +8,180 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
-      --burg: #8B1A2F;
-      --gold: #C9A84C;
-      --r: 6px;
-      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-      /* backgrounds */
-      --color-background-primary: #ffffff;
-      --color-background-secondary: #f6f6f7;
-      --color-background-success: #e8f5e9;
-      --color-background-info: #e3f2fd;
-      --color-background-warning: #fff8e1;
-      --color-background-danger: #ffebee;
-      /* text */
-      --color-text-primary: #111827;
-      --color-text-secondary: #6b7280;
-      --color-text-tertiary: #9ca3af;
-      --color-text-success: #16a34a;
-      --color-text-info: #1d4ed8;
-      --color-text-warning: #d97706;
-      --color-text-danger: #dc2626;
-      /* borders */
-      --color-border-primary: #9ca3af;
-      --color-border-secondary: #d1d5db;
-      --color-border-tertiary: #e5e7eb;
-      /* radius */
-      --border-radius-md: 6px;
-      --border-radius-lg: 10px;
+      --burg:#8B1A2F; --gold:#C9A84C; --r:6px;
+      --font-sans:'Inter',system-ui,-apple-system,sans-serif;
+      --bg:#ffffff; --bg2:#f6f6f7;
+      --bg-ok:#e8f5e9; --bg-info:#e3f2fd; --bg-warn:#fff8e1; --bg-err:#ffebee;
+      --tx:#111827; --tx2:#6b7280; --tx3:#9ca3af;
+      --tx-ok:#16a34a; --tx-info:#1d4ed8; --tx-warn:#d97706; --tx-err:#dc2626;
+      --bd:#9ca3af; --bd2:#d1d5db; --bd3:#e5e7eb;
+      --rmd:6px; --rlg:10px;
     }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{font-family:var(--font-sans);font-size:14px;background:#eef0f2;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    .app{display:grid;grid-template-columns:214px 1fr;width:100%;max-width:1120px;height:96vh;border:.5px solid var(--bd3);border-radius:var(--rlg);overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.09)}
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
-    body { font-family: var(--font-sans); font-size: 14px; background: #f0f0f1; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    /* sidebar */
+    .sidebar{background:var(--bg2);border-right:.5px solid var(--bd3);display:flex;flex-direction:column;overflow-y:auto}
+    .logo{padding:14px 16px 12px;border-bottom:.5px solid var(--bd3)}
+    .logo-name{font-size:13px;font-weight:600;color:var(--tx)}
+    .logo-term{font-size:11px;color:var(--tx2);margin-top:2px}
+    .db-row{display:flex;align-items:center;gap:5px;margin-top:6px}
+    .db-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+    .dot-off{background:var(--tx3)} .dot-ok{background:var(--tx-ok)} .dot-err{background:var(--tx-err)} .dot-spin{background:var(--tx-warn)}
+    .db-lbl{font-size:10px;color:var(--tx3)}
+    .nav-section{padding:8px 8px 0}
+    .nav-label{font-size:10px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;padding:6px 8px 4px}
+    .nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--r);cursor:pointer;font-size:13px;color:var(--tx2);transition:background .15s;user-select:none}
+    .nav-item:hover{background:var(--bg)}
+    .nav-item.active{background:var(--bg);color:var(--tx);font-weight:500}
+    .nav-item i{font-size:15px;opacity:.7}
 
-    .app { display: grid; grid-template-columns: 210px 1fr; width: 100%; max-width: 1100px; height: 96vh; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+    /* main */
+    .main{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:.5px solid var(--bd3);flex-shrink:0;gap:8px}
+    .topbar-left{min-width:0}
+    .topbar-title{font-size:15px;font-weight:600;color:var(--tx)}
+    .topbar-meta{font-size:12px;color:var(--tx2);margin-top:1px}
+    .save-indicator{font-size:11px;color:var(--tx2);white-space:nowrap;flex-shrink:0}
+    .content{flex:1;overflow-y:auto;padding:16px}
 
-    /* ── sidebar ── */
-    .sidebar { background: var(--color-background-secondary); border-right: 0.5px solid var(--color-border-tertiary); padding: 12px 0; display: flex; flex-direction: column; }
-    .logo { padding: 12px 16px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 8px; }
-    .logo-name { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
-    .logo-sub { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
-    .nav-section { padding: 0 8px; margin-bottom: 4px; }
-    .nav-label { font-size: 10px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .8px; padding: 6px 8px 4px; }
-    .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r); cursor: pointer; font-size: 13px; color: var(--color-text-secondary); transition: background .15s; user-select: none; }
-    .nav-item:hover { background: var(--color-background-primary); }
-    .nav-item.active { background: var(--color-background-primary); color: var(--color-text-primary); font-weight: 500; }
-    .nav-item i { font-size: 16px; opacity: .7; }
+    /* buttons */
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r);border:.5px solid var(--bd2);background:var(--bg);color:var(--tx);font-size:13px;font-family:var(--font-sans);cursor:pointer;transition:background .15s}
+    .btn:hover{background:var(--bg2)}
+    .btn-primary{background:var(--burg);border-color:var(--burg);color:#fff}
+    .btn-primary:hover{background:#6d1424}
+    .btn-sm{padding:5px 10px;font-size:12px}
 
-    /* ── main ── */
-    .main { background: var(--color-background-primary); overflow: hidden; display: flex; flex-direction: column; }
-    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); flex-shrink: 0; }
-    .topbar-title { font-size: 15px; font-weight: 600; color: var(--color-text-primary); }
-    .topbar-meta { font-size: 12px; color: var(--color-text-secondary); margin-top: 1px; }
-    .content { flex: 1; overflow-y: auto; padding: 16px; }
+    /* badges */
+    .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+    .badge-a{background:var(--bg-ok);color:var(--tx-ok)}
+    .badge-b{background:var(--bg-info);color:var(--tx-info)}
+    .badge-c{background:var(--bg-warn);color:var(--tx-warn)}
+    .badge-d{background:var(--bg-warn);color:var(--tx-warn)}
+    .badge-f{background:var(--bg-err);color:var(--tx-err)}
+    .badge-ok{background:var(--bg-ok);color:var(--tx-ok)}
+    .badge-err{background:var(--bg-err);color:var(--tx-err)}
+    .badge-neutral{background:var(--bg2);color:var(--tx2)}
 
-    /* ── buttons ── */
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--r); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-size: 13px; font-family: var(--font-sans); cursor: pointer; transition: background .15s; }
-    .btn:hover { background: var(--color-background-secondary); }
-    .btn-primary { background: #8B1A2F; border-color: #8B1A2F; color: white; }
-    .btn-primary:hover { background: #6d1424; }
-    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    /* cards */
+    .card{background:var(--bg);border:.5px solid var(--bd3);border-radius:var(--rlg);padding:14px 16px;margin-bottom:12px}
+    .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .card-title{font-size:13px;font-weight:600;color:var(--tx)}
 
-    /* ── badges ── */
-    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
-    .badge-a { background: var(--color-background-success); color: var(--color-text-success); }
-    .badge-b { background: var(--color-background-info); color: var(--color-text-info); }
-    .badge-c { background: var(--color-background-warning); color: var(--color-text-warning); }
-    .badge-d { background: var(--color-background-warning); color: var(--color-text-warning); }
-    .badge-f { background: var(--color-background-danger); color: var(--color-text-danger); }
+    /* stats */
+    .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+    .stat{background:var(--bg2);border-radius:var(--r);padding:10px 12px}
+    .stat-val{font-size:22px;font-weight:600;color:var(--tx)}
+    .stat-lbl{font-size:11px;color:var(--tx2);margin-top:2px}
 
-    /* ── cards ── */
-    .card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px 16px; margin-bottom: 12px; }
-    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .card-title { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+    /* table */
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:8px 10px;font-size:11px;font-weight:500;color:var(--tx2);border-bottom:.5px solid var(--bd3);white-space:nowrap}
+    td{padding:8px 10px;border-bottom:.5px solid var(--bd3);color:var(--tx)}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:var(--bg2)}
+    .trow-click{cursor:pointer}
 
-    /* ── stats ── */
-    .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
-    .stat { background: var(--color-background-secondary); border-radius: var(--r); padding: 10px 12px; }
-    .stat-val { font-size: 22px; font-weight: 600; color: var(--color-text-primary); }
-    .stat-lbl { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+    /* forms */
+    input,select,textarea{font-family:var(--font-sans);font-size:13px;color:var(--tx);background:var(--bg);border:.5px solid var(--bd2);border-radius:var(--r);padding:7px 10px;width:100%}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--burg)}
+    .field{margin-bottom:12px}
+    .field label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:4px}
 
-    /* ── table ── */
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 500; color: var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); white-space: nowrap; }
-    td { padding: 8px 10px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--color-background-secondary); }
-    .trow-click { cursor: pointer; }
+    /* score grid (student detail) */
+    .score-head{display:grid;grid-template-columns:1fr 80px 80px 80px 70px;gap:8px;padding:0 0 8px;border-bottom:.5px solid var(--bd3);margin-bottom:4px}
+    .score-head span{font-size:11px;font-weight:500;color:var(--tx2)}
+    .score-grid{display:grid;grid-template-columns:1fr 80px 80px 80px 70px;gap:8px;align-items:center;padding:7px 0;border-bottom:.5px solid var(--bd3)}
+    .score-grid:last-child{border-bottom:none}
+    .score-input{padding:5px 8px;text-align:center;width:100%}
 
-    /* ── forms ── */
-    input, select, textarea { font-family: var(--font-sans); font-size: 13px; color: var(--color-text-primary); background: var(--color-background-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--r); padding: 7px 10px; width: 100%; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: #8B1A2F; }
-    .field { margin-bottom: 12px; }
-    .field label { display: block; font-size: 11px; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 4px; }
+    /* search */
+    .search-bar{display:flex;gap:8px;margin-bottom:14px}
+    .search-bar input{flex:1}
 
-    /* ── score grid ── */
-    .score-grid { display: grid; grid-template-columns: 1fr 80px 80px 80px 70px; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
-    .score-grid:last-child { border-bottom: none; }
-    .score-head { display: grid; grid-template-columns: 1fr 80px 80px 80px 70px; gap: 8px; padding: 0 0 8px; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 4px; }
-    .score-head span { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); }
-    .score-input { padding: 5px 8px; text-align: center; width: 100%; }
+    /* empty */
+    .empty{text-align:center;padding:40px;color:var(--tx2)}
+    .empty i{font-size:32px;margin-bottom:8px;display:block;opacity:.4}
 
-    /* ── search ── */
-    .search-bar { display: flex; gap: 8px; margin-bottom: 14px; }
-    .search-bar input { flex: 1; }
+    /* report card */
+    .rc{background:var(--bg);max-width:640px;margin:0 auto}
+    .rc-header{border-bottom:2px solid var(--burg);padding-bottom:12px;margin-bottom:14px}
+    .rc-school{font-size:17px;font-weight:700;color:var(--burg);text-align:center}
+    .rc-addr{font-size:11px;color:var(--tx2);text-align:center;margin-top:2px}
+    .rc-title{font-size:18px;font-weight:600;text-align:center;margin:8px 0 4px;color:var(--tx)}
+    .rc-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px;margin-bottom:14px}
+    .rc-info-row{display:flex;gap:6px}
+    .rc-info-label{color:var(--tx2);min-width:80px}
+    .rc-info-val{color:var(--tx);font-weight:600}
+    .rc-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px}
+    .rc-table th{background:var(--bg2);padding:7px 10px;text-align:left;border:.5px solid var(--bd3);font-size:11px;font-weight:500;color:var(--tx2)}
+    .rc-table td{padding:6px 10px;border:.5px solid var(--bd3);color:var(--tx)}
+    .att-row{display:flex;gap:24px;font-size:12px;margin-bottom:14px;flex-wrap:wrap}
+    .att-item{display:flex;flex-direction:column;gap:2px}
+    .att-item span:first-child{color:var(--tx2);font-size:11px}
+    .att-item span:last-child{font-weight:600}
+    .char-box{background:var(--bg2);border-left:3px solid var(--gold);border-radius:0 var(--r) var(--r) 0;padding:10px 12px;margin-bottom:14px;font-size:12px}
+    .char-label{font-size:10px;font-weight:600;color:#8A6F30;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+    .comment-row{margin-bottom:10px;font-size:12px}
+    .comment-label{font-size:10px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
+    .sig-row{display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:.5px solid var(--bd3);font-size:11px;color:var(--tx2)}
 
-    /* ── empty state ── */
-    .empty { text-align: center; padding: 40px; color: var(--color-text-secondary); }
-    .empty i { font-size: 32px; margin-bottom: 8px; display: block; opacity: .4; }
+    /* settings */
+    .setup-step{display:flex;gap:10px;margin-bottom:10px;font-size:12px}
+    .setup-num{width:20px;height:20px;border-radius:50%;background:var(--burg);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;margin-top:1px}
 
-    /* ── character box ── */
-    .char-box { background: var(--color-background-secondary); border-left: 3px solid #C9A84C; border-radius: 0 var(--r) var(--r) 0; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; }
-    .char-label { font-size: 10px; font-weight: 600; color: #8A6F30; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 4px; }
-
-    /* ── report card ── */
-    .rc { background: var(--color-background-primary); max-width: 640px; margin: 0 auto; }
-    .rc-header { border-bottom: 2px solid #8B1A2F; padding-bottom: 12px; margin-bottom: 14px; }
-    .rc-school { font-size: 17px; font-weight: 700; color: #8B1A2F; text-align: center; }
-    .rc-addr { font-size: 11px; color: var(--color-text-secondary); text-align: center; margin-top: 2px; }
-    .rc-title { font-size: 18px; font-weight: 600; text-align: center; margin: 8px 0 4px; color: var(--color-text-primary); }
-    .rc-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 12px; margin-bottom: 14px; }
-    .rc-info-row { display: flex; gap: 6px; }
-    .rc-info-label { color: var(--color-text-secondary); min-width: 80px; }
-    .rc-info-val { color: var(--color-text-primary); font-weight: 600; }
-    .rc-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
-    .rc-table th { background: var(--color-background-secondary); padding: 7px 10px; text-align: left; border: 0.5px solid var(--color-border-tertiary); font-size: 11px; font-weight: 500; color: var(--color-text-secondary); }
-    .rc-table td { padding: 6px 10px; border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
-    .att-row { display: flex; gap: 24px; font-size: 12px; margin-bottom: 14px; }
-    .att-item { display: flex; flex-direction: column; gap: 2px; }
-    .att-item span:first-child { color: var(--color-text-secondary); font-size: 11px; }
-    .att-item span:last-child { font-weight: 600; }
-    .comment-row { margin-bottom: 10px; font-size: 12px; }
-    .comment-label { font-size: 10px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 3px; }
-    .sig-row { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 0.5px solid var(--color-border-tertiary); font-size: 11px; color: var(--color-text-secondary); }
-
-    /* ── print ── */
-    @media print {
-      html, body { background: white; display: block; }
-      .app, .sidebar, .topbar { display: none !important; }
-      .content { padding: 0; overflow: visible; }
-      .rc { max-width: none; display: block !important; }
-      .card { border: none; padding: 0; }
+    /* print */
+    @media print{
+      html,body{background:#fff;display:block}
+      .app,.sidebar,.topbar{display:none!important}
+      .content{padding:0;overflow:visible}
+      .rc{max-width:none;display:block!important}
+      .card{border:none;padding:0}
     }
   </style>
 </head>
 <body>
-<div class="app" id="app">
+<div class="app">
   <div class="sidebar">
     <div class="logo">
       <div class="logo-name">Debbyfield Schools</div>
-      <div class="logo-sub">Academic Records · 2025/2026</div>
+      <div class="logo-term" id="term-display"></div>
+      <div class="db-row">
+        <span class="db-dot dot-off" id="db-dot"></span>
+        <span class="db-lbl" id="db-lbl">Local only</span>
+      </div>
     </div>
     <div class="nav-section">
       <div class="nav-label">Overview</div>
-      <div class="nav-item active" onclick="nav('dashboard',null,this)">
-        <i class="ti ti-layout-dashboard" aria-hidden="true"></i>Dashboard
-      </div>
+      <div class="nav-item active" onclick="nav('dashboard',null,this)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
     </div>
     <div class="nav-section">
       <div class="nav-label">Classes</div>
-      <div class="nav-item" onclick="nav('class','Pre-Primary',this)">
-        <i class="ti ti-star" aria-hidden="true"></i>Pre-Primary
-      </div>
-      <div class="nav-item" onclick="nav('class','Primary',this)">
-        <i class="ti ti-school" aria-hidden="true"></i>Primary
-      </div>
-      <div class="nav-item" onclick="nav('class','Junior Secondary',this)">
-        <i class="ti ti-book" aria-hidden="true"></i>JSS
-      </div>
-      <div class="nav-item" onclick="nav('class','Senior Secondary',this)">
-        <i class="ti ti-certificate" aria-hidden="true"></i>SS
-      </div>
+      <div class="nav-item" onclick="nav('class','Pre-Primary',this)"><i class="ti ti-star"></i>Pre-Primary</div>
+      <div class="nav-item" onclick="nav('class','Primary',this)"><i class="ti ti-school"></i>Primary</div>
+      <div class="nav-item" onclick="nav('class','Junior Secondary',this)"><i class="ti ti-book"></i>JSS</div>
+      <div class="nav-item" onclick="nav('class','Senior Secondary',this)"><i class="ti ti-certificate"></i>SS</div>
     </div>
     <div class="nav-section">
       <div class="nav-label">Tools</div>
-      <div class="nav-item" onclick="nav('search',null,this)">
-        <i class="ti ti-search" aria-hidden="true"></i>Find Student
-      </div>
+      <div class="nav-item" onclick="nav('entry',null,this)"><i class="ti ti-table-plus"></i>Score Entry</div>
+      <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
+      <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
     </div>
   </div>
 
   <div class="main">
     <div class="topbar">
-      <div>
+      <div class="topbar-left">
         <div class="topbar-title" id="page-title">Dashboard</div>
         <div class="topbar-meta" id="page-meta"></div>
       </div>
+      <span class="save-indicator" id="save-indicator"></span>
       <div id="topbar-actions"></div>
     </div>
     <div class="content" id="content"></div>
@@ -202,7 +189,7 @@
 </div>
 
 <script>
-/* ── data ── */
+/* ── constants ── */
 const STUDENTS = [
   {id:1001,name:"Abdulazeez Quyyum",cls:"Nursery 1",sec:"Pre-Primary",gender:"Male"},
   {id:1002,name:"Abdulganiu Mojeed",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
@@ -307,170 +294,299 @@ const STUDENTS = [
 ];
 
 const SUBJECTS = {
-  "Pre-Primary":  ["Literacy","Numeracy","Creativity","Handwriting","Health Habits","Rhymes","Social Habits","BST"],
-  "Primary":      ["Mathematics","English Language","BST","PVS","NVE","CRS","Creativity","Handwriting","Yoruba"],
-  "Junior Secondary":  ["Mathematics","English Language","Basic Science & Tech","NVE","Business Studies","CRS","Yoruba","History","CCA","Civic Education","ICT","Agricultural Science","EDGE Formation"],
-  "Senior Secondary":  ["Mathematics","English Language","Physics","Chemistry","Biology","Economics","Geography","Civic Education","ICT","Agricultural Science","Account","Government","Literature","CRS","EDGE Formation"],
+  "Pre-Primary":      ["Literacy","Numeracy","Creativity","Handwriting","Health Habits","Rhymes","Social Habits","BST"],
+  "Primary":          ["Mathematics","English Language","BST","PVS","NVE","CRS","Creativity","Handwriting","Yoruba"],
+  "Junior Secondary": ["Mathematics","English Language","Basic Science & Tech","NVE","Business Studies","CRS","Yoruba","History","CCA","Civic Education","ICT","Agricultural Science","EDGE Formation"],
+  "Senior Secondary": ["Mathematics","English Language","Physics","Chemistry","Biology","Economics","Geography","Civic Education","ICT","Agricultural Science","Account","Government","Literature","CRS","EDGE Formation"],
 };
 
-const TERM = "Third Term";
-const SESSION = "2025/2026";
 const CLASSES = {
-  "Pre-Primary":     ["Nursery 1","Nursery 2","KG 1","KG 2"],
-  "Primary":         ["Basic 1","Basic 2","Basic 3","Basic 4","Basic 5"],
-  "Junior Secondary":["JSS 1","JSS 2","JSS 3"],
-  "Senior Secondary":["SS 1","SS 2","SS 3"],
+  "Pre-Primary":      ["Nursery 1","Nursery 2","KG 1","KG 2"],
+  "Primary":          ["Basic 1","Basic 2","Basic 3","Basic 4","Basic 5"],
+  "Junior Secondary": ["JSS 1","JSS 2","JSS 3"],
+  "Senior Secondary": ["SS 1","SS 2","SS 3"],
 };
 
-/* ── store (localStorage) ── */
-let store = { scores:{}, attendance:{}, character:{}, teacherComments:{}, principalComments:{} };
+/* ── state ── */
+let store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
+let currentTerm    = localStorage.getItem("dbs-term")    || "Third Term";
+let currentSession = localStorage.getItem("dbs-session") || "2025/2026";
+let dbClient  = null;
+let dbStatus  = "offline"; // offline | loading | connected | error
+let pendingSaves = 0;
+const scoreTimers = {}, attTimers = {}, obsTimers = {};
 
-function loadStore() {
+/* ── supabase ── */
+function initSupabase(url, key) {
   try {
-    const raw = localStorage.getItem("dbs-records-v1");
+    if (window.supabase && url && key) {
+      dbClient = window.supabase.createClient(url, key);
+    }
+  } catch(e) { dbClient = null; }
+}
+
+async function loadFromSupabase() {
+  if (!dbClient) return false;
+  try {
+    const [sr, ar, or_] = await Promise.all([
+      dbClient.from("scores").select("*").eq("term", currentTerm).eq("session", currentSession),
+      dbClient.from("attendance").select("*").eq("term", currentTerm).eq("session", currentSession),
+      dbClient.from("observations").select("*").eq("term", currentTerm).eq("session", currentSession),
+    ]);
+    if (sr.error || ar.error || or_.error) throw new Error("query failed");
+
+    store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
+    for (const r of sr.data) {
+      if (!store.scores[r.student_id]) store.scores[r.student_id] = {};
+      store.scores[r.student_id][r.subject] = {ca: r.ca ?? "", exam: r.exam ?? ""};
+    }
+    for (const r of ar.data) {
+      store.attendance[r.student_id] = {total: r.total_days, present: r.days_present ?? ""};
+    }
+    for (const r of or_.data) {
+      store.character[r.student_id]        = r.character_note    || "";
+      store.teacherComments[r.student_id]  = r.teacher_comment   || "";
+      store.principalComments[r.student_id]= r.principal_comment || "";
+    }
+    saveLocalStore();
+    return true;
+  } catch(e) {
+    console.error("Supabase load error:", e);
+    return false;
+  }
+}
+
+async function upsertScore(sid, subj) {
+  if (!dbClient) return;
+  const key = `${sid}|${subj}`;
+  clearTimeout(scoreTimers[key]);
+  markSaving();
+  scoreTimers[key] = setTimeout(async () => {
+    const sc = getScore(sid, subj);
+    const {error} = await dbClient.from("scores").upsert({
+      student_id: sid, subject: subj,
+      ca:   sc.ca   === "" ? null : parseFloat(sc.ca),
+      exam: sc.exam === "" ? null : parseFloat(sc.exam),
+      term: currentTerm, session: currentSession,
+    }, {onConflict: "student_id,subject,term,session"});
+    if (error) console.error("score upsert:", error);
+    markSaved();
+  }, 700);
+}
+
+async function upsertAttendance(sid) {
+  if (!dbClient) return;
+  clearTimeout(attTimers[sid]);
+  markSaving();
+  attTimers[sid] = setTimeout(async () => {
+    const a = getAtt(sid);
+    const {error} = await dbClient.from("attendance").upsert({
+      student_id: sid,
+      total_days:   parseInt(a.total) || 57,
+      days_present: a.present === "" ? null : parseInt(a.present),
+      term: currentTerm, session: currentSession,
+    }, {onConflict: "student_id,term,session"});
+    if (error) console.error("attendance upsert:", error);
+    markSaved();
+  }, 700);
+}
+
+async function upsertObservation(sid) {
+  if (!dbClient) return;
+  clearTimeout(obsTimers[sid]);
+  markSaving();
+  obsTimers[sid] = setTimeout(async () => {
+    const {error} = await dbClient.from("observations").upsert({
+      student_id: sid,
+      character_note:    getChar(sid),
+      teacher_comment:   getTComment(sid),
+      principal_comment: getPComment(sid),
+      term: currentTerm, session: currentSession,
+    }, {onConflict: "student_id,term,session"});
+    if (error) console.error("observation upsert:", error);
+    markSaved();
+  }, 700);
+}
+
+/* ── local store ── */
+function storeKey() {
+  return `dbs-v2-${currentTerm.replace(/\s/g,"-")}-${currentSession.replace(/\//g,"-")}`;
+}
+function loadLocalStore() {
+  try {
+    const raw = localStorage.getItem(storeKey()) || localStorage.getItem("dbs-records-v1");
     if (raw) store = JSON.parse(raw);
   } catch(e) {}
 }
-function saveStore() {
-  try { localStorage.setItem("dbs-records-v1", JSON.stringify(store)); } catch(e) {}
+function saveLocalStore() {
+  try { localStorage.setItem(storeKey(), JSON.stringify(store)); } catch(e) {}
 }
 
-/* ── score helpers ── */
-function getScore(sid, subj)       { return (store.scores[sid]||{})[subj] || {ca:"",exam:""}; }
-function setScore(sid, subj, field, val) {
-  if(!store.scores[sid]) store.scores[sid] = {};
-  if(!store.scores[sid][subj]) store.scores[sid][subj] = {ca:"",exam:""};
-  store.scores[sid][subj][field] = val;
-  saveStore();
+/* ── save indicator ── */
+function markSaving() {
+  pendingSaves++;
+  const el = document.getElementById("save-indicator");
+  if (el) el.textContent = "Saving…";
 }
-function getAtt(sid)              { return store.attendance[sid] || {total:57, present:""}; }
-function setAtt(sid, field, val)  { if(!store.attendance[sid]) store.attendance[sid]={total:57,present:""}; store.attendance[sid][field]=val; saveStore(); }
-function getChar(sid)             { return store.character[sid] || ""; }
-function setChar(sid, val)        { store.character[sid]=val; saveStore(); }
-function getTComment(sid)         { return store.teacherComments[sid] || ""; }
-function setTComment(sid, val)    { store.teacherComments[sid]=val; saveStore(); }
-function getPComment(sid)         { return store.principalComments[sid] || ""; }
-function setPComment(sid, val)    { store.principalComments[sid]=val; saveStore(); }
+function markSaved() {
+  pendingSaves = Math.max(0, pendingSaves - 1);
+  if (pendingSaves === 0) {
+    const el = document.getElementById("save-indicator");
+    if (el) { el.textContent = "Saved ✓"; setTimeout(() => { if (el) el.textContent = ""; }, 2500); }
+  }
+}
+
+/* ── db indicator ── */
+function updateDbIndicator() {
+  const dot = document.getElementById("db-dot");
+  const lbl = document.getElementById("db-lbl");
+  if (!dot || !lbl) return;
+  dot.className = "db-dot " + ({connected:"dot-ok",error:"dot-err",loading:"dot-spin",offline:"dot-off"}[dbStatus] || "dot-off");
+  lbl.textContent = {connected:"Supabase connected",error:"Connection error",loading:"Connecting…",offline:"Local only"}[dbStatus] || "Local only";
+}
+
+function updateTermDisplay() {
+  const el = document.getElementById("term-display");
+  if (el) el.textContent = `${currentTerm} · ${currentSession}`;
+}
+
+/* ── getters / setters ── */
+function getScore(sid, sub)  { return (store.scores[sid]||{})[sub] || {ca:"",exam:""}; }
+function setScore(sid, sub, field, val) {
+  if (!store.scores[sid]) store.scores[sid] = {};
+  if (!store.scores[sid][sub]) store.scores[sid][sub] = {ca:"",exam:""};
+  store.scores[sid][sub][field] = val;
+  saveLocalStore(); upsertScore(sid, sub);
+}
+function getAtt(sid)         { return store.attendance[sid] || {total:57, present:""}; }
+function setAtt(sid, field, val) {
+  if (!store.attendance[sid]) store.attendance[sid] = {total:57,present:""};
+  store.attendance[sid][field] = val;
+  saveLocalStore(); upsertAttendance(sid);
+}
+function getChar(sid)        { return store.character[sid] || ""; }
+function setChar(sid, val)   { store.character[sid]=val; saveLocalStore(); upsertObservation(sid); }
+function getTComment(sid)    { return store.teacherComments[sid] || ""; }
+function setTComment(sid,val){ store.teacherComments[sid]=val; saveLocalStore(); upsertObservation(sid); }
+function getPComment(sid)    { return store.principalComments[sid] || ""; }
+function setPComment(sid,val){ store.principalComments[sid]=val; saveLocalStore(); upsertObservation(sid); }
 
 /* ── grade helpers ── */
-function total(sid, subj) {
-  const s = getScore(sid, subj);
+function total(sid, sub) {
+  const s = getScore(sid, sub);
   const c = parseFloat(s.ca)||0, e = parseFloat(s.exam)||0;
-  if(!s.ca && !s.exam) return null;
+  if (!s.ca && !s.exam) return null;
   return c + e;
 }
 function grade(t) {
-  if(t === null) return "-";
-  if(t >= 70) return "A"; if(t >= 60) return "B"; if(t >= 50) return "C"; if(t >= 45) return "D"; return "F";
+  if (t===null) return "-";
+  return t>=70?"A":t>=60?"B":t>=50?"C":t>=45?"D":"F";
 }
 function gradeBadge(g) {
-  if(g === "-") return `<span style="color:var(--color-text-tertiary)">—</span>`;
+  if (g==="-") return `<span style="color:var(--tx3)">—</span>`;
   return `<span class="badge badge-${g.toLowerCase()}">${g}</span>`;
 }
-function remarkText(g) {
-  return g==="A"?"Excellent":g==="B"?"Good":g==="C"?"Satisfactory":g==="D"?"Needs Improvement":g==="F"?"Fail":"";
-}
+function remark(g) { return {A:"Excellent",B:"Good",C:"Satisfactory",D:"Needs Improvement",F:"Fail"}[g]||""; }
 
-/* ── avatar helpers ── */
-function initials(name) { return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
-function avatarColor(name) {
-  const cols = ["#8B1A2F","#185FA5","#0F6E56","#B57A1A","#534AB7"];
-  return cols[name.charCodeAt(0) % cols.length];
+/* ── utils ── */
+function initials(n) { return n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+function avatarColor(n) {
+  return ["#8B1A2F","#185FA5","#0F6E56","#B57A1A","#534AB7"][n.charCodeAt(0)%5];
+}
+function sectionForClass(cls) {
+  for (const [sec, arr] of Object.entries(CLASSES)) if (arr.includes(cls)) return sec;
+  return null;
+}
+function avatar(name, size=28) {
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${avatarColor(name)};display:flex;align-items:center;justify-content:center;color:#fff;font-size:${Math.floor(size*0.36)}px;font-weight:600;flex-shrink:0">${initials(name)}</div>`;
 }
 
 /* ── navigation ── */
 function nav(page, arg, el) {
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-  if(el && el.classList) el.classList.add("active");
-  if(page === "dashboard") renderDashboard();
-  else if(page === "class") renderSection(arg);
-  else if(page === "search") renderSearch();
+  if (el?.classList) el.classList.add("active");
+  if (page==="dashboard") renderDashboard();
+  else if (page==="class") renderSection(arg);
+  else if (page==="entry") renderScoreEntry();
+  else if (page==="search") renderSearch();
+  else if (page==="settings") renderSettings();
+}
+
+function navToSection(sec) {
+  const items = [...document.querySelectorAll(".nav-item")];
+  const idx = {"Pre-Primary":1,"Primary":2,"Junior Secondary":3,"Senior Secondary":4}[sec];
+  items.forEach(n=>n.classList.remove("active"));
+  if (idx !== undefined) items[idx]?.classList.add("active");
+  renderSection(sec);
 }
 
 /* ── dashboard ── */
 function renderDashboard() {
   document.getElementById("page-title").textContent = "Dashboard";
-  document.getElementById("page-meta").textContent = `${TERM} · ${SESSION} · ${STUDENTS.length} students`;
+  document.getElementById("page-meta").textContent = `${currentTerm} · ${currentSession} · ${STUDENTS.length} students`;
   document.getElementById("topbar-actions").innerHTML = "";
   const secs = ["Pre-Primary","Primary","Junior Secondary","Senior Secondary"];
-  const counts = secs.map(s => STUDENTS.filter(st => st.sec === s).length);
+  const counts = secs.map(s => STUDENTS.filter(st=>st.sec===s).length);
   document.getElementById("content").innerHTML = `
     <div class="stats-row">
       <div class="stat"><div class="stat-val">${STUDENTS.length}</div><div class="stat-lbl">Total students</div></div>
       <div class="stat"><div class="stat-val">${counts[0]+counts[1]}</div><div class="stat-lbl">Primary wing</div></div>
       <div class="stat"><div class="stat-val">${counts[2]+counts[3]}</div><div class="stat-lbl">Secondary wing</div></div>
-      <div class="stat"><div class="stat-val">${TERM.split(" ")[0]} Term</div><div class="stat-lbl">${SESSION}</div></div>
+      <div class="stat"><div class="stat-val">${currentTerm.split(" ")[0]} Term</div><div class="stat-lbl">${currentSession}</div></div>
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Classes at a glance</span></div>
       <table>
         <thead><tr><th>Section</th><th>Classes</th><th>Students</th><th>Subjects</th><th></th></tr></thead>
-        <tbody>
-          ${secs.map((s,i) => `
-            <tr class="trow-click" onclick="navToSection('${s}')">
-              <td>${s}</td>
-              <td>${CLASSES[s].join(", ")}</td>
-              <td>${counts[i]}</td>
-              <td>${SUBJECTS[s].length}</td>
-              <td><button class="btn btn-sm" onclick="event.stopPropagation();navToSection('${s}')">View <i class="ti ti-arrow-right"></i></button></td>
-            </tr>`).join("")}
+        <tbody>${secs.map((s,i)=>`
+          <tr class="trow-click" onclick="navToSection('${s}')">
+            <td>${s}</td>
+            <td style="color:var(--tx2)">${CLASSES[s].join(", ")}</td>
+            <td>${counts[i]}</td>
+            <td>${SUBJECTS[s].length}</td>
+            <td><button class="btn btn-sm" onclick="event.stopPropagation();navToSection('${s}')">View <i class="ti ti-arrow-right"></i></button></td>
+          </tr>`).join("")}
         </tbody>
       </table>
     </div>`;
 }
 
-function navToSection(sec) {
-  const items = document.querySelectorAll(".nav-item");
-  const map = {"Pre-Primary":1,"Primary":2,"Junior Secondary":3,"Senior Secondary":4};
-  items.forEach(n => n.classList.remove("active"));
-  if(map[sec]) items[map[sec]].classList.add("active");
-  renderSection(sec);
-}
-
 /* ── section list ── */
 function renderSection(sec) {
   document.getElementById("page-title").textContent = sec;
-  const students = STUDENTS.filter(s => s.sec === sec).sort((a,b) => a.name.localeCompare(b.name));
-  document.getElementById("page-meta").textContent = `${students.length} students · ${SUBJECTS[sec].length} subjects · ${TERM}`;
+  const students = STUDENTS.filter(s=>s.sec===sec).sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById("page-meta").textContent = `${students.length} students · ${SUBJECTS[sec].length} subjects`;
   document.getElementById("topbar-actions").innerHTML = "";
-  const classes = CLASSES[sec];
   document.getElementById("content").innerHTML = `
     <div class="search-bar">
       <input id="sec-search" placeholder="Filter by name…" oninput="filterTable(this.value)" />
       <select id="cls-filter" onchange="filterTable(document.getElementById('sec-search').value)">
         <option value="">All classes</option>
-        ${classes.map(c => `<option>${c}</option>`).join("")}
+        ${CLASSES[sec].map(c=>`<option>${c}</option>`).join("")}
       </select>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <table id="student-table">
         <thead><tr><th>Name</th><th>Class</th><th>ID</th><th>Scores entered</th><th></th></tr></thead>
-        <tbody>
-          ${students.map(s => {
-            const subjs = SUBJECTS[sec];
-            const entered = subjs.filter(sub => { const sc=getScore(s.id,sub); return sc.ca||sc.exam; }).length;
-            const pct = Math.round(entered/subjs.length*100);
-            return `<tr class="trow-click" data-name="${s.name.toLowerCase()}" data-cls="${s.cls}" onclick="openStudent(${s.id})">
-              <td>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="width:28px;height:28px;border-radius:50%;background:${avatarColor(s.name)};display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;flex-shrink:0">${initials(s.name)}</div>
-                  ${s.name}
+        <tbody>${students.map(s=>{
+          const subjs = SUBJECTS[sec];
+          const entered = subjs.filter(sub=>{const sc=getScore(s.id,sub);return sc.ca||sc.exam;}).length;
+          const pct = Math.round(entered/subjs.length*100);
+          return `<tr class="trow-click" data-name="${s.name.toLowerCase()}" data-cls="${s.cls}" onclick="openStudent(${s.id})">
+            <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+            <td>${s.cls}</td>
+            <td style="color:var(--tx2)">${s.id}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:4px;background:var(--bd3);border-radius:2px;max-width:80px">
+                  <div style="width:${pct}%;height:4px;background:var(--burg);border-radius:2px"></div>
                 </div>
-              </td>
-              <td>${s.cls}</td>
-              <td style="color:var(--color-text-secondary)">${s.id}</td>
-              <td>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="flex:1;height:4px;background:var(--color-border-tertiary);border-radius:2px;max-width:80px">
-                    <div style="width:${pct}%;height:4px;background:#8B1A2F;border-radius:2px"></div>
-                  </div>
-                  <span style="font-size:11px;color:var(--color-text-secondary)">${entered}/${subjs.length}</span>
-                </div>
-              </td>
-              <td><button class="btn btn-sm" onclick="event.stopPropagation();openStudent(${s.id})">Open</button></td>
-            </tr>`;
-          }).join("")}
-        </tbody>
+                <span style="font-size:11px;color:var(--tx2)">${entered}/${subjs.length}</span>
+              </div>
+            </td>
+            <td><button class="btn btn-sm" onclick="event.stopPropagation();openStudent(${s.id})">Open</button></td>
+          </tr>`;
+        }).join("")}</tbody>
       </table>
     </div>`;
 }
@@ -478,17 +594,15 @@ function renderSection(sec) {
 function filterTable(q) {
   const cls = document.getElementById("cls-filter")?.value || "";
   document.querySelectorAll("#student-table tbody tr").forEach(r => {
-    const name = r.dataset.name || "";
-    const rc = r.dataset.cls || "";
-    const show = name.includes(q.toLowerCase()) && (!cls || rc === cls);
+    const show = (r.dataset.name||"").includes(q.toLowerCase()) && (!cls || r.dataset.cls===cls);
     r.style.display = show ? "" : "none";
   });
 }
 
 /* ── student detail ── */
 function openStudent(sid) {
-  const s = STUDENTS.find(x => x.id === sid);
-  if(!s) return;
+  const s = STUDENTS.find(x=>x.id===sid);
+  if (!s) return;
   const subjs = SUBJECTS[s.sec];
   document.getElementById("page-title").textContent = s.name;
   document.getElementById("page-meta").textContent = `${s.cls} · ${s.sec} · ID ${s.id}`;
@@ -497,58 +611,46 @@ function openStudent(sid) {
       <button class="btn btn-sm" onclick="navToSection('${s.sec}')"><i class="ti ti-arrow-left"></i> Back</button>
       <button class="btn btn-sm btn-primary" onclick="showReportCard(${sid})"><i class="ti ti-file-text"></i> Report Card</button>
     </div>`;
-
   const att = getAtt(sid);
   document.getElementById("content").innerHTML = `
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Academic scores · ${TERM}</span>
-        <span style="font-size:11px;color:var(--color-text-secondary)">CA out of 40 · Exam out of 60</span>
+        <span class="card-title">Academic scores · ${currentTerm} ${currentSession}</span>
+        <span style="font-size:11px;color:var(--tx2)">CA /40 · Exam /60</span>
       </div>
       <div class="score-head">
         <span>Subject</span><span style="text-align:center">CA /40</span><span style="text-align:center">Exam /60</span><span style="text-align:center">Total</span><span style="text-align:center">Grade</span>
       </div>
-      ${subjs.map(sub => {
-        const sc = getScore(sid, sub);
-        const t  = total(sid, sub);
-        const g  = grade(t);
-        const key = sub.replace(/\W/g,"_");
+      ${subjs.map(sub=>{
+        const sc=getScore(sid,sub), t=total(sid,sub), g=grade(t), k=sub.replace(/\W/g,"_");
         return `<div class="score-grid">
-          <span style="font-size:13px">${sub}</span>
+          <span>${sub}</span>
           <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
-            oninput="setScore(${sid},'${sub}','ca',this.value);updateRow(${sid},'${sub}')" />
+            oninput="setScore(${sid},'${sub}','ca',this.value);updateDetailRow(${sid},'${sub}')" />
           <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
-            oninput="setScore(${sid},'${sub}','exam',this.value);updateRow(${sid},'${sub}')" />
-          <span id="tot-${sid}-${key}" style="text-align:center;font-weight:600;font-size:13px">${t!==null?t:"—"}</span>
-          <span id="gr-${sid}-${key}" style="text-align:center">${gradeBadge(g)}</span>
+            oninput="setScore(${sid},'${sub}','exam',this.value);updateDetailRow(${sid},'${sub}')" />
+          <span id="dt-${sid}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</span>
+          <span id="dg-${sid}-${k}" style="text-align:center">${gradeBadge(g)}</span>
         </div>`;
       }).join("")}
     </div>
-
     <div class="card">
       <div class="card-head"><span class="card-title">Attendance</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-        <div class="field"><label>Total school days this term</label>
+        <div class="field"><label>Total school days</label>
           <input type="number" value="${att.total}" oninput="setAtt(${sid},'total',this.value);updateAttPct(${sid})" /></div>
         <div class="field"><label>Days present</label>
           <input type="number" placeholder="Enter…" value="${att.present}" oninput="setAtt(${sid},'present',this.value);updateAttPct(${sid})" /></div>
         <div class="field"><label>Attendance %</label>
-          <input type="text" readonly id="att-pct-${sid}" value="${att.present ? Math.round(att.present/att.total*100)+'%' : '—'}" /></div>
+          <input type="text" readonly id="att-pct-${sid}" value="${att.present?Math.round(att.present/att.total*100)+'%':'—'}" /></div>
       </div>
     </div>
-
-    <div class="card" style="border-left:3px solid #C9A84C">
-      <div class="card-head">
-        <span class="card-title" style="color:#8A6F30"><i class="ti ti-star"></i> EDGE Character Observation</span>
-      </div>
-      <div class="field">
-        <label>Describe this student's character, attitude, and personal growth this term</label>
-        <textarea rows="4"
-          placeholder="e.g. Abiodun shows remarkable courage in class discussions. He volunteers answers even when unsure, which models confidence for his peers. His honesty is consistent and his treatment of classmates reflects genuine kindness…"
-          oninput="setChar(${sid},this.value)">${getChar(sid)}</textarea>
+    <div class="card" style="border-left:3px solid var(--gold)">
+      <div class="card-head"><span class="card-title" style="color:#8A6F30"><i class="ti ti-star"></i> EDGE Character Observation</span></div>
+      <div class="field"><label>Describe this student's character, attitude and personal growth this term</label>
+        <textarea rows="4" placeholder="e.g. Shows remarkable courage in class discussions…" oninput="setChar(${sid},this.value)">${getChar(sid)}</textarea>
       </div>
     </div>
-
     <div class="card">
       <div class="card-head"><span class="card-title">Comments</span></div>
       <div class="field"><label>Teacher's comment</label>
@@ -558,52 +660,136 @@ function openStudent(sid) {
     </div>`;
 }
 
-function updateRow(sid, sub) {
-  const key = sub.replace(/\W/g,"_");
-  const t = total(sid, sub);
-  const g = grade(t);
-  const te = document.getElementById(`tot-${sid}-${key}`);
-  const ge = document.getElementById(`gr-${sid}-${key}`);
-  if(te) te.textContent = t !== null ? t : "—";
-  if(ge) ge.innerHTML = gradeBadge(g);
+function updateDetailRow(sid, sub) {
+  const k=sub.replace(/\W/g,"_"), t=total(sid,sub), g=grade(t);
+  const te=document.getElementById(`dt-${sid}-${k}`), ge=document.getElementById(`dg-${sid}-${k}`);
+  if (te) te.textContent = t!==null?t:"—";
+  if (ge) ge.innerHTML  = gradeBadge(g);
 }
 function updateAttPct(sid) {
-  const att = getAtt(sid);
-  const el = document.getElementById(`att-pct-${sid}`);
-  if(el) el.value = att.present ? Math.round(parseInt(att.present)/parseInt(att.total)*100)+"%" : "—";
+  const a=getAtt(sid), el=document.getElementById(`att-pct-${sid}`);
+  if (el) el.value = a.present ? Math.round(parseInt(a.present)/parseInt(a.total)*100)+"%" : "—";
+}
+
+/* ── score entry (bulk) ── */
+let _entryClass="", _entrySubject="";
+
+function renderScoreEntry() {
+  document.getElementById("page-title").textContent = "Score Entry";
+  document.getElementById("page-meta").textContent = "Select a class and subject to fill scores for the whole class";
+  document.getElementById("topbar-actions").innerHTML = "";
+  const allClasses = Object.values(CLASSES).flat();
+  document.getElementById("content").innerHTML = `
+    <div class="card">
+      <div class="card-head"><span class="card-title">Filter</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Class</label>
+          <select id="entry-cls" onchange="onEntryClassChange(this.value)">
+            <option value="">— Select class —</option>
+            ${allClasses.map(c=>`<option ${c===_entryClass?"selected":""}>${c}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field"><label>Subject</label>
+          <select id="entry-sub" onchange="onEntrySubjectChange(this.value)" ${_entryClass?"":"disabled"}>
+            <option value="">— Select subject —</option>
+            ${_entryClass ? SUBJECTS[sectionForClass(_entryClass)].map(s=>`<option ${s===_entrySubject?"selected":""}>${s}</option>`).join("") : ""}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="entry-table-wrap"></div>`;
+  if (_entryClass && _entrySubject) buildEntryTable(_entryClass, _entrySubject);
+}
+
+function onEntryClassChange(cls) {
+  _entryClass = cls; _entrySubject = "";
+  const subjSel = document.getElementById("entry-sub");
+  const wrap    = document.getElementById("entry-table-wrap");
+  if (!cls) { subjSel.disabled=true; subjSel.innerHTML=`<option value="">— Select subject —</option>`; wrap.innerHTML=""; return; }
+  const sec = sectionForClass(cls);
+  subjSel.disabled = false;
+  subjSel.innerHTML = `<option value="">— Select subject —</option>${SUBJECTS[sec].map(s=>`<option>${s}</option>`).join("")}`;
+  wrap.innerHTML = "";
+}
+
+function onEntrySubjectChange(sub) {
+  _entrySubject = sub;
+  if (_entryClass && sub) buildEntryTable(_entryClass, sub);
+  else document.getElementById("entry-table-wrap").innerHTML = "";
+}
+
+function buildEntryTable(cls, sub) {
+  const students = STUDENTS.filter(s=>s.cls===cls).sort((a,b)=>a.name.localeCompare(b.name));
+  const wrap = document.getElementById("entry-table-wrap");
+  if (!wrap) return;
+  if (!students.length) { wrap.innerHTML=`<div class="empty"><i class="ti ti-users-off"></i>No students in ${cls}</div>`; return; }
+  wrap.innerHTML = `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:.5px solid var(--bd3);display:flex;justify-content:space-between;align-items:center">
+        <span class="card-title">${cls} · ${sub}</span>
+        <span style="font-size:11px;color:var(--tx2)">${students.length} students · CA max 40 · Exam max 60</span>
+      </div>
+      <table id="entry-tbl">
+        <thead><tr>
+          <th>Name</th>
+          <th style="text-align:center;width:100px">CA /40</th>
+          <th style="text-align:center;width:100px">Exam /60</th>
+          <th style="text-align:center;width:72px">Total</th>
+          <th style="text-align:center;width:60px">Grade</th>
+        </tr></thead>
+        <tbody>${students.map(s=>{
+          const sc=getScore(s.id,sub), t=total(s.id,sub), g=grade(t), k=sub.replace(/\W/g,"_");
+          return `<tr>
+            <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+            <td style="text-align:center">
+              <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
+                style="max-width:72px;margin:0 auto"
+                oninput="setScore(${s.id},'${sub}','ca',this.value);updateEntryRow(${s.id},'${sub}')" />
+            </td>
+            <td style="text-align:center">
+              <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
+                style="max-width:72px;margin:0 auto"
+                oninput="setScore(${s.id},'${sub}','exam',this.value);updateEntryRow(${s.id},'${sub}')" />
+            </td>
+            <td id="et-${s.id}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</td>
+            <td id="eg-${s.id}-${k}" style="text-align:center">${gradeBadge(g)}</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>`;
+}
+
+function updateEntryRow(sid, sub) {
+  const k=sub.replace(/\W/g,"_"), t=total(sid,sub), g=grade(t);
+  const te=document.getElementById(`et-${sid}-${k}`), ge=document.getElementById(`eg-${sid}-${k}`);
+  if (te) te.textContent = t!==null?t:"—";
+  if (ge) ge.innerHTML  = gradeBadge(g);
 }
 
 /* ── report card ── */
 function showReportCard(sid) {
-  const s = STUDENTS.find(x => x.id === sid);
-  if(!s) return;
-  const subjs = SUBJECTS[s.sec];
-  const att = getAtt(sid);
+  const s = STUDENTS.find(x=>x.id===sid);
+  if (!s) return;
+  const subjs=SUBJECTS[s.sec], att=getAtt(sid);
   const pct = att.present ? Math.round(parseInt(att.present)/parseInt(att.total)*100) : 0;
-
-  const rows = subjs.map(sub => {
-    const sc = getScore(sid, sub);
-    const t  = total(sid, sub);
-    const g  = grade(t);
-    const isEdge = sub === "EDGE Formation";
-    return `<tr style="${isEdge ? 'background:var(--color-background-secondary)' : ''}">
-      <td>${sub}${isEdge ? ' <span style="font-size:10px;color:#8A6F30">★ EDGE</span>' : ''}</td>
-      <td style="text-align:center">${sc.ca || "—"}</td>
-      <td style="text-align:center">${sc.exam || "—"}</td>
-      <td style="text-align:center;font-weight:600">${t !== null ? t : "—"}</td>
+  const rows = subjs.map(sub=>{
+    const sc=getScore(sid,sub), t=total(sid,sub), g=grade(t), isEdge=sub==="EDGE Formation";
+    return `<tr style="${isEdge?"background:var(--bg2)":""}">
+      <td>${sub}${isEdge?' <span style="font-size:10px;color:#8A6F30">★ EDGE</span>':''}</td>
+      <td style="text-align:center">${sc.ca||"—"}</td>
+      <td style="text-align:center">${sc.exam||"—"}</td>
+      <td style="text-align:center;font-weight:600">${t!==null?t:"—"}</td>
       <td style="text-align:center">${g}</td>
-      <td style="font-size:11px;color:var(--color-text-secondary)">${remarkText(g)}</td>
+      <td style="font-size:11px;color:var(--tx2)">${remark(g)}</td>
     </tr>`;
   }).join("");
-
   document.getElementById("page-title").textContent = "Report Card";
-  document.getElementById("page-meta").textContent = `${s.name} · ${s.cls} · ${TERM}`;
+  document.getElementById("page-meta").textContent = `${s.name} · ${s.cls} · ${currentTerm} ${currentSession}`;
   document.getElementById("topbar-actions").innerHTML = `
     <div style="display:flex;gap:8px">
       <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i> Back</button>
       <button class="btn btn-sm btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
     </div>`;
-
   document.getElementById("content").innerHTML = `
     <div class="rc">
       <div class="rc-header">
@@ -612,107 +798,172 @@ function showReportCard(sid) {
         <div class="rc-addr">debbyfieldschools@gmail.com</div>
         <div class="rc-title">STUDENT REPORT CARD</div>
       </div>
-
       <div class="rc-info-grid">
         <div class="rc-info-row"><span class="rc-info-label">Name:</span><span class="rc-info-val">${s.name}</span></div>
         <div class="rc-info-row"><span class="rc-info-label">Class:</span><span class="rc-info-val">${s.cls}</span></div>
         <div class="rc-info-row"><span class="rc-info-label">Section:</span><span class="rc-info-val">${s.sec}</span></div>
-        <div class="rc-info-row"><span class="rc-info-label">Term:</span><span class="rc-info-val">${TERM}</span></div>
+        <div class="rc-info-row"><span class="rc-info-label">Term:</span><span class="rc-info-val">${currentTerm}</span></div>
         <div class="rc-info-row"><span class="rc-info-label">Student ID:</span><span class="rc-info-val">${s.id}</span></div>
-        <div class="rc-info-row"><span class="rc-info-label">Session:</span><span class="rc-info-val">${SESSION}</span></div>
+        <div class="rc-info-row"><span class="rc-info-label">Session:</span><span class="rc-info-val">${currentSession}</span></div>
       </div>
-
       <table class="rc-table">
-        <thead>
-          <tr><th>Subject</th><th>CA /40</th><th>Exam /60</th><th>Total</th><th>Grade</th><th>Remark</th></tr>
-        </thead>
+        <thead><tr><th>Subject</th><th>CA /40</th><th>Exam /60</th><th>Total</th><th>Grade</th><th>Remark</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-
       <div class="att-row">
         <div class="att-item"><span>Total days</span><span>${att.total}</span></div>
-        <div class="att-item"><span>Days present</span><span>${att.present || "—"}</span></div>
-        <div class="att-item"><span>Days absent</span><span>${att.present ? parseInt(att.total)-parseInt(att.present) : "—"}</span></div>
-        <div class="att-item"><span>Attendance</span><span>${att.present ? pct+"%" : "—"}</span></div>
+        <div class="att-item"><span>Days present</span><span>${att.present||"—"}</span></div>
+        <div class="att-item"><span>Days absent</span><span>${att.present?parseInt(att.total)-parseInt(att.present):"—"}</span></div>
+        <div class="att-item"><span>Attendance</span><span>${att.present?pct+"%":"—"}</span></div>
       </div>
-
-      <div style="font-size:11px;display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;color:var(--color-text-secondary)">
-        <span>A = Excellent (70–100)</span>
-        <span>B = Good (60–69)</span>
-        <span>C = Satisfactory (50–59)</span>
-        <span>D = Needs Improvement (45–49)</span>
-        <span>F = Fail (0–44)</span>
+      <div style="font-size:11px;display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;color:var(--tx2)">
+        <span>A = Excellent (70–100)</span><span>B = Good (60–69)</span><span>C = Satisfactory (50–59)</span><span>D = Needs Improvement (45–49)</span><span>F = Fail (0–44)</span>
       </div>
-
-      ${getChar(sid) ? `
-      <div class="char-box">
-        <div class="char-label">EDGE Character Observation</div>
-        <div style="white-space:pre-wrap">${getChar(sid)}</div>
-      </div>` : ""}
-
+      ${getChar(sid)?`<div class="char-box"><div class="char-label">EDGE Character Observation</div><div style="white-space:pre-wrap">${getChar(sid)}</div></div>`:""}
       <div class="comment-row">
         <div class="comment-label">Teacher's comment</div>
-        <div style="min-height:36px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--r);padding:7px 10px;font-size:12px">${getTComment(sid)||""}</div>
+        <div style="min-height:36px;border:.5px solid var(--bd3);border-radius:var(--r);padding:7px 10px;font-size:12px">${getTComment(sid)||""}</div>
       </div>
       <div class="comment-row">
         <div class="comment-label">Principal's comment</div>
-        <div style="min-height:36px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--r);padding:7px 10px;font-size:12px">${getPComment(sid)||""}</div>
+        <div style="min-height:36px;border:.5px solid var(--bd3);border-radius:var(--r);padding:7px 10px;font-size:12px">${getPComment(sid)||""}</div>
       </div>
-
       <div class="sig-row">
-        <div><div style="border-top:0.5px solid var(--color-border-secondary);width:140px;padding-top:4px">Class Teacher's Signature</div></div>
-        <div><div style="border-top:0.5px solid var(--color-border-secondary);width:140px;padding-top:4px;text-align:center">Principal's Signature</div></div>
-        <div><div style="border-top:0.5px solid var(--color-border-secondary);width:100px;padding-top:4px;text-align:right">Date</div></div>
+        <div><div style="border-top:.5px solid var(--bd2);width:140px;padding-top:4px">Class Teacher's Signature</div></div>
+        <div><div style="border-top:.5px solid var(--bd2);width:140px;padding-top:4px;text-align:center">Principal's Signature</div></div>
+        <div><div style="border-top:.5px solid var(--bd2);width:100px;padding-top:4px;text-align:right">Date</div></div>
       </div>
-
-      <div style="text-align:center;font-size:10px;color:var(--color-text-tertiary);margin-top:14px;padding-top:8px;border-top:0.5px solid var(--color-border-tertiary)">
-        Achieving Life's Purpose · Debbyfield Schools
-      </div>
+      <div style="text-align:center;font-size:10px;color:var(--tx3);margin-top:14px;padding-top:8px;border-top:.5px solid var(--bd3)">Achieving Life's Purpose · Debbyfield Schools</div>
     </div>`;
 }
 
-/* ── global search ── */
+/* ── search ── */
 function renderSearch() {
   document.getElementById("page-title").textContent = "Find Student";
   document.getElementById("page-meta").textContent = "Search across all sections";
   document.getElementById("topbar-actions").innerHTML = "";
   document.getElementById("content").innerHTML = `
-    <div class="search-bar">
-      <input id="global-search" placeholder="Type a name or student ID…" oninput="globalSearch(this.value)" autofocus />
-    </div>
+    <div class="search-bar"><input id="global-search" placeholder="Type a name or student ID…" oninput="globalSearch(this.value)" autofocus /></div>
     <div id="search-results" class="card" style="padding:0;overflow:hidden">
       <div class="empty"><i class="ti ti-search"></i>Start typing to search</div>
     </div>`;
-  setTimeout(() => document.getElementById("global-search")?.focus(), 50);
+  setTimeout(()=>document.getElementById("global-search")?.focus(),50);
 }
-
 function globalSearch(q) {
   const el = document.getElementById("search-results");
-  if(!q.trim()) { el.innerHTML = `<div class="empty"><i class="ti ti-search"></i>Start typing to search</div>`; return; }
-  const res = STUDENTS.filter(s => s.name.toLowerCase().includes(q.toLowerCase()) || String(s.id).includes(q));
-  if(!res.length) { el.innerHTML = `<div class="empty"><i class="ti ti-mood-sad"></i>No students found</div>`; return; }
-  el.innerHTML = `<table>
-    <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>ID</th><th></th></tr></thead>
-    <tbody>${res.map(s => `
-      <tr class="trow-click" onclick="openStudent(${s.id})">
-        <td>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:28px;height:28px;border-radius:50%;background:${avatarColor(s.name)};display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600">${initials(s.name)}</div>
-            ${s.name}
-          </div>
-        </td>
-        <td>${s.cls}</td>
-        <td>${s.sec}</td>
-        <td style="color:var(--color-text-secondary)">${s.id}</td>
-        <td><button class="btn btn-sm">Open</button></td>
-      </tr>`).join("")}
-    </tbody>
-  </table>`;
+  if (!q.trim()) { el.innerHTML=`<div class="empty"><i class="ti ti-search"></i>Start typing to search</div>`; return; }
+  const res = STUDENTS.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||String(s.id).includes(q));
+  if (!res.length) { el.innerHTML=`<div class="empty"><i class="ti ti-mood-sad"></i>No students found</div>`; return; }
+  el.innerHTML=`<table><thead><tr><th>Name</th><th>Class</th><th>Section</th><th>ID</th><th></th></tr></thead><tbody>${
+    res.map(s=>`<tr class="trow-click" onclick="openStudent(${s.id})">
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+      <td>${s.cls}</td><td>${s.sec}</td>
+      <td style="color:var(--tx2)">${s.id}</td>
+      <td><button class="btn btn-sm">Open</button></td>
+    </tr>`).join("")}
+  </tbody></table>`;
+}
+
+/* ── settings ── */
+function renderSettings() {
+  const savedUrl = localStorage.getItem("dbs-sb-url")||"";
+  const savedKey = localStorage.getItem("dbs-sb-key")||"";
+  document.getElementById("page-title").textContent = "Settings";
+  document.getElementById("page-meta").textContent = "Database connection and term management";
+  document.getElementById("topbar-actions").innerHTML = "";
+  const connBadge = {connected:`<span class="badge badge-ok">Connected</span>`,error:`<span class="badge badge-err">Error</span>`,loading:`<span class="badge badge-neutral">Connecting…</span>`,offline:`<span class="badge badge-neutral">Not connected</span>`}[dbStatus];
+  document.getElementById("content").innerHTML = `
+    <div class="card">
+      <div class="card-head"><span class="card-title">Supabase connection</span>${connBadge}</div>
+      <div class="field"><label>Project URL</label>
+        <input type="url" id="sb-url" placeholder="https://xxxxxxxxxxxx.supabase.co" value="${savedUrl}" /></div>
+      <div class="field"><label>Anon / Public key</label>
+        <input type="password" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIs…" value="${savedKey}" /></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary" onclick="connectSupabase()"><i class="ti ti-plug"></i> Save &amp; Connect</button>
+        ${savedUrl?`<button class="btn" onclick="disconnectSupabase()"><i class="ti ti-plug-off"></i> Disconnect</button>`:""}
+      </div>
+      ${dbStatus==="error"?`<p style="margin-top:10px;font-size:12px;color:var(--tx-err)">Connection failed — check that the URL and key are correct and that the tables exist.</p>`:""}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">Active term &amp; session</span></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Currently viewing: <strong>${currentTerm} · ${currentSession}</strong>. Switch to load a different term's data from Supabase.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Term</label>
+          <select id="sw-term">
+            ${["First Term","Second Term","Third Term"].map(t=>`<option ${t===currentTerm?"selected":""}>${t}</option>`).join("")}
+          </select></div>
+        <div class="field"><label>Academic session (e.g. 2025/2026)</label>
+          <input type="text" id="sw-session" value="${currentSession}" placeholder="2025/2026" /></div>
+      </div>
+      <button class="btn btn-primary" onclick="switchTermSession()"><i class="ti ti-refresh"></i> Switch to this term / session</button>
+      <p style="font-size:11px;color:var(--tx2);margin-top:8px">All previous terms stay stored in Supabase and can be accessed at any time by switching back.</p>
+    </div>
+
+    <div class="card" style="border-left:3px solid var(--gold)">
+      <div class="card-head"><span class="card-title" style="color:#8A6F30"><i class="ti ti-info-circle"></i> First-time Supabase setup</span></div>
+      <div style="font-size:12px;color:var(--tx2)">
+        <div class="setup-step"><div class="setup-num">1</div><div>Create a free project at <strong>supabase.com</strong></div></div>
+        <div class="setup-step"><div class="setup-num">2</div><div>In the SQL Editor, paste and run the contents of <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">supabase-setup.sql</code> (included in this repo)</div></div>
+        <div class="setup-step"><div class="setup-num">3</div><div>Go to <strong>Project Settings → API</strong> and copy your <strong>Project URL</strong> and <strong>anon public</strong> key</div></div>
+        <div class="setup-step"><div class="setup-num">4</div><div>Paste them above and click <strong>Save &amp; Connect</strong></div></div>
+      </div>
+    </div>`;
+}
+
+async function connectSupabase() {
+  const url = document.getElementById("sb-url")?.value?.trim();
+  const key = document.getElementById("sb-key")?.value?.trim();
+  if (!url || !key) { alert("Enter both the project URL and anon key."); return; }
+  localStorage.setItem("dbs-sb-url", url);
+  localStorage.setItem("dbs-sb-key", key);
+  dbStatus = "loading"; updateDbIndicator(); renderSettings();
+  initSupabase(url, key);
+  const ok = await loadFromSupabase();
+  dbStatus = ok ? "connected" : "error";
+  updateDbIndicator(); renderSettings();
+}
+
+function disconnectSupabase() {
+  localStorage.removeItem("dbs-sb-url"); localStorage.removeItem("dbs-sb-key");
+  dbClient = null; dbStatus = "offline";
+  updateDbIndicator(); renderSettings();
+}
+
+async function switchTermSession() {
+  const t = document.getElementById("sw-term")?.value;
+  const s = document.getElementById("sw-session")?.value?.trim();
+  if (!t || !s) { alert("Select a term and enter a session."); return; }
+  currentTerm = t; currentSession = s;
+  localStorage.setItem("dbs-term", t); localStorage.setItem("dbs-session", s);
+  store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
+  if (dbClient) { dbStatus="loading"; updateDbIndicator(); await loadFromSupabase(); dbStatus="connected"; }
+  else loadLocalStore();
+  updateDbIndicator(); updateTermDisplay();
+  renderDashboard();
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  document.querySelectorAll(".nav-item")[0]?.classList.add("active");
 }
 
 /* ── boot ── */
-loadStore();
+loadLocalStore();
+updateTermDisplay();
+updateDbIndicator();
 renderDashboard();
+
+(async () => {
+  const url = localStorage.getItem("dbs-sb-url");
+  const key = localStorage.getItem("dbs-sb-key");
+  if (url && key) {
+    dbStatus = "loading"; updateDbIndicator();
+    initSupabase(url, key);
+    const ok = await loadFromSupabase();
+    dbStatus = ok ? "connected" : "error";
+    updateDbIndicator();
+    renderDashboard();
+  }
+})();
 </script>
 </body>
 </html>
