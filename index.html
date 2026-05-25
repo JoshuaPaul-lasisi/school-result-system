@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Debbyfield Schools — Academic Records</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
+  <style>
+    :root {
+      --burg: #8B1A2F;
+      --gold: #C9A84C;
+      --r: 6px;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      /* backgrounds */
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #f6f6f7;
+      --color-background-success: #e8f5e9;
+      --color-background-info: #e3f2fd;
+      --color-background-warning: #fff8e1;
+      --color-background-danger: #ffebee;
+      /* text */
+      --color-text-primary: #111827;
+      --color-text-secondary: #6b7280;
+      --color-text-tertiary: #9ca3af;
+      --color-text-success: #16a34a;
+      --color-text-info: #1d4ed8;
+      --color-text-warning: #d97706;
+      --color-text-danger: #dc2626;
+      /* borders */
+      --color-border-primary: #9ca3af;
+      --color-border-secondary: #d1d5db;
+      --color-border-tertiary: #e5e7eb;
+      /* radius */
+      --border-radius-md: 6px;
+      --border-radius-lg: 10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { font-family: var(--font-sans); font-size: 14px; background: #f0f0f1; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+    .app { display: grid; grid-template-columns: 210px 1fr; width: 100%; max-width: 1100px; height: 96vh; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+
+    /* ── sidebar ── */
+    .sidebar { background: var(--color-background-secondary); border-right: 0.5px solid var(--color-border-tertiary); padding: 12px 0; display: flex; flex-direction: column; }
+    .logo { padding: 12px 16px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 8px; }
+    .logo-name { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+    .logo-sub { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+    .nav-section { padding: 0 8px; margin-bottom: 4px; }
+    .nav-label { font-size: 10px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .8px; padding: 6px 8px 4px; }
+    .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r); cursor: pointer; font-size: 13px; color: var(--color-text-secondary); transition: background .15s; user-select: none; }
+    .nav-item:hover { background: var(--color-background-primary); }
+    .nav-item.active { background: var(--color-background-primary); color: var(--color-text-primary); font-weight: 500; }
+    .nav-item i { font-size: 16px; opacity: .7; }
+
+    /* ── main ── */
+    .main { background: var(--color-background-primary); overflow: hidden; display: flex; flex-direction: column; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); flex-shrink: 0; }
+    .topbar-title { font-size: 15px; font-weight: 600; color: var(--color-text-primary); }
+    .topbar-meta { font-size: 12px; color: var(--color-text-secondary); margin-top: 1px; }
+    .content { flex: 1; overflow-y: auto; padding: 16px; }
+
+    /* ── buttons ── */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--r); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-size: 13px; font-family: var(--font-sans); cursor: pointer; transition: background .15s; }
+    .btn:hover { background: var(--color-background-secondary); }
+    .btn-primary { background: #8B1A2F; border-color: #8B1A2F; color: white; }
+    .btn-primary:hover { background: #6d1424; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* ── badges ── */
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+    .badge-a { background: var(--color-background-success); color: var(--color-text-success); }
+    .badge-b { background: var(--color-background-info); color: var(--color-text-info); }
+    .badge-c { background: var(--color-background-warning); color: var(--color-text-warning); }
+    .badge-d { background: var(--color-background-warning); color: var(--color-text-warning); }
+    .badge-f { background: var(--color-background-danger); color: var(--color-text-danger); }
+
+    /* ── cards ── */
+    .card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px 16px; margin-bottom: 12px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .card-title { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+
+    /* ── stats ── */
+    .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
+    .stat { background: var(--color-background-secondary); border-radius: var(--r); padding: 10px 12px; }
+    .stat-val { font-size: 22px; font-weight: 600; color: var(--color-text-primary); }
+    .stat-lbl { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+
+    /* ── table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 500; color: var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); white-space: nowrap; }
+    td { padding: 8px 10px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--color-background-secondary); }
+    .trow-click { cursor: pointer; }
+
+    /* ── forms ── */
+    input, select, textarea { font-family: var(--font-sans); font-size: 13px; color: var(--color-text-primary); background: var(--color-background-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--r); padding: 7px 10px; width: 100%; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #8B1A2F; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 11px; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 4px; }
+
+    /* ── score grid ── */
+    .score-grid { display: grid; grid-template-columns: 1fr 80px 80px 80px 70px; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+    .score-grid:last-child { border-bottom: none; }
+    .score-head { display: grid; grid-template-columns: 1fr 80px 80px 80px 70px; gap: 8px; padding: 0 0 8px; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 4px; }
+    .score-head span { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); }
+    .score-input { padding: 5px 8px; text-align: center; width: 100%; }
+
+    /* ── search ── */
+    .search-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+    .search-bar input { flex: 1; }
+
+    /* ── empty state ── */
+    .empty { text-align: center; padding: 40px; color: var(--color-text-secondary); }
+    .empty i { font-size: 32px; margin-bottom: 8px; display: block; opacity: .4; }
+
+    /* ── character box ── */
+    .char-box { background: var(--color-background-secondary); border-left: 3px solid #C9A84C; border-radius: 0 var(--r) var(--r) 0; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; }
+    .char-label { font-size: 10px; font-weight: 600; color: #8A6F30; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 4px; }
+
+    /* ── report card ── */
+    .rc { background: var(--color-background-primary); max-width: 640px; margin: 0 auto; }
+    .rc-header { border-bottom: 2px solid #8B1A2F; padding-bottom: 12px; margin-bottom: 14px; }
+    .rc-school { font-size: 17px; font-weight: 700; color: #8B1A2F; text-align: center; }
+    .rc-addr { font-size: 11px; color: var(--color-text-secondary); text-align: center; margin-top: 2px; }
+    .rc-title { font-size: 18px; font-weight: 600; text-align: center; margin: 8px 0 4px; color: var(--color-text-primary); }
+    .rc-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 12px; margin-bottom: 14px; }
+    .rc-info-row { display: flex; gap: 6px; }
+    .rc-info-label { color: var(--color-text-secondary); min-width: 80px; }
+    .rc-info-val { color: var(--color-text-primary); font-weight: 600; }
+    .rc-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
+    .rc-table th { background: var(--color-background-secondary); padding: 7px 10px; text-align: left; border: 0.5px solid var(--color-border-tertiary); font-size: 11px; font-weight: 500; color: var(--color-text-secondary); }
+    .rc-table td { padding: 6px 10px; border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+    .att-row { display: flex; gap: 24px; font-size: 12px; margin-bottom: 14px; }
+    .att-item { display: flex; flex-direction: column; gap: 2px; }
+    .att-item span:first-child { color: var(--color-text-secondary); font-size: 11px; }
+    .att-item span:last-child { font-weight: 600; }
+    .comment-row { margin-bottom: 10px; font-size: 12px; }
+    .comment-label { font-size: 10px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 3px; }
+    .sig-row { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 0.5px solid var(--color-border-tertiary); font-size: 11px; color: var(--color-text-secondary); }
+
+    /* ── print ── */
+    @media print {
+      html, body { background: white; display: block; }
+      .app, .sidebar, .topbar { display: none !important; }
+      .content { padding: 0; overflow: visible; }
+      .rc { max-width: none; display: block !important; }
+      .card { border: none; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="sidebar">
+    <div class="logo">
+      <div class="logo-name">Debbyfield Schools</div>
+      <div class="logo-sub">Academic Records · 2025/2026</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" onclick="nav('dashboard',null,this)">
+        <i class="ti ti-layout-dashboard" aria-hidden="true"></i>Dashboard
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Classes</div>
+      <div class="nav-item" onclick="nav('class','Pre-Primary',this)">
+        <i class="ti ti-star" aria-hidden="true"></i>Pre-Primary
+      </div>
+      <div class="nav-item" onclick="nav('class','Primary',this)">
+        <i class="ti ti-school" aria-hidden="true"></i>Primary
+      </div>
+      <div class="nav-item" onclick="nav('class','Junior Secondary',this)">
+        <i class="ti ti-book" aria-hidden="true"></i>JSS
+      </div>
+      <div class="nav-item" onclick="nav('class','Senior Secondary',this)">
+        <i class="ti ti-certificate" aria-hidden="true"></i>SS
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Tools</div>
+      <div class="nav-item" onclick="nav('search',null,this)">
+        <i class="ti ti-search" aria-hidden="true"></i>Find Student
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="page-title">Dashboard</div>
+        <div class="topbar-meta" id="page-meta"></div>
+      </div>
+      <div id="topbar-actions"></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<script>
+/* ── data ── */
+const STUDENTS = [
+  {id:1001,name:"Abdulazeez Quyyum",cls:"Nursery 1",sec:"Pre-Primary",gender:"Male"},
+  {id:1002,name:"Abdulganiu Mojeed",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1003,name:"Abdulrasaq Azeema",cls:"KG 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1004,name:"Abdulsalam Faridat",cls:"Basic 2",sec:"Primary",gender:"Female"},
+  {id:1005,name:"Abdulsalam Idris",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1006,name:"Abidogun Rokibat",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1007,name:"Abiodun Deborah",cls:"JSS 1",sec:"Junior Secondary",gender:"Female"},
+  {id:1057,name:"Abiodun Korede",cls:"JSS 1",sec:"Junior Secondary",gender:"Male"},
+  {id:1008,name:"Abiodun Rainbow",cls:"KG 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1009,name:"Adamu Abdulazeez",cls:"JSS 1",sec:"Junior Secondary",gender:"Male"},
+  {id:1010,name:"Adebayo Deborah",cls:"JSS 1",sec:"Junior Secondary",gender:"Male"},
+  {id:1011,name:"Adeleye Fathia",cls:"SS 1",sec:"Senior Secondary",gender:"Female"},
+  {id:1012,name:"Adeleye Mazeedat",cls:"Basic 3",sec:"Primary",gender:"Female"},
+  {id:1013,name:"Adenla Abiodun",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1014,name:"Adeseun Faruq",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1015,name:"Adetimiri Faruq",cls:"Nursery 1",sec:"Pre-Primary",gender:"Male"},
+  {id:1016,name:"Adetunji Balikis",cls:"Nursery 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1017,name:"Adetunji Muiz",cls:"Basic 5",sec:"Primary",gender:"Male"},
+  {id:1018,name:"Adeyemo Feranmi",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1019,name:"Adigun Folawemi",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1020,name:"Agboola Zeenat",cls:"Nursery 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1021,name:"Agogo Tobiloba",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1022,name:"Agu Ijeoma",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1023,name:"Akinfemi Oluwaferanmi",cls:"SS 2",sec:"Senior Secondary",gender:"Male"},
+  {id:1024,name:"Akinwale Samson",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1025,name:"Aremu Aliyat",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1026,name:"Ayeni Victor",cls:"Basic 3",sec:"Primary",gender:"Male"},
+  {id:1027,name:"Ayeni Victoria",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1028,name:"Ayeni Victory",cls:"KG 1",sec:"Pre-Primary",gender:"Male"},
+  {id:1029,name:"Azeez Alimot",cls:"Basic 4",sec:"Primary",gender:"Female"},
+  {id:1030,name:"Azeez Samson",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1031,name:"Bello Darasimi",cls:"KG 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1032,name:"Bello Faridat",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1033,name:"Chiagozim Samuel",cls:"KG 1",sec:"Pre-Primary",gender:"Male"},
+  {id:1034,name:"Chidim Chinaza",cls:"JSS 1",sec:"Junior Secondary",gender:"Female"},
+  {id:1035,name:"Daniel Delight",cls:"Basic 2",sec:"Primary",gender:"Male"},
+  {id:1036,name:"Dube Mariam",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1037,name:"Emeka-Venatus Ebube",cls:"JSS 1",sec:"Junior Secondary",gender:"Male"},
+  {id:1038,name:"Emeka-Venatus Emmanuel",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1039,name:"Enyianzu Chidimma",cls:"SS 1",sec:"Senior Secondary",gender:"Female"},
+  {id:1040,name:"Enyianzu Ebube",cls:"SS 2",sec:"Senior Secondary",gender:"Female"},
+  {id:1041,name:"Enyianzu Solomon",cls:"Basic 4",sec:"Primary",gender:"Male"},
+  {id:1042,name:"Eze Chinonso",cls:"SS 1",sec:"Senior Secondary",gender:"Male"},
+  {id:1043,name:"Eze Divine",cls:"SS 1",sec:"Senior Secondary",gender:"Male"},
+  {id:1044,name:"Fashakin Timilehin",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1045,name:"Francis Anuoluwapo",cls:"Nursery 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1046,name:"Harrison Cynthia",cls:"SS 1",sec:"Senior Secondary",gender:"Female"},
+  {id:1047,name:"Harrison David",cls:"Basic 2",sec:"Primary",gender:"Male"},
+  {id:1048,name:"Hassan Ibrahim",cls:"JSS 1",sec:"Junior Secondary",gender:"Male"},
+  {id:1049,name:"Hassan Sofia",cls:"Basic 3",sec:"Primary",gender:"Female"},
+  {id:1050,name:"Ibrahim Matin",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1051,name:"Ibrahimm Ahmod",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1052,name:"Ikpechukwu Chibuike",cls:"Basic 5",sec:"Primary",gender:"Male"},
+  {id:1053,name:"Ikpechukwu Chigozie",cls:"Basic 3",sec:"Primary",gender:"Male"},
+  {id:1100,name:"Ikpechukwu Favour",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1054,name:"Inaede Blessing",cls:"SS 2",sec:"Senior Secondary",gender:"Female"},
+  {id:1055,name:"Kazeem Aishat",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1056,name:"Kazeem Azeemat",cls:"Basic 2",sec:"Primary",gender:"Female"},
+  {id:1058,name:"Kuku Babajide",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1059,name:"Kumako Happy",cls:"Nursery 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1060,name:"Lawal Ismael",cls:"SS 2",sec:"Senior Secondary",gender:"Male"},
+  {id:1061,name:"Mbah Daniel",cls:"KG 1",sec:"Pre-Primary",gender:"Male"},
+  {id:1062,name:"Mbah Grace",cls:"Basic 1",sec:"Primary",gender:"Female"},
+  {id:1063,name:"Moses Emmanuel",cls:"Basic 3",sec:"Primary",gender:"Male"},
+  {id:1064,name:"Moses Samuel",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1065,name:"Muhammed Jamal",cls:"KG 1",sec:"Pre-Primary",gender:"Male"},
+  {id:1066,name:"Muhammed Sulaimon",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1067,name:"Muhammed Zino",cls:"KG 2",sec:"Pre-Primary",gender:"Male"},
+  {id:1068,name:"Musa Posi",cls:"Basic 2",sec:"Primary",gender:"Male"},
+  {id:1069,name:"Nwankwo Gabriel",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1070,name:"Ogunpola Idiat",cls:"SS 1",sec:"Senior Secondary",gender:"Female"},
+  {id:1071,name:"Ogunye Toluwalope",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1072,name:"Okafor Favour",cls:"SS 2",sec:"Senior Secondary",gender:"Female"},
+  {id:1073,name:"Oke Sekinat",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1074,name:"Okechukwu Chinonso",cls:"SS 1",sec:"Senior Secondary",gender:"Male"},
+  {id:1075,name:"Oladehinde Abraham",cls:"Basic 4",sec:"Primary",gender:"Male"},
+  {id:1076,name:"Oladeinde Rebecca",cls:"Nursery 1",sec:"Pre-Primary",gender:"Female"},
+  {id:1077,name:"Olajire Boluwatife",cls:"Basic 5",sec:"Primary",gender:"Female"},
+  {id:1078,name:"Olanrewaju Khalid",cls:"Basic 4",sec:"Primary",gender:"Male"},
+  {id:1079,name:"Onu Destiny",cls:"JSS 1",sec:"Junior Secondary",gender:"Female"},
+  {id:1080,name:"Onu Divine",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1081,name:"Orenuga Victoria",cls:"SS 2",sec:"Senior Secondary",gender:"Female"},
+  {id:1082,name:"Oyarinu Esther",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1083,name:"Oyarinu Ruth",cls:"Basic 1",sec:"Primary",gender:"Female"},
+  {id:1084,name:"Oyeleke Hanot",cls:"Basic 5",sec:"Primary",gender:"Female"},
+  {id:1085,name:"Oyelola Balikis",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+  {id:1086,name:"Oyelola Basit",cls:"Basic 3",sec:"Primary",gender:"Male"},
+  {id:1087,name:"Ozoamalu Samuel",cls:"Basic 4",sec:"Primary",gender:"Male"},
+  {id:1088,name:"Raji Desire",cls:"Basic 5",sec:"Primary",gender:"Female"},
+  {id:1089,name:"Rasaq Badmus",cls:"JSS 3",sec:"Junior Secondary",gender:"Male"},
+  {id:1090,name:"Saka Ashabi",cls:"KG 2",sec:"Pre-Primary",gender:"Female"},
+  {id:1091,name:"Saka Mosidat",cls:"Basic 2",sec:"Primary",gender:"Female"},
+  {id:1092,name:"Shodehinde Mojeed",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1099,name:"Sulaimon Arafat",cls:"JSS 1",sec:"Junior Secondary",gender:"Female"},
+  {id:1098,name:"Sulaimon Habeeb",cls:"SS 1",sec:"Senior Secondary",gender:"Male"},
+  {id:1093,name:"Sunday Emmanuel",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
+  {id:1094,name:"Tisor Cynthia",cls:"JSS 2",sec:"Junior Secondary",gender:"Female"},
+  {id:1095,name:"Uchechukwu Dempsey",cls:"Basic 2",sec:"Primary",gender:"Male"},
+  {id:1096,name:"Uchechukwu Micah",cls:"Nursery 2",sec:"Pre-Primary",gender:"Male"},
+  {id:1097,name:"Wokoma Favour",cls:"JSS 3",sec:"Junior Secondary",gender:"Female"},
+];
+
+const SUBJECTS = {
+  "Pre-Primary":  ["Literacy","Numeracy","Creativity","Handwriting","Health Habits","Rhymes","Social Habits","BST"],
+  "Primary":      ["Mathematics","English Language","BST","PVS","NVE","CRS","Creativity","Handwriting","Yoruba"],
+  "Junior Secondary":  ["Mathematics","English Language","Basic Science & Tech","NVE","Business Studies","CRS","Yoruba","History","CCA","Civic Education","ICT","Agricultural Science","EDGE Formation"],
+  "Senior Secondary":  ["Mathematics","English Language","Physics","Chemistry","Biology","Economics","Geography","Civic Education","ICT","Agricultural Science","Account","Government","Literature","CRS","EDGE Formation"],
+};
+
+const TERM = "Third Term";
+const SESSION = "2025/2026";
+const CLASSES = {
+  "Pre-Primary":     ["Nursery 1","Nursery 2","KG 1","KG 2"],
+  "Primary":         ["Basic 1","Basic 2","Basic 3","Basic 4","Basic 5"],
+  "Junior Secondary":["JSS 1","JSS 2","JSS 3"],
+  "Senior Secondary":["SS 1","SS 2","SS 3"],
+};
+
+/* ── store (localStorage) ── */
+let store = { scores:{}, attendance:{}, character:{}, teacherComments:{}, principalComments:{} };
+
+function loadStore() {
+  try {
+    const raw = localStorage.getItem("dbs-records-v1");
+    if (raw) store = JSON.parse(raw);
+  } catch(e) {}
+}
+function saveStore() {
+  try { localStorage.setItem("dbs-records-v1", JSON.stringify(store)); } catch(e) {}
+}
+
+/* ── score helpers ── */
+function getScore(sid, subj)       { return (store.scores[sid]||{})[subj] || {ca:"",exam:""}; }
+function setScore(sid, subj, field, val) {
+  if(!store.scores[sid]) store.scores[sid] = {};
+  if(!store.scores[sid][subj]) store.scores[sid][subj] = {ca:"",exam:""};
+  store.scores[sid][subj][field] = val;
+  saveStore();
+}
+function getAtt(sid)              { return store.attendance[sid] || {total:57, present:""}; }
+function setAtt(sid, field, val)  { if(!store.attendance[sid]) store.attendance[sid]={total:57,present:""}; store.attendance[sid][field]=val; saveStore(); }
+function getChar(sid)             { return store.character[sid] || ""; }
+function setChar(sid, val)        { store.character[sid]=val; saveStore(); }
+function getTComment(sid)         { return store.teacherComments[sid] || ""; }
+function setTComment(sid, val)    { store.teacherComments[sid]=val; saveStore(); }
+function getPComment(sid)         { return store.principalComments[sid] || ""; }
+function setPComment(sid, val)    { store.principalComments[sid]=val; saveStore(); }
+
+/* ── grade helpers ── */
+function total(sid, subj) {
+  const s = getScore(sid, subj);
+  const c = parseFloat(s.ca)||0, e = parseFloat(s.exam)||0;
+  if(!s.ca && !s.exam) return null;
+  return c + e;
+}
+function grade(t) {
+  if(t === null) return "-";
+  if(t >= 70) return "A"; if(t >= 60) return "B"; if(t >= 50) return "C"; if(t >= 45) return "D"; return "F";
+}
+function gradeBadge(g) {
+  if(g === "-") return `<span style="color:var(--color-text-tertiary)">—</span>`;
+  return `<span class="badge badge-${g.toLowerCase()}">${g}</span>`;
+}
+function remarkText(g) {
+  return g==="A"?"Excellent":g==="B"?"Good":g==="C"?"Satisfactory":g==="D"?"Needs Improvement":g==="F"?"Fail":"";
+}
+
+/* ── avatar helpers ── */
+function initials(name) { return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+function avatarColor(name) {
+  const cols = ["#8B1A2F","#185FA5","#0F6E56","#B57A1A","#534AB7"];
+  return cols[name.charCodeAt(0) % cols.length];
+}
+
+/* ── navigation ── */
+function nav(page, arg, el) {
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  if(el && el.classList) el.classList.add("active");
+  if(page === "dashboard") renderDashboard();
+  else if(page === "class") renderSection(arg);
+  else if(page === "search") renderSearch();
+}
+
+/* ── dashboard ── */
+function renderDashboard() {
+  document.getElementById("page-title").textContent = "Dashboard";
+  document.getElementById("page-meta").textContent = `${TERM} · ${SESSION} · ${STUDENTS.length} students`;
+  document.getElementById("topbar-actions").innerHTML = "";
+  const secs = ["Pre-Primary","Primary","Junior Secondary","Senior Secondary"];
+  const counts = secs.map(s => STUDENTS.filter(st => st.sec === s).length);
+  document.getElementById("content").innerHTML = `
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val">${STUDENTS.length}</div><div class="stat-lbl">Total students</div></div>
+      <div class="stat"><div class="stat-val">${counts[0]+counts[1]}</div><div class="stat-lbl">Primary wing</div></div>
+      <div class="stat"><div class="stat-val">${counts[2]+counts[3]}</div><div class="stat-lbl">Secondary wing</div></div>
+      <div class="stat"><div class="stat-val">${TERM.split(" ")[0]} Term</div><div class="stat-lbl">${SESSION}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Classes at a glance</span></div>
+      <table>
+        <thead><tr><th>Section</th><th>Classes</th><th>Students</th><th>Subjects</th><th></th></tr></thead>
+        <tbody>
+          ${secs.map((s,i) => `
+            <tr class="trow-click" onclick="navToSection('${s}')">
+              <td>${s}</td>
+              <td>${CLASSES[s].join(", ")}</td>
+              <td>${counts[i]}</td>
+              <td>${SUBJECTS[s].length}</td>
+              <td><button class="btn btn-sm" onclick="event.stopPropagation();navToSection('${s}')">View <i class="ti ti-arrow-right"></i></button></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function navToSection(sec) {
+  const items = document.querySelectorAll(".nav-item");
+  const map = {"Pre-Primary":1,"Primary":2,"Junior Secondary":3,"Senior Secondary":4};
+  items.forEach(n => n.classList.remove("active"));
+  if(map[sec]) items[map[sec]].classList.add("active");
+  renderSection(sec);
+}
+
+/* ── section list ── */
+function renderSection(sec) {
+  document.getElementById("page-title").textContent = sec;
+  const students = STUDENTS.filter(s => s.sec === sec).sort((a,b) => a.name.localeCompare(b.name));
+  document.getElementById("page-meta").textContent = `${students.length} students · ${SUBJECTS[sec].length} subjects · ${TERM}`;
+  document.getElementById("topbar-actions").innerHTML = "";
+  const classes = CLASSES[sec];
+  document.getElementById("content").innerHTML = `
+    <div class="search-bar">
+      <input id="sec-search" placeholder="Filter by name…" oninput="filterTable(this.value)" />
+      <select id="cls-filter" onchange="filterTable(document.getElementById('sec-search').value)">
+        <option value="">All classes</option>
+        ${classes.map(c => `<option>${c}</option>`).join("")}
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table id="student-table">
+        <thead><tr><th>Name</th><th>Class</th><th>ID</th><th>Scores entered</th><th></th></tr></thead>
+        <tbody>
+          ${students.map(s => {
+            const subjs = SUBJECTS[sec];
+            const entered = subjs.filter(sub => { const sc=getScore(s.id,sub); return sc.ca||sc.exam; }).length;
+            const pct = Math.round(entered/subjs.length*100);
+            return `<tr class="trow-click" data-name="${s.name.toLowerCase()}" data-cls="${s.cls}" onclick="openStudent(${s.id})">
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="width:28px;height:28px;border-radius:50%;background:${avatarColor(s.name)};display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;flex-shrink:0">${initials(s.name)}</div>
+                  ${s.name}
+                </div>
+              </td>
+              <td>${s.cls}</td>
+              <td style="color:var(--color-text-secondary)">${s.id}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="flex:1;height:4px;background:var(--color-border-tertiary);border-radius:2px;max-width:80px">
+                    <div style="width:${pct}%;height:4px;background:#8B1A2F;border-radius:2px"></div>
+                  </div>
+                  <span style="font-size:11px;color:var(--color-text-secondary)">${entered}/${subjs.length}</span>
+                </div>
+              </td>
+              <td><button class="btn btn-sm" onclick="event.stopPropagation();openStudent(${s.id})">Open</button></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function filterTable(q) {
+  const cls = document.getElementById("cls-filter")?.value || "";
+  document.querySelectorAll("#student-table tbody tr").forEach(r => {
+    const name = r.dataset.name || "";
+    const rc = r.dataset.cls || "";
+    const show = name.includes(q.toLowerCase()) && (!cls || rc === cls);
+    r.style.display = show ? "" : "none";
+  });
+}
+
+/* ── student detail ── */
+function openStudent(sid) {
+  const s = STUDENTS.find(x => x.id === sid);
+  if(!s) return;
+  const subjs = SUBJECTS[s.sec];
+  document.getElementById("page-title").textContent = s.name;
+  document.getElementById("page-meta").textContent = `${s.cls} · ${s.sec} · ID ${s.id}`;
+  document.getElementById("topbar-actions").innerHTML = `
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" onclick="navToSection('${s.sec}')"><i class="ti ti-arrow-left"></i> Back</button>
+      <button class="btn btn-sm btn-primary" onclick="showReportCard(${sid})"><i class="ti ti-file-text"></i> Report Card</button>
+    </div>`;
+
+  const att = getAtt(sid);
+  document.getElementById("content").innerHTML = `
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Academic scores · ${TERM}</span>
+        <span style="font-size:11px;color:var(--color-text-secondary)">CA out of 40 · Exam out of 60</span>
+      </div>
+      <div class="score-head">
+        <span>Subject</span><span style="text-align:center">CA /40</span><span style="text-align:center">Exam /60</span><span style="text-align:center">Total</span><span style="text-align:center">Grade</span>
+      </div>
+      ${subjs.map(sub => {
+        const sc = getScore(sid, sub);
+        const t  = total(sid, sub);
+        const g  = grade(t);
+        const key = sub.replace(/\W/g,"_");
+        return `<div class="score-grid">
+          <span style="font-size:13px">${sub}</span>
+          <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
+            oninput="setScore(${sid},'${sub}','ca',this.value);updateRow(${sid},'${sub}')" />
+          <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
+            oninput="setScore(${sid},'${sub}','exam',this.value);updateRow(${sid},'${sub}')" />
+          <span id="tot-${sid}-${key}" style="text-align:center;font-weight:600;font-size:13px">${t!==null?t:"—"}</span>
+          <span id="gr-${sid}-${key}" style="text-align:center">${gradeBadge(g)}</span>
+        </div>`;
+      }).join("")}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">Attendance</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div class="field"><label>Total school days this term</label>
+          <input type="number" value="${att.total}" oninput="setAtt(${sid},'total',this.value);updateAttPct(${sid})" /></div>
+        <div class="field"><label>Days present</label>
+          <input type="number" placeholder="Enter…" value="${att.present}" oninput="setAtt(${sid},'present',this.value);updateAttPct(${sid})" /></div>
+        <div class="field"><label>Attendance %</label>
+          <input type="text" readonly id="att-pct-${sid}" value="${att.present ? Math.round(att.present/att.total*100)+'%' : '—'}" /></div>
+      </div>
+    </div>
+
+    <div class="card" style="border-left:3px solid #C9A84C">
+      <div class="card-head">
+        <span class="card-title" style="color:#8A6F30"><i class="ti ti-star"></i> EDGE Character Observation</span>
+      </div>
+      <div class="field">
+        <label>Describe this student's character, attitude, and personal growth this term</label>
+        <textarea rows="4"
+          placeholder="e.g. Abiodun shows remarkable courage in class discussions. He volunteers answers even when unsure, which models confidence for his peers. His honesty is consistent and his treatment of classmates reflects genuine kindness…"
+          oninput="setChar(${sid},this.value)">${getChar(sid)}</textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">Comments</span></div>
+      <div class="field"><label>Teacher's comment</label>
+        <textarea rows="2" placeholder="Teacher's observation…" oninput="setTComment(${sid},this.value)">${getTComment(sid)}</textarea></div>
+      <div class="field"><label>Principal's comment</label>
+        <textarea rows="2" placeholder="Principal's comment…" oninput="setPComment(${sid},this.value)">${getPComment(sid)}</textarea></div>
+    </div>`;
+}
+
+function updateRow(sid, sub) {
+  const key = sub.replace(/\W/g,"_");
+  const t = total(sid, sub);
+  const g = grade(t);
+  const te = document.getElementById(`tot-${sid}-${key}`);
+  const ge = document.getElementById(`gr-${sid}-${key}`);
+  if(te) te.textContent = t !== null ? t : "—";
+  if(ge) ge.innerHTML = gradeBadge(g);
+}
+function updateAttPct(sid) {
+  const att = getAtt(sid);
+  const el = document.getElementById(`att-pct-${sid}`);
+  if(el) el.value = att.present ? Math.round(parseInt(att.present)/parseInt(att.total)*100)+"%" : "—";
+}
+
+/* ── report card ── */
+function showReportCard(sid) {
+  const s = STUDENTS.find(x => x.id === sid);
+  if(!s) return;
+  const subjs = SUBJECTS[s.sec];
+  const att = getAtt(sid);
+  const pct = att.present ? Math.round(parseInt(att.present)/parseInt(att.total)*100) : 0;
+
+  const rows = subjs.map(sub => {
+    const sc = getScore(sid, sub);
+    const t  = total(sid, sub);
+    const g  = grade(t);
+    const isEdge = sub === "EDGE Formation";
+    return `<tr style="${isEdge ? 'background:var(--color-background-secondary)' : ''}">
+      <td>${sub}${isEdge ? ' <span style="font-size:10px;color:#8A6F30">★ EDGE</span>' : ''}</td>
+      <td style="text-align:center">${sc.ca || "—"}</td>
+      <td style="text-align:center">${sc.exam || "—"}</td>
+      <td style="text-align:center;font-weight:600">${t !== null ? t : "—"}</td>
+      <td style="text-align:center">${g}</td>
+      <td style="font-size:11px;color:var(--color-text-secondary)">${remarkText(g)}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("page-title").textContent = "Report Card";
+  document.getElementById("page-meta").textContent = `${s.name} · ${s.cls} · ${TERM}`;
+  document.getElementById("topbar-actions").innerHTML = `
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i> Back</button>
+      <button class="btn btn-sm btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
+    </div>`;
+
+  document.getElementById("content").innerHTML = `
+    <div class="rc">
+      <div class="rc-header">
+        <div class="rc-school">DEBBYFIELD SCHOOLS</div>
+        <div class="rc-addr">12, Bamgboye Street, Off Alafia Street, Mushin, Lagos &nbsp;·&nbsp; 9, Assemblies of God Road, Obafemi-Owode, Ogun</div>
+        <div class="rc-addr">debbyfieldschools@gmail.com</div>
+        <div class="rc-title">STUDENT REPORT CARD</div>
+      </div>
+
+      <div class="rc-info-grid">
+        <div class="rc-info-row"><span class="rc-info-label">Name:</span><span class="rc-info-val">${s.name}</span></div>
+        <div class="rc-info-row"><span class="rc-info-label">Class:</span><span class="rc-info-val">${s.cls}</span></div>
+        <div class="rc-info-row"><span class="rc-info-label">Section:</span><span class="rc-info-val">${s.sec}</span></div>
+        <div class="rc-info-row"><span class="rc-info-label">Term:</span><span class="rc-info-val">${TERM}</span></div>
+        <div class="rc-info-row"><span class="rc-info-label">Student ID:</span><span class="rc-info-val">${s.id}</span></div>
+        <div class="rc-info-row"><span class="rc-info-label">Session:</span><span class="rc-info-val">${SESSION}</span></div>
+      </div>
+
+      <table class="rc-table">
+        <thead>
+          <tr><th>Subject</th><th>CA /40</th><th>Exam /60</th><th>Total</th><th>Grade</th><th>Remark</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+
+      <div class="att-row">
+        <div class="att-item"><span>Total days</span><span>${att.total}</span></div>
+        <div class="att-item"><span>Days present</span><span>${att.present || "—"}</span></div>
+        <div class="att-item"><span>Days absent</span><span>${att.present ? parseInt(att.total)-parseInt(att.present) : "—"}</span></div>
+        <div class="att-item"><span>Attendance</span><span>${att.present ? pct+"%" : "—"}</span></div>
+      </div>
+
+      <div style="font-size:11px;display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;color:var(--color-text-secondary)">
+        <span>A = Excellent (70–100)</span>
+        <span>B = Good (60–69)</span>
+        <span>C = Satisfactory (50–59)</span>
+        <span>D = Needs Improvement (45–49)</span>
+        <span>F = Fail (0–44)</span>
+      </div>
+
+      ${getChar(sid) ? `
+      <div class="char-box">
+        <div class="char-label">EDGE Character Observation</div>
+        <div style="white-space:pre-wrap">${getChar(sid)}</div>
+      </div>` : ""}
+
+      <div class="comment-row">
+        <div class="comment-label">Teacher's comment</div>
+        <div style="min-height:36px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--r);padding:7px 10px;font-size:12px">${getTComment(sid)||""}</div>
+      </div>
+      <div class="comment-row">
+        <div class="comment-label">Principal's comment</div>
+        <div style="min-height:36px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--r);padding:7px 10px;font-size:12px">${getPComment(sid)||""}</div>
+      </div>
+
+      <div class="sig-row">
+        <div><div style="border-top:0.5px solid var(--color-border-secondary);width:140px;padding-top:4px">Class Teacher's Signature</div></div>
+        <div><div style="border-top:0.5px solid var(--color-border-secondary);width:140px;padding-top:4px;text-align:center">Principal's Signature</div></div>
+        <div><div style="border-top:0.5px solid var(--color-border-secondary);width:100px;padding-top:4px;text-align:right">Date</div></div>
+      </div>
+
+      <div style="text-align:center;font-size:10px;color:var(--color-text-tertiary);margin-top:14px;padding-top:8px;border-top:0.5px solid var(--color-border-tertiary)">
+        Achieving Life's Purpose · Debbyfield Schools
+      </div>
+    </div>`;
+}
+
+/* ── global search ── */
+function renderSearch() {
+  document.getElementById("page-title").textContent = "Find Student";
+  document.getElementById("page-meta").textContent = "Search across all sections";
+  document.getElementById("topbar-actions").innerHTML = "";
+  document.getElementById("content").innerHTML = `
+    <div class="search-bar">
+      <input id="global-search" placeholder="Type a name or student ID…" oninput="globalSearch(this.value)" autofocus />
+    </div>
+    <div id="search-results" class="card" style="padding:0;overflow:hidden">
+      <div class="empty"><i class="ti ti-search"></i>Start typing to search</div>
+    </div>`;
+  setTimeout(() => document.getElementById("global-search")?.focus(), 50);
+}
+
+function globalSearch(q) {
+  const el = document.getElementById("search-results");
+  if(!q.trim()) { el.innerHTML = `<div class="empty"><i class="ti ti-search"></i>Start typing to search</div>`; return; }
+  const res = STUDENTS.filter(s => s.name.toLowerCase().includes(q.toLowerCase()) || String(s.id).includes(q));
+  if(!res.length) { el.innerHTML = `<div class="empty"><i class="ti ti-mood-sad"></i>No students found</div>`; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>ID</th><th></th></tr></thead>
+    <tbody>${res.map(s => `
+      <tr class="trow-click" onclick="openStudent(${s.id})">
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:28px;height:28px;border-radius:50%;background:${avatarColor(s.name)};display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600">${initials(s.name)}</div>
+            ${s.name}
+          </div>
+        </td>
+        <td>${s.cls}</td>
+        <td>${s.sec}</td>
+        <td style="color:var(--color-text-secondary)">${s.id}</td>
+        <td><button class="btn btn-sm">Open</button></td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+/* ── boot ── */
+loadStore();
+renderDashboard();
+</script>
+</body>
+</html>
