@@ -83,6 +83,7 @@
     .stat{background:var(--bg2);border-radius:var(--r);padding:10px 12px}
     .stat-val{font-size:22px;font-weight:600;color:var(--tx)}
     .stat-lbl{font-size:11px;color:var(--tx2);margin-top:2px}
+    .stat-label{font-size:11px;color:var(--tx3);margin-bottom:2px}
 
     /* ── table ── */
     table{width:100%;border-collapse:collapse;font-size:13px}
@@ -1149,8 +1150,8 @@ function renderAdmin(){
     setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
     return;
   }
-  const tabs=["students","staff","new-term","exam-papers","security"];
-  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","security":"Security"};
+  const tabs=["students","staff","new-term","exam-papers","fee-setup","security"];
+  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","security":"Security"};
   document.getElementById("content").innerHTML=`
     <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
     <div id="admin-tab-content"></div>`;
@@ -1180,6 +1181,7 @@ function renderAdminTab(){
   else if(_adminTab==="staff")el.innerHTML=buildAdminStaffHtml();
   else if(_adminTab==="new-term")el.innerHTML=buildAdminNewTermHtml();
   else if(_adminTab==="exam-papers"){el.innerHTML=buildAdminExamPapersHtml();refreshGenSubjects();}
+  else if(_adminTab==="fee-setup")el.innerHTML=buildAdminFeeHtml();
   else if(_adminTab==="security")el.innerHTML=buildAdminSecurityHtml();
 }
 
@@ -1759,6 +1761,351 @@ async function deleteExamPaper(id,subject,cls,paperType){
   const {error}=await dbClient.from("exam_papers").delete().eq("id",id);
   if(error){alert("Error: "+error.message);return;}
   await loadExamPapers(); renderAdminTab();
+}
+
+/* ── finance helpers ── */
+function classGroupFor(cls){
+  if(["Nursery 1","Nursery 2","KG 1","KG 2"].includes(cls)) return "Pre-Primary";
+  if(["Basic 1","Basic 2","Basic 3","Basic 4","Basic 5"].includes(cls)) return "Primary";
+  if(["JSS 1","JSS 2","JSS 3"].includes(cls)) return "JSS";
+  if(["SS 1","SS 2","SS 3"].includes(cls)) return "SS";
+  return "Primary";
+}
+
+function feeOwedFor(cls){
+  const grp=classGroupFor(cls);
+  return feeStructure.filter(f=>f.class_group===grp&&!f.is_optional)
+    .reduce((s,f)=>s+parseFloat(f.amount||0),0);
+}
+
+function amountPaidFor(sid){
+  return paymentLog.filter(p=>p.student_id===sid)
+    .reduce((s,p)=>s+parseFloat(p.amount||0),0);
+}
+
+/* ── finance: dashboard ── */
+function renderFinanceDashboard(){
+  document.getElementById("page-title").textContent="Finance Overview";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+
+  const totalExpected=roster.reduce((s,st)=>s+feeOwedFor(st.cls),0);
+  const totalCollected=paymentLog.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const outstanding=Math.max(0,totalExpected-totalCollected);
+  const pct=totalExpected>0?Math.round(totalCollected/totalExpected*100):0;
+
+  // defaulters: students who have paid 0
+  const defaulters=roster.filter(s=>amountPaidFor(s.id)===0&&feeOwedFor(s.cls)>0)
+    .sort((a,b)=>a.name.localeCompare(b.name));
+
+  // partial payers
+  const partial=roster.filter(s=>{const paid=amountPaidFor(s.id);const owed=feeOwedFor(s.cls);return paid>0&&paid<owed;})
+    .sort((a,b)=>a.name.localeCompare(b.name));
+
+  // recent payments (last 10)
+  const recent=paymentLog.slice(0,10);
+
+  // by class group
+  const groups=["Pre-Primary","Primary","JSS","SS"];
+  const groupStats=groups.map(g=>{
+    const gStudents=roster.filter(s=>classGroupFor(s.cls)===g);
+    const gExpected=gStudents.reduce((s,st)=>s+feeOwedFor(st.cls),0);
+    const gCollected=gStudents.reduce((s,st)=>s+amountPaidFor(st.id),0);
+    return{g,count:gStudents.length,expected:gExpected,collected:gCollected};
+  }).filter(x=>x.count>0);
+
+  document.getElementById("content").innerHTML=`
+    <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <div class="stat"><div class="stat-label">Total Expected</div><div class="stat-val">₦${totalExpected.toLocaleString()}</div></div>
+      <div class="stat"><div class="stat-label">Collected</div><div class="stat-val" style="color:var(--tx-ok)">₦${totalCollected.toLocaleString()}</div></div>
+      <div class="stat"><div class="stat-label">Outstanding</div><div class="stat-val" style="color:var(--tx-err)">₦${outstanding.toLocaleString()}</div></div>
+      <div class="stat"><div class="stat-label">Collection Rate</div><div class="stat-val">${pct}%</div></div>
+    </div>
+    ${feeStructure.length===0?`<div class="card"><div class="empty"><i class="ti ti-alert-circle"></i>No fee structure set up yet. Go to Admin → Fee Setup to define fees for this term.</div></div>`:""}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div class="card">
+        <div class="card-head"><span class="card-title">By Class Group</span></div>
+        ${groupStats.map(x=>{const pct2=x.expected>0?Math.round(x.collected/x.expected*100):0;return`
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+              <span>${x.g} <span style="color:var(--tx3)">(${x.count} students)</span></span>
+              <span style="color:var(--tx2)">₦${x.collected.toLocaleString()} / ₦${x.expected.toLocaleString()}</span>
+            </div>
+            <div style="height:6px;background:var(--bd3);border-radius:3px"><div style="width:${pct2}%;height:6px;background:var(--burg);border-radius:3px"></div></div>
+          </div>`;}).join("")}
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Recent Payments</span></div>
+        ${recent.length?recent.map(p=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:.5px solid var(--bd3);font-size:12px">
+            <div>
+              <div style="font-weight:500">${p.student_name||"Unknown"}</div>
+              <div style="color:var(--tx3)">${p.fee_name||"Payment"} · ${p.payment_date}</div>
+            </div>
+            <div style="font-weight:600;color:var(--tx-ok)">₦${parseFloat(p.amount).toLocaleString()}</div>
+          </div>`).join("")
+        :`<div class="empty" style="padding:20px 0"><i class="ti ti-receipt-off"></i>No payments yet</div>`}
+      </div>
+    </div>
+    ${defaulters.length?`<div class="card">
+      <div class="card-head"><span class="card-title" style="color:var(--tx-err)"><i class="ti ti-alert-triangle"></i> No payment recorded — ${defaulters.length} students</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${defaulters.map(s=>`<span style="background:var(--bg2);border:.5px solid var(--bd3);padding:4px 10px;border-radius:20px;font-size:12px">${s.name} <span style="color:var(--tx3)">${s.cls}</span></span>`).join("")}
+      </div>
+    </div>`:""}
+    ${partial.length?`<div class="card" style="margin-top:10px">
+      <div class="card-head"><span class="card-title" style="color:var(--tx-warn)"><i class="ti ti-clock"></i> Partial payment — ${partial.length} students</span></div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Name</th><th>Class</th><th>Owed</th><th>Paid</th><th>Balance</th></tr></thead>
+        <tbody>${partial.map(s=>{const owed=feeOwedFor(s.cls),paid=amountPaidFor(s.id);return`<tr>
+          <td>${s.name}</td><td>${s.cls}</td>
+          <td>₦${owed.toLocaleString()}</td>
+          <td style="color:var(--tx-ok)">₦${paid.toLocaleString()}</td>
+          <td style="color:var(--tx-warn);font-weight:600">₦${(owed-paid).toLocaleString()}</td>
+        </tr>`;}).join("")}</tbody>
+      </table></div>
+    </div>`:""}`;
+}
+
+/* ── finance: daily log entry ── */
+function renderFinanceLog(){
+  document.getElementById("page-title").textContent="Daily Log";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML=`<button class="btn btn-sm" onclick="renderFinanceLog()"><i class="ti ti-refresh"></i> Refresh</button>`;
+
+  // fee names for dropdown
+  const feeNames=[...new Set(feeStructure.map(f=>f.fee_name))];
+  const feeOpts=feeNames.map(n=>`<option>${n}</option>`).join("");
+
+  // today's entries
+  const today=new Date().toISOString().split("T")[0];
+  const todayEntries=paymentLog.filter(p=>p.payment_date===today);
+  const todayTotal=todayEntries.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+
+  document.getElementById("content").innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="card">
+        <div class="card-head"><span class="card-title"><i class="ti ti-plus"></i> Record Payment</span></div>
+        <div class="field"><label>Student</label>
+          <input id="log-student" list="log-student-list" placeholder="Type name or ID…" oninput="filterLogStudents(this.value)" />
+          <datalist id="log-student-list">
+            ${roster.map(s=>`<option value="${s.name}" data-id="${s.id}">${s.name} (${s.cls})</option>`).join("")}
+          </datalist>
+          <div id="log-student-id" style="font-size:11px;color:var(--tx3);margin-top:3px"></div>
+        </div>
+        <div class="field"><label>Amount (₦)</label>
+          <input type="number" id="log-amount" min="0" placeholder="0" /></div>
+        <div class="field"><label>Fee type</label>
+          <select id="log-fee">${feeOpts||`<option>Tuition</option><option>PTA Levy</option><option>Development Levy</option><option>Other</option>`}</select></div>
+        <div class="field"><label>Payment method</label>
+          <select id="log-method">
+            <option value="cash">Cash</option>
+            <option value="transfer">Bank Transfer</option>
+            <option value="cheque">Cheque</option>
+          </select></div>
+        <div class="field"><label>Receipt no. (optional)</label>
+          <input id="log-receipt" placeholder="e.g. 0042" /></div>
+        <div class="field"><label>Date</label>
+          <input type="date" id="log-date" value="${today}" /></div>
+        <div class="field"><label>Note (optional)</label>
+          <input id="log-note" placeholder="Any extra info…" /></div>
+        <button class="btn btn-primary" onclick="submitPaymentLog()"><i class="ti ti-check"></i> Record Payment</button>
+        <div id="log-status" style="margin-top:8px;font-size:12px"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Today's entries</span>
+          <span style="font-size:13px;font-weight:600;color:var(--tx-ok)">₦${todayTotal.toLocaleString()}</span>
+        </div>
+        ${todayEntries.length?`<div style="display:flex;flex-direction:column;gap:4px">
+          ${todayEntries.map(p=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg2);border-radius:var(--r);font-size:12px">
+              <div>
+                <div style="font-weight:500">${p.student_name||"—"}</div>
+                <div style="color:var(--tx3)">${p.fee_name||"Payment"} · ${p.payment_method}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-weight:600;color:var(--tx-ok)">₦${parseFloat(p.amount).toLocaleString()}</span>
+                <button class="btn btn-sm" style="padding:3px 8px;color:var(--tx-err)" onclick="deletePaymentEntry(${p.id})"><i class="ti ti-trash"></i></button>
+              </div>
+            </div>`).join("")}
+        </div>`:`<div class="empty"><i class="ti ti-receipt-off"></i>No entries today</div>`}
+      </div>
+    </div>`;
+}
+
+let _logStudentId = null;
+function filterLogStudents(val){
+  const s=roster.find(x=>x.name.toLowerCase()===val.toLowerCase());
+  if(s){ _logStudentId=s.id; document.getElementById("log-student-id").textContent=`ID: ${s.id} · ${s.cls}`; }
+  else { _logStudentId=null; document.getElementById("log-student-id").textContent=""; }
+}
+
+async function submitPaymentLog(){
+  const studentName=document.getElementById("log-student")?.value?.trim();
+  const amount=parseFloat(document.getElementById("log-amount")?.value);
+  const feeName=document.getElementById("log-fee")?.value;
+  const method=document.getElementById("log-method")?.value;
+  const receipt=document.getElementById("log-receipt")?.value?.trim();
+  const date=document.getElementById("log-date")?.value;
+  const note=document.getElementById("log-note")?.value?.trim();
+  const statusEl=document.getElementById("log-status");
+
+  if(!studentName){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Enter student name</span>`;return;}
+  if(!amount||amount<=0){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Enter a valid amount</span>`;return;}
+  if(!date){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Select a date</span>`;return;}
+
+  const {error}=await dbClient.from("payment_log").insert({
+    student_id:_logStudentId||null,
+    student_name:studentName,
+    amount,
+    fee_name:feeName||null,
+    payment_method:method,
+    receipt_number:receipt||null,
+    note:note||null,
+    term:currentTerm,
+    session:currentSession,
+    payment_date:date,
+  });
+  if(error){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+
+  await loadPaymentLog();
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Payment recorded!</span>`;
+  // clear form
+  document.getElementById("log-student").value="";
+  document.getElementById("log-amount").value="";
+  document.getElementById("log-receipt").value="";
+  document.getElementById("log-note").value="";
+  _logStudentId=null;
+  // refresh today list
+  renderFinanceLog();
+}
+
+async function deletePaymentEntry(id){
+  if(!confirm("Delete this payment entry?"))return;
+  await dbClient.from("payment_log").delete().eq("id",id);
+  await loadPaymentLog();
+  renderFinanceLog();
+}
+
+/* ── finance: ledger ── */
+let _ledgerFilter="";
+function renderFinanceLedger(){
+  document.getElementById("page-title").textContent="Payment Ledger";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+
+  const annexOpts=`<select onchange="setAnnexFilter(this.value)" style="min-width:120px">
+    <option value="">All annexes</option>
+    ${annexList.map(a=>`<option value="${a.id}" ${String(currentAnnexFilter)===String(a.id)?"selected":""}>${a.name}</option>`).join("")}
+  </select>`;
+  const statusOpts=`<select onchange="_ledgerFilter=this.value;renderFinanceLedger()" style="min-width:120px">
+    <option value="">All students</option>
+    <option value="paid" ${_ledgerFilter==="paid"?"selected":""}>Fully paid</option>
+    <option value="partial" ${_ledgerFilter==="partial"?"selected":""}>Partial</option>
+    <option value="unpaid" ${_ledgerFilter==="unpaid"?"selected":""}>No payment</option>
+  </select>`;
+
+  let students=roster.filter(s=>!currentAnnexFilter||String(s.annex_id)===String(currentAnnexFilter));
+  students=students.map(s=>{
+    const owed=feeOwedFor(s.cls);
+    const paid=amountPaidFor(s.id);
+    const balance=owed-paid;
+    const status=paid>=owed&&owed>0?"paid":paid>0?"partial":"unpaid";
+    return{...s,owed,paid,balance,status};
+  });
+  if(_ledgerFilter)students=students.filter(s=>s.status===_ledgerFilter);
+  students.sort((a,b)=>a.name.localeCompare(b.name));
+
+  const rows=students.map(s=>{
+    const statusColor=s.status==="paid"?"var(--tx-ok)":s.status==="partial"?"var(--tx-warn)":"var(--tx-err)";
+    const statusLabel=s.status==="paid"?"Paid":s.status==="partial"?"Partial":"Unpaid";
+    return`<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+      <td>${s.cls}</td>
+      <td>₦${s.owed.toLocaleString()}</td>
+      <td style="color:var(--tx-ok)">₦${s.paid.toLocaleString()}</td>
+      <td style="color:${s.balance>0?"var(--tx-err)":"var(--tx-ok)"};font-weight:600">₦${Math.abs(s.balance).toLocaleString()}${s.balance<0?" (overpaid)":""}</td>
+      <td><span style="font-size:11px;font-weight:600;color:${statusColor}">${statusLabel}</span></td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("content").innerHTML=`
+    <div class="filter-bar">${annexOpts}${statusOpts}</div>
+    ${students.length?`<div class="card"><div style="overflow-x:auto"><table>
+      <thead><tr><th>Name</th><th>Class</th><th>Owed</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div></div>`
+    :`<div class="card"><div class="empty"><i class="ti ti-table-off"></i>No students match</div></div>`}`;
+}
+
+/* ── admin: fee setup tab ── */
+function buildAdminFeeHtml(){
+  const groups=["Pre-Primary","Primary","JSS","SS"];
+  const byGroup={};
+  feeStructure.forEach(f=>{if(!byGroup[f.class_group])byGroup[f.class_group]=[];byGroup[f.class_group].push(f);});
+
+  return`<div class="card">
+    <div class="card-head">
+      <span class="card-title">Add Fee Item</span>
+      <span style="font-size:11px;color:var(--tx3)">${currentTerm} · ${currentSession}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+      <div class="field" style="margin:0"><label>Class group</label>
+        <select id="fee-group">${groups.map(g=>`<option>${g}</option>`).join("")}</select></div>
+      <div class="field" style="margin:0"><label>Fee name</label>
+        <input id="fee-name" placeholder="e.g. Tuition, PTA Levy" /></div>
+      <div class="field" style="margin:0"><label>Amount (₦)</label>
+        <input type="number" id="fee-amount" min="0" placeholder="0" /></div>
+      <button class="btn btn-primary" style="height:38px;margin-bottom:0" onclick="submitAddFee()"><i class="ti ti-plus"></i> Add</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <input type="checkbox" id="fee-optional" style="width:auto" />
+      <label for="fee-optional" style="margin:0;font-size:13px;cursor:pointer">Optional / extra item (uniform, books, excursion etc.)</label>
+    </div>
+    <div id="fee-status" style="margin-top:8px;font-size:12px"></div>
+  </div>
+  ${groups.map(g=>{
+    const items=byGroup[g]||[];
+    if(!items.length)return`<div class="card" style="margin-top:10px"><div class="card-head"><span class="card-title">${g}</span></div><div class="empty" style="padding:16px 0">No fees set</div></div>`;
+    const total=items.filter(f=>!f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
+    return`<div class="card" style="margin-top:10px">
+      <div class="card-head">
+        <span class="card-title">${g}</span>
+        <span style="font-size:12px;color:var(--tx2)">Total mandatory: <strong>₦${total.toLocaleString()}</strong></span>
+      </div>
+      <table><thead><tr><th>Fee</th><th>Amount</th><th>Type</th><th></th></tr></thead>
+      <tbody>${items.map(f=>`<tr>
+        <td>${f.fee_name}</td>
+        <td>₦${parseFloat(f.amount).toLocaleString()}</td>
+        <td><span style="font-size:11px;color:var(--tx3)">${f.is_optional?"Optional":"Mandatory"}</span></td>
+        <td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteFeeItem(${f.id},'${f.fee_name}')"><i class="ti ti-trash"></i></button></td>
+      </tr>`).join("")}</tbody></table>
+    </div>`;
+  }).join("")}`;
+}
+
+async function submitAddFee(){
+  const classGroup=document.getElementById("fee-group")?.value;
+  const feeName=document.getElementById("fee-name")?.value?.trim();
+  const amount=parseFloat(document.getElementById("fee-amount")?.value);
+  const isOptional=document.getElementById("fee-optional")?.checked;
+  const statusEl=document.getElementById("fee-status");
+  if(!feeName){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Enter a fee name</span>`;return;}
+  if(!amount||amount<=0){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Enter a valid amount</span>`;return;}
+  const {error}=await dbClient.from("fee_structure").upsert(
+    {class_group:classGroup,fee_name:feeName,amount,is_optional:isOptional,term:currentTerm,session:currentSession},
+    {onConflict:"class_group,fee_name,term,session"}
+  );
+  if(error){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+  await loadFeeStructure();
+  renderAdminTab();
+}
+
+async function deleteFeeItem(id,name){
+  if(!confirm(`Delete "${name}" fee item?`))return;
+  await dbClient.from("fee_structure").delete().eq("id",id);
+  await loadFeeStructure(); renderAdminTab();
 }
 
 /* ── settings ── */
