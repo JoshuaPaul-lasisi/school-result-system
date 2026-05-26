@@ -8,13 +8,22 @@ CREATE TABLE IF NOT EXISTS scores (
   id           BIGSERIAL PRIMARY KEY,
   student_id   INTEGER NOT NULL,
   subject      TEXT NOT NULL,
-  ca           NUMERIC(5,2),
+  ca           NUMERIC(5,2),   -- CA1 (max 20)
+  ca2          NUMERIC(5,2),   -- CA2 (max 20)
   exam         NUMERIC(5,2),
   term         TEXT NOT NULL,
   session      TEXT NOT NULL,
   updated_at   TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(student_id, subject, term, session)
 );
+
+-- Add ca2 to existing installations
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='scores' AND column_name='ca2'
+  ) THEN ALTER TABLE scores ADD COLUMN ca2 NUMERIC(5,2); END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS attendance (
   id           BIGSERIAL PRIMARY KEY,
@@ -103,6 +112,21 @@ CREATE TABLE IF NOT EXISTS staff_assignments (
   UNIQUE(staff_id, term, session)
 );
 
+-- ── exam papers (AI-generated) ───────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS exam_papers (
+  id          BIGSERIAL PRIMARY KEY,
+  subject     TEXT NOT NULL,
+  cls         TEXT NOT NULL,
+  sec         TEXT NOT NULL,
+  paper_type  TEXT NOT NULL CHECK (paper_type IN ('CA1','CA2','Exam')),
+  term        TEXT NOT NULL,
+  session     TEXT NOT NULL,
+  content     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(subject, cls, paper_type, term, session)
+);
+
 -- ── admin ─────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS admin_config (
@@ -121,6 +145,7 @@ ALTER TABLE students          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE enrollments       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exam_papers       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_config      ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
@@ -132,6 +157,7 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='enrollments'       AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON enrollments       FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='staff'             AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON staff             FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='staff_assignments' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON staff_assignments FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='exam_papers'       AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON exam_papers       FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='admin_config'      AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON admin_config      FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
 END $$;
 
@@ -213,6 +239,8 @@ CREATE INDEX IF NOT EXISTS observations_term_session      ON observations(term, 
 CREATE INDEX IF NOT EXISTS enrollments_term_session       ON enrollments(term, session);
 CREATE INDEX IF NOT EXISTS enrollments_annex              ON enrollments(annex_id);
 CREATE INDEX IF NOT EXISTS staff_assignments_term_session ON staff_assignments(term, session);
+CREATE INDEX IF NOT EXISTS exam_papers_term_session        ON exam_papers(term, session);
+CREATE INDEX IF NOT EXISTS exam_papers_cls                 ON exam_papers(cls);
 CREATE INDEX IF NOT EXISTS guardians_student_id           ON guardians(student_id);
 CREATE INDEX IF NOT EXISTS fee_structure_term_session     ON fee_structure(term, session);
 CREATE INDEX IF NOT EXISTS payment_log_term_session       ON payment_log(term, session);
