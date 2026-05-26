@@ -307,6 +307,12 @@
       <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
       <div class="nav-item" onclick="nav('admin',null,this)"><i class="ti ti-shield-lock"></i>Admin</div>
     </div>
+    <div class="nav-section">
+      <div class="nav-label">Finance</div>
+      <div class="nav-item" onclick="nav('finance-dashboard',null,this)"><i class="ti ti-chart-bar"></i>Overview</div>
+      <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Daily Log</div>
+      <div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>
+    </div>
   </div>
 
   <div class="main">
@@ -473,6 +479,10 @@ let storedPinHash = null;
 let _curPage = "dashboard", _curArg = null;
 let examPapersStore = [];
 let _paperFilterCls = "", _paperFilterType = "";
+let studentProfiles = {};   // keyed by student_id
+let guardiansMap = {};      // keyed by student_id → array of guardians
+let feeStructure = [];      // array of fee structure rows
+let paymentLog = [];        // array of payment log rows for current term/session
 
 /* ── sidebar ── */
 function toggleSidebar() {
@@ -563,10 +573,47 @@ async function loadExamPapers() {
   if (!error && data) examPapersStore = data;
 }
 
+async function loadStudentProfiles() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("student_profiles").select("*");
+  if (!error && data) {
+    studentProfiles = {};
+    data.forEach(r => studentProfiles[r.student_id] = r);
+  }
+}
+
+async function loadGuardians() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("guardians").select("*").order("is_primary",{ascending:false});
+  if (!error && data) {
+    guardiansMap = {};
+    data.forEach(r => {
+      if (!guardiansMap[r.student_id]) guardiansMap[r.student_id] = [];
+      guardiansMap[r.student_id].push(r);
+    });
+  }
+}
+
+async function loadFeeStructure() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("fee_structure")
+    .select("*").eq("term",currentTerm).eq("session",currentSession)
+    .order("class_group").order("fee_name");
+  if (!error && data) feeStructure = data;
+}
+
+async function loadPaymentLog() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("payment_log")
+    .select("*").eq("term",currentTerm).eq("session",currentSession)
+    .order("payment_date",{ascending:false}).order("created_at",{ascending:false});
+  if (!error && data) paymentLog = data;
+}
+
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -670,6 +717,9 @@ function nav(page,arg,el){
   else if(page==="papers")renderExamPapers();
   else if(page==="settings")renderSettings();
   else if(page==="admin")renderAdmin();
+  else if(page==="finance-dashboard")renderFinanceDashboard();
+  else if(page==="finance-log")renderFinanceLog();
+  else if(page==="finance-ledger")renderFinanceLedger();
 }
 function setAnnexFilter(val){
   currentAnnexFilter=val;
@@ -678,6 +728,7 @@ function setAnnexFilter(val){
   else if(_curPage==="staff")renderStaffDirectory();
   else if(_curPage==="papers")renderExamPapers();
   else if(_curPage==="admin")renderAdmin();
+  else if(_curPage==="finance-ledger")renderFinanceLedger();
 }
 function navToSection(sec){
   const items=[...document.querySelectorAll(".nav-item")];
@@ -1270,28 +1321,114 @@ function openEditEnrollment(sid){
   const s=roster.find(x=>x.id===sid); if(!s)return;
   const clsOpts=ALL_CLASSES.map(c=>`<option ${c===s.cls?"selected":""}>${c}</option>`).join("");
   const axOpts=annexList.map(a=>`<option value="${a.id}" ${a.id===s.annex_id?"selected":""}>${a.name}</option>`).join("");
-  openModal(`Edit student`,`
-    <div class="field"><label>Full name</label><input id="m-name" value="${s.name.replace(/"/g,"&quot;")}" /></div>
-    <div class="field"><label>Class</label><select id="m-cls">${clsOpts}</select></div>
-    <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
-    <p style="font-size:11px;color:var(--tx3);margin-bottom:12px">Class and annex changes apply to ${currentTerm} · ${currentSession} only. Name change updates all terms.</p>
-    <div style="display:flex;gap:8px">
+  const p=studentProfiles[sid]||{};
+  const guards=guardiansMap[sid]||[];
+  const g1=guards[0]||{}, g2=guards[1]||{};
+  const relOpts=(val)=>["Father","Mother","Guardian","Uncle","Aunt","Grandparent","Other"]
+    .map(r=>`<option ${r===val?"selected":""}>${r}</option>`).join("");
+  openModal(`Edit student — ${s.name}`,`
+    <div class="atabs" style="margin-bottom:12px">
+      <div class="atab active" id="etab-enroll" onclick="switchEditTab('enroll')">Enrollment</div>
+      <div class="atab" id="etab-profile" onclick="switchEditTab('profile')">Profile &amp; Guardians</div>
+    </div>
+    <div id="edit-enroll-pane">
+      <div class="field"><label>Full name</label><input id="m-name" value="${s.name.replace(/"/g,"&quot;")}" /></div>
+      <div class="field"><label>Class</label><select id="m-cls">${clsOpts}</select></div>
+      <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+      <p style="font-size:11px;color:var(--tx3);margin-bottom:12px">Class and annex changes apply to ${currentTerm} · ${currentSession} only. Name change updates all terms.</p>
+    </div>
+    <div id="edit-profile-pane" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Date of birth</label><input type="date" id="m-dob" value="${p.dob||''}" /></div>
+        <div class="field"><label>Blood group</label>
+          <select id="m-blood">
+            ${["","A+","A-","B+","B-","AB+","AB-","O+","O-"].map(g=>`<option ${g===(p.blood_group||"")?"selected":""}>${g}</option>`).join("")}
+          </select></div>
+        <div class="field"><label>Genotype</label>
+          <select id="m-geno">
+            ${["","AA","AS","SS","AC","SC"].map(g=>`<option ${g===(p.genotype||"")?"selected":""}>${g}</option>`).join("")}
+          </select></div>
+        <div class="field"><label>Admission date</label><input type="date" id="m-admit" value="${p.admission_date||''}" /></div>
+      </div>
+      <div class="field"><label>Home address</label><input id="m-address" value="${(p.address||'').replace(/"/g,'&quot;')}" placeholder="Street, City" /></div>
+      <div style="border-top:.5px solid var(--bd3);margin:12px 0;padding-top:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--tx)">Primary Guardian</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label>Name</label><input id="g1-name" value="${(g1.name||'').replace(/"/g,'&quot;')}" /></div>
+          <div class="field"><label>Relationship</label><select id="g1-rel">${relOpts(g1.relationship||"Father")}</select></div>
+          <div class="field"><label>Phone</label><input type="tel" id="g1-phone" value="${g1.phone||''}" /></div>
+          <div class="field"><label>Email</label><input type="email" id="g1-email" value="${g1.email||''}" /></div>
+        </div>
+        <div class="field"><label>Occupation</label><input id="g1-occ" value="${(g1.occupation||'').replace(/"/g,'&quot;')}" /></div>
+      </div>
+      <div style="border-top:.5px solid var(--bd3);margin:12px 0;padding-top:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--tx2)">Second Guardian (optional)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label>Name</label><input id="g2-name" value="${(g2.name||'').replace(/"/g,'&quot;')}" /></div>
+          <div class="field"><label>Relationship</label><select id="g2-rel">${relOpts(g2.relationship||"Mother")}</select></div>
+          <div class="field"><label>Phone</label><input type="tel" id="g2-phone" value="${g2.phone||''}" /></div>
+          <div class="field"><label>Email</label><input type="email" id="g2-email" value="${g2.email||''}" /></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitEditEnrollment(${sid})"><i class="ti ti-check"></i> Save</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
     </div>`);
   setTimeout(()=>{ const n=document.getElementById("m-name"); if(n){n.focus();n.select();} },50);
 }
+
+function switchEditTab(tab){
+  document.getElementById("etab-enroll").classList.toggle("active", tab==="enroll");
+  document.getElementById("etab-profile").classList.toggle("active", tab==="profile");
+  document.getElementById("edit-enroll-pane").style.display = tab==="enroll"?"":"none";
+  document.getElementById("edit-profile-pane").style.display = tab==="profile"?"":"none";
+}
+
 async function submitEditEnrollment(sid){
   const name=document.getElementById("m-name")?.value?.trim();
   const cls=document.getElementById("m-cls")?.value;
   const annexId=parseInt(document.getElementById("m-annex")?.value);
   if(!name){alert("Name cannot be empty");return;}
   const sec=CLASS_SECTION[cls]||"Primary";
-  await Promise.all([
+
+  // profile fields
+  const dob=document.getElementById("m-dob")?.value||null;
+  const bloodGroup=document.getElementById("m-blood")?.value||null;
+  const genotype=document.getElementById("m-geno")?.value||null;
+  const admitDate=document.getElementById("m-admit")?.value||null;
+  const address=document.getElementById("m-address")?.value?.trim()||null;
+
+  // guardian fields
+  const g1Name=document.getElementById("g1-name")?.value?.trim();
+  const g1Rel=document.getElementById("g1-rel")?.value;
+  const g1Phone=document.getElementById("g1-phone")?.value?.trim();
+  const g1Email=document.getElementById("g1-email")?.value?.trim();
+  const g1Occ=document.getElementById("g1-occ")?.value?.trim();
+  const g2Name=document.getElementById("g2-name")?.value?.trim();
+  const g2Rel=document.getElementById("g2-rel")?.value;
+  const g2Phone=document.getElementById("g2-phone")?.value?.trim();
+  const g2Email=document.getElementById("g2-email")?.value?.trim();
+
+  const ops = [
     dbClient.from("students").update({name}).eq("id",sid),
     dbClient.from("enrollments").update({cls,sec,annex_id:annexId}).eq("student_id",sid).eq("term",currentTerm).eq("session",currentSession),
-  ]);
-  closeModal(); await loadRoster(); await loadAllStudentsDb(); renderAdmin();
+    dbClient.from("student_profiles").upsert({student_id:sid,dob:dob||null,blood_group:bloodGroup||null,genotype:genotype||null,address,admission_date:admitDate||null},{onConflict:"student_id"}),
+  ];
+
+  // handle guardians: delete existing and re-insert
+  await dbClient.from("guardians").delete().eq("student_id",sid);
+  if(g1Name){
+    ops.push(dbClient.from("guardians").insert({student_id:sid,name:g1Name,relationship:g1Rel,phone:g1Phone||null,email:g1Email||null,occupation:g1Occ||null,is_primary:true}));
+  }
+  if(g2Name){
+    ops.push(dbClient.from("guardians").insert({student_id:sid,name:g2Name,relationship:g2Rel,phone:g2Phone||null,email:g2Email||null,is_primary:false}));
+  }
+
+  await Promise.all(ops);
+  closeModal();
+  await Promise.all([loadRoster(), loadAllStudentsDb(), loadStudentProfiles(), loadGuardians()]);
+  renderAdmin();
 }
 async function confirmMarkLeft(sid,name){
   if(!confirm(`Mark ${name} as "left" for ${currentTerm} ${currentSession}?\nThey will not appear in this term's roster.`))return;
@@ -1664,7 +1801,7 @@ async function switchTermSession(){
   currentTerm=t; currentSession=s;
   localStorage.setItem("dbs-term",t); localStorage.setItem("dbs-session",s);
   store={scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
-  roster=[...STUDENTS]; staffList=[]; examPapersStore=[];
+  roster=[...STUDENTS]; staffList=[]; examPapersStore=[]; feeStructure=[]; paymentLog=[];
   if(dbClient){dbStatus="loading";updateDbIndicator();const ok=await loadFromSupabase();dbStatus=ok?"connected":"error";}
   else loadLocalStore();
   updateDbIndicator(); updateTermDisplay();

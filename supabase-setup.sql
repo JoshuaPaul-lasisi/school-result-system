@@ -135,6 +135,76 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='admin_config'      AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON admin_config      FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
 END $$;
 
+-- ── student profiles ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS student_profiles (
+  student_id   INTEGER PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+  dob          DATE,
+  blood_group  TEXT,
+  genotype     TEXT,
+  address      TEXT,
+  admission_date DATE,
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── guardians ─────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS guardians (
+  id           BIGSERIAL PRIMARY KEY,
+  student_id   INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  relationship TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  phone        TEXT,
+  email        TEXT,
+  occupation   TEXT,
+  is_primary   BOOLEAN DEFAULT false,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── fee structure ─────────────────────────────────────────────────────────────
+-- One row per fee item per class group per term/session
+CREATE TABLE IF NOT EXISTS fee_structure (
+  id           BIGSERIAL PRIMARY KEY,
+  class_group  TEXT NOT NULL CHECK (class_group IN ('Pre-Primary','Primary','JSS','SS')),
+  fee_name     TEXT NOT NULL,
+  amount       NUMERIC(10,2) NOT NULL DEFAULT 0,
+  is_optional  BOOLEAN DEFAULT false,
+  term         TEXT NOT NULL,
+  session      TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(class_group, fee_name, term, session)
+);
+
+-- ── payment log ───────────────────────────────────────────────────────────────
+-- Every individual payment transaction recorded by admin
+CREATE TABLE IF NOT EXISTS payment_log (
+  id             BIGSERIAL PRIMARY KEY,
+  student_id     INTEGER REFERENCES students(id),
+  student_name   TEXT,
+  amount         NUMERIC(10,2) NOT NULL,
+  fee_name       TEXT,
+  payment_method TEXT NOT NULL DEFAULT 'cash'
+                 CHECK (payment_method IN ('cash','transfer','cheque')),
+  receipt_number TEXT,
+  note           TEXT,
+  term           TEXT NOT NULL,
+  session        TEXT NOT NULL,
+  payment_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── Row Level Security for new tables ─────────────────────────────────────────
+
+ALTER TABLE student_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guardians        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fee_structure    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_log      ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='student_profiles' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON student_profiles FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='guardians'        AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON guardians        FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='fee_structure'    AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON fee_structure    FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='payment_log'      AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON payment_log      FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
 -- ── indexes ───────────────────────────────────────────────────────────────────
 
 CREATE INDEX IF NOT EXISTS scores_term_session            ON scores(term, session);
@@ -143,3 +213,7 @@ CREATE INDEX IF NOT EXISTS observations_term_session      ON observations(term, 
 CREATE INDEX IF NOT EXISTS enrollments_term_session       ON enrollments(term, session);
 CREATE INDEX IF NOT EXISTS enrollments_annex              ON enrollments(annex_id);
 CREATE INDEX IF NOT EXISTS staff_assignments_term_session ON staff_assignments(term, session);
+CREATE INDEX IF NOT EXISTS guardians_student_id           ON guardians(student_id);
+CREATE INDEX IF NOT EXISTS fee_structure_term_session     ON fee_structure(term, session);
+CREATE INDEX IF NOT EXISTS payment_log_term_session       ON payment_log(term, session);
+CREATE INDEX IF NOT EXISTS payment_log_student_id         ON payment_log(student_id);
