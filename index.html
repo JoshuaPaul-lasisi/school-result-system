@@ -318,6 +318,9 @@
 
 <script>
 /* ── constants ── */
+const SUPABASE_URL  = "https://gacjyhcuwizswjqauljb.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhY2p5aGN1d2l6c3dqcWF1bGpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MzU4NTksImV4cCI6MjA5NTMxMTg1OX0.YdoCCOR0zaVs8ZF3h0TCn6NDwamk4xu4dZLSqf8P-Vw";
+
 const STUDENTS = [
   {id:1001,name:"Abdulazeez Quyyum",cls:"Nursery 1",sec:"Pre-Primary",gender:"Male"},
   {id:1002,name:"Abdulganiu Mojeed",cls:"JSS 2",sec:"Junior Secondary",gender:"Male"},
@@ -1373,28 +1376,20 @@ async function runChangePin(){
 
 /* ── settings ── */
 function renderSettings(){
-  const savedUrl=localStorage.getItem("dbs-sb-url")||"";
-  const savedKey=localStorage.getItem("dbs-sb-key")||"";
   document.getElementById("page-title").textContent="Settings";
-  document.getElementById("page-meta").textContent="Database & term management";
+  document.getElementById("page-meta").textContent="Term management";
   document.getElementById("topbar-actions").innerHTML="";
-  const connBadge={connected:`<span class="badge badge-ok">Connected</span>`,error:`<span class="badge badge-err">Error</span>`,loading:`<span class="badge badge-neutral">Connecting…</span>`,offline:`<span class="badge badge-neutral">Not connected</span>`}[dbStatus];
+  const connBadge={connected:`<span class="badge badge-ok">Connected</span>`,error:`<span class="badge badge-err">Connection error</span>`,loading:`<span class="badge badge-neutral">Connecting…</span>`,offline:`<span class="badge badge-neutral">Offline</span>`}[dbStatus];
   document.getElementById("content").innerHTML=`
     <div class="card">
-      <div class="card-head"><span class="card-title">Supabase connection</span>${connBadge}</div>
-      <div class="field"><label>Project URL</label>
-        <input type="url" id="sb-url" placeholder="https://xxxxxxxxxxxx.supabase.co" value="${savedUrl}" /></div>
-      <div class="field"><label>Anon / Public key</label>
-        <input type="password" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIs…" value="${savedKey}" /></div>
-      <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="connectSupabase()"><i class="ti ti-plug"></i> Save &amp; Connect</button>
-        ${savedUrl?`<button class="btn" onclick="disconnectSupabase()"><i class="ti ti-plug-off"></i> Disconnect</button>`:""}
-      </div>
-      ${dbStatus==="error"?`<p style="margin-top:10px;font-size:12px;color:var(--tx-err)">Connection failed — check the URL and key, and make sure you ran supabase-setup.sql.</p>`:""}
+      <div class="card-head"><span class="card-title">Database</span>${connBadge}</div>
+      <p style="font-size:12px;color:var(--tx2)">Connected to Debbyfield Schools database automatically.</p>
+      ${dbStatus==="error"?`<p style="margin-top:8px;font-size:12px;color:var(--tx-err)">Connection failed — check your internet connection and try refreshing.</p>`:""}
+      ${dbStatus==="error"||dbStatus==="offline"?`<button class="btn btn-sm" style="margin-top:10px" onclick="retryConnect()"><i class="ti ti-refresh"></i> Retry connection</button>`:""}
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Active term &amp; session</span></div>
-      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Currently: <strong>${currentTerm} · ${currentSession}</strong></p>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Currently viewing: <strong>${currentTerm} · ${currentSession}</strong></p>
       <div class="settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="field"><label>Term</label>
           <select id="sw-term">${["First Term","Second Term","Third Term"].map(t=>`<option ${t===currentTerm?"selected":""}>${t}</option>`).join("")}</select></div>
@@ -1402,31 +1397,15 @@ function renderSettings(){
           <input type="text" id="sw-session" value="${currentSession}" placeholder="2025/2026" /></div>
       </div>
       <button class="btn btn-primary" onclick="switchTermSession()"><i class="ti ti-refresh"></i> Switch</button>
-      <p style="font-size:11px;color:var(--tx2);margin-top:8px">Previous terms stay in Supabase and can be accessed at any time by switching back.</p>
-    </div>
-    <div class="card" style="border-left:3px solid var(--gold)">
-      <div class="card-head"><span class="card-title" style="color:#8A6F30">First-time setup</span></div>
-      <div style="font-size:12px;color:var(--tx2)">
-        <div class="setup-step"><div class="setup-num">1</div><div>Create a free project at <strong>supabase.com</strong></div></div>
-        <div class="setup-step"><div class="setup-num">2</div><div>In the SQL Editor, run <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">supabase-setup.sql</code> from this repo</div></div>
-        <div class="setup-step"><div class="setup-num">3</div><div>Project Settings → API → copy <strong>Project URL</strong> and <strong>anon public</strong> key</div></div>
-        <div class="setup-step"><div class="setup-num">4</div><div>Paste above and click <strong>Save &amp; Connect</strong></div></div>
-      </div>
+      <p style="font-size:11px;color:var(--tx2);margin-top:8px">Previous terms remain in the database and are accessible by switching back.</p>
     </div>`;
 }
-async function connectSupabase(){
-  const url=document.getElementById("sb-url")?.value?.trim();
-  const key=document.getElementById("sb-key")?.value?.trim();
-  if(!url||!key){alert("Enter both the project URL and anon key.");return;}
-  localStorage.setItem("dbs-sb-url",url); localStorage.setItem("dbs-sb-key",key);
+async function retryConnect(){
   dbStatus="loading"; updateDbIndicator(); renderSettings();
-  initSupabase(url,key);
+  initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
   const ok=await loadFromSupabase();
   dbStatus=ok?"connected":"error"; updateDbIndicator(); renderSettings();
-}
-function disconnectSupabase(){
-  localStorage.removeItem("dbs-sb-url"); localStorage.removeItem("dbs-sb-key");
-  dbClient=null; dbStatus="offline"; updateDbIndicator(); renderSettings();
+  if(ok) renderDashboard();
 }
 async function switchTermSession(){
   const t=document.getElementById("sw-term")?.value;
@@ -1445,10 +1424,12 @@ async function switchTermSession(){
 }
 
 /* ── boot ── */
-loadLocalStore(); updateTermDisplay(); updateDbIndicator(); renderDashboard();
+loadLocalStore(); updateTermDisplay();
+dbStatus="loading"; updateDbIndicator(); renderDashboard();
 (async()=>{
-  const url=localStorage.getItem("dbs-sb-url"), key=localStorage.getItem("dbs-sb-key");
-  if(url&&key){dbStatus="loading";updateDbIndicator();initSupabase(url,key);const ok=await loadFromSupabase();dbStatus=ok?"connected":"error";updateDbIndicator();renderDashboard();}
+  initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const ok=await loadFromSupabase();
+  dbStatus=ok?"connected":"error"; updateDbIndicator(); renderDashboard();
 })();
 </script>
 </body>
