@@ -220,11 +220,52 @@
       .entry-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
       #entry-tbl{min-width:420px}
     }
+
+    /* ── modal ── */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:16px}
+    .modal-box{background:var(--bg);border-radius:var(--rlg);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+    .modal-head{padding:14px 16px;border-bottom:.5px solid var(--bd3);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .modal-body{padding:16px}
+    .modal-close{background:none;border:none;cursor:pointer;font-size:22px;color:var(--tx2);line-height:1;padding:0;display:flex;align-items:center}
+
+    /* ── admin tabs ── */
+    .atabs{display:flex;gap:2px;border-bottom:.5px solid var(--bd3);margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .atab{padding:8px 14px;font-size:13px;cursor:pointer;color:var(--tx2);border-bottom:2px solid transparent;white-space:nowrap;flex-shrink:0;user-select:none}
+    .atab.active{color:var(--burg);border-bottom-color:var(--burg);font-weight:500}
+    .atab:hover:not(.active){color:var(--tx)}
+
+    /* ── filter bar ── */
+    .filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .filter-bar select,.filter-bar input{width:auto;flex:1;min-width:120px}
+
+    /* ── staff / status badges ── */
+    .badge-teach{background:#e8f4ff;color:#1565C0}
+    .badge-nonteach{background:#f3e8ff;color:#6a1b9a}
+    .badge-left{background:var(--bg2);color:var(--tx3)}
+    .badge-grad{background:#e8f5e9;color:#2e7d32}
+
+    /* ── pill row (annex pills) ── */
+    .annex-pill{display:inline-flex;align-items:center;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--bg2);color:var(--tx2)}
+
+    @media (max-width:700px){
+      .modal-overlay{padding:8px;align-items:flex-end}
+      .modal-box{max-height:85vh;border-radius:var(--rlg) var(--rlg) 0 0}
+    }
   </style>
 </head>
 <body>
 
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span style="font-weight:600;font-size:14px" id="modal-title"></span>
+      <button class="modal-close" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
 
 <div class="app">
   <div class="sidebar" id="sidebar">
@@ -251,7 +292,9 @@
       <div class="nav-label">Tools</div>
       <div class="nav-item" onclick="nav('entry',null,this)"><i class="ti ti-table-plus"></i>Score Entry</div>
       <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
+      <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
       <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
+      <div class="nav-item" onclick="nav('admin',null,this)"><i class="ti ti-shield-lock"></i>Admin</div>
     </div>
   </div>
 
@@ -390,6 +433,15 @@ const CLASSES = {
   "Junior Secondary": ["JSS 1","JSS 2","JSS 3"],
   "Senior Secondary": ["SS 1","SS 2","SS 3"],
 };
+const PROMOTIONS = {
+  "Nursery 1":"Nursery 2","Nursery 2":"KG 1","KG 1":"KG 2","KG 2":"Basic 1",
+  "Basic 1":"Basic 2","Basic 2":"Basic 3","Basic 3":"Basic 4","Basic 4":"Basic 5",
+  "Basic 5":"JSS 1","JSS 1":"JSS 2","JSS 2":"JSS 3","JSS 3":"SS 1",
+  "SS 1":"SS 2","SS 2":"SS 3","SS 3":null,
+};
+const ALL_CLASSES = Object.values(CLASSES).flat();
+const CLASS_SECTION = {};
+for (const [sec,arr] of Object.entries(CLASSES)) arr.forEach(c=>CLASS_SECTION[c]=sec);
 
 /* ── state ── */
 let store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
@@ -397,6 +449,14 @@ let currentTerm    = localStorage.getItem("dbs-term")    || "Third Term";
 let currentSession = localStorage.getItem("dbs-session") || "2025/2026";
 let dbClient = null, dbStatus = "offline", pendingSaves = 0;
 const scoreTimers = {}, attTimers = {}, obsTimers = {};
+let roster = [...STUDENTS];
+let allStudentsDb = [];
+let staffList = [];
+let annexList = [{id:1,name:"Mushin",address:"12, Bamgboye Street, Off Alafia Street, Mushin, Lagos"},{id:2,name:"Obafemi-Owode",address:"9, Assemblies of God Road, Obafemi-Owode, Ogun"}];
+let currentAnnexFilter = "";
+let adminUnlocked = false;
+let storedPinHash = null;
+let _curPage = "dashboard", _curArg = null;
 
 /* ── sidebar ── */
 function toggleSidebar() {
@@ -410,14 +470,78 @@ function closeSidebar() {
   document.getElementById("overlay").style.display = "none";
 }
 
+/* ── modal ── */
+function openModal(title, html) {
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-body").innerHTML = html;
+  document.getElementById("modal-overlay").style.display = "flex";
+}
+function closeModal() { document.getElementById("modal-overlay").style.display = "none"; }
+
+/* ── sha256 ── */
+async function sha256(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
 /* ── supabase ── */
 function initSupabase(url, key) {
   try { if (window.supabase && url && key) dbClient = window.supabase.createClient(url, key); }
   catch(e) { dbClient = null; }
 }
+
+async function loadAnnexes() {
+  if (!dbClient) return;
+  const {data} = await dbClient.from("annexes").select("id,name,address").order("id");
+  if (data && data.length) annexList = data;
+}
+
+async function loadRoster() {
+  if (!dbClient) return;
+  const {data, error} = await dbClient
+    .from("enrollments")
+    .select("cls,sec,annex_id,status,students(id,name,gender)")
+    .eq("term",currentTerm).eq("session",currentSession).eq("status","active");
+  if (!error && data) {
+    roster = data.map(r=>({
+      id:r.students.id, name:r.students.name, gender:r.students.gender,
+      cls:r.cls, sec:r.sec, annex_id:r.annex_id, status:r.status
+    }));
+  }
+}
+
+async function loadAllStudentsDb() {
+  if (!dbClient) return;
+  const {data} = await dbClient.from("students").select("id,name,gender,annex_id").order("name");
+  if (data) allStudentsDb = data;
+}
+
+async function loadStaff() {
+  if (!dbClient) return;
+  const {data, error} = await dbClient
+    .from("staff_assignments")
+    .select("id,annex_id,status,staff:staff_id(id,name,gender,staff_type,role,phone)")
+    .eq("term",currentTerm).eq("session",currentSession).eq("status","active");
+  if (!error && data) {
+    staffList = data.map(r=>({
+      assignment_id:r.id, staff_id:r.staff.id, name:r.staff.name,
+      gender:r.staff.gender, staff_type:r.staff.staff_type,
+      role:r.staff.role||"", phone:r.staff.phone||"", annex_id:r.annex_id
+    }));
+  }
+}
+
+async function loadAdminPin() {
+  if (!dbClient) return;
+  const {data} = await dbClient.from("admin_config").select("pin_hash").eq("id",1).single();
+  if (data) storedPinHash = data.pin_hash;
+  else storedPinHash = null;
+}
+
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -509,6 +633,7 @@ function avatar(name,size=28){return`<div style="width:${size}px;height:${size}p
 
 /* ── navigation ── */
 function nav(page,arg,el){
+  _curPage=page; _curArg=arg;
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
   if(el?.classList)el.classList.add("active");
   closeSidebar();
@@ -516,7 +641,16 @@ function nav(page,arg,el){
   else if(page==="class")renderSection(arg);
   else if(page==="entry")renderScoreEntry();
   else if(page==="search")renderSearch();
+  else if(page==="staff")renderStaffDirectory();
   else if(page==="settings")renderSettings();
+  else if(page==="admin")renderAdmin();
+}
+function setAnnexFilter(val){
+  currentAnnexFilter=val;
+  if(_curPage==="class")renderSection(_curArg);
+  else if(_curPage==="entry")renderScoreEntry();
+  else if(_curPage==="staff")renderStaffDirectory();
+  else if(_curPage==="admin")renderAdmin();
 }
 function navToSection(sec){
   const items=[...document.querySelectorAll(".nav-item")];
@@ -530,13 +664,13 @@ function navToSection(sec){
 /* ── dashboard ── */
 function renderDashboard(){
   document.getElementById("page-title").textContent="Dashboard";
-  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession} · ${STUDENTS.length} students`;
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession} · ${roster.length} students`;
   document.getElementById("topbar-actions").innerHTML="";
   const secs=["Pre-Primary","Primary","Junior Secondary","Senior Secondary"];
-  const counts=secs.map(s=>STUDENTS.filter(st=>st.sec===s).length);
+  const counts=secs.map(s=>roster.filter(st=>st.sec===s).length);
   document.getElementById("content").innerHTML=`
     <div class="stats-row">
-      <div class="stat"><div class="stat-val">${STUDENTS.length}</div><div class="stat-lbl">Total students</div></div>
+      <div class="stat"><div class="stat-val">${roster.length}</div><div class="stat-lbl">Active students</div></div>
       <div class="stat"><div class="stat-val">${counts[0]+counts[1]}</div><div class="stat-lbl">Primary wing</div></div>
       <div class="stat"><div class="stat-val">${counts[2]+counts[3]}</div><div class="stat-lbl">Secondary wing</div></div>
       <div class="stat"><div class="stat-val">${currentTerm.split(" ")[0]} Term</div><div class="stat-lbl">${currentSession}</div></div>
@@ -559,10 +693,16 @@ function renderDashboard(){
 
 /* ── section list ── */
 function renderSection(sec){
+  _curPage="class"; _curArg=sec;
   document.getElementById("page-title").textContent=sec;
-  const students=STUDENTS.filter(s=>s.sec===sec).sort((a,b)=>a.name.localeCompare(b.name));
+  const base=roster.filter(s=>s.sec===sec&&(!currentAnnexFilter||String(s.annex_id)===String(currentAnnexFilter)));
+  const students=base.sort((a,b)=>a.name.localeCompare(b.name));
   document.getElementById("page-meta").textContent=`${students.length} students · ${SUBJECTS[sec].length} subjects`;
   document.getElementById("topbar-actions").innerHTML="";
+  const annexOpts=dbClient?`<select onchange="setAnnexFilter(this.value)" style="width:auto">
+    <option value="">All annexes</option>
+    ${annexList.map(a=>`<option value="${a.id}" ${String(currentAnnexFilter)===String(a.id)?"selected":""}>${a.name}</option>`).join("")}
+  </select>`:"";
   document.getElementById("content").innerHTML=`
     <div class="search-bar">
       <input id="sec-search" placeholder="Filter by name…" oninput="filterTable(this.value)" />
@@ -570,6 +710,7 @@ function renderSection(sec){
         <option value="">All classes</option>
         ${CLASSES[sec].map(c=>`<option>${c}</option>`).join("")}
       </select>
+      ${annexOpts}
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <table id="student-table">
@@ -606,7 +747,8 @@ function filterTable(q){
 
 /* ── student detail ── */
 function openStudent(sid){
-  const s=STUDENTS.find(x=>x.id===sid); if(!s)return;
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid)||allStudentsDb.find(x=>x.id===sid); if(!s)return;
+  if(!s.sec)s.sec=CLASS_SECTION[s.cls]||"Pre-Primary";
   const subjs=SUBJECTS[s.sec];
   document.getElementById("page-title").textContent=s.name;
   document.getElementById("page-meta").textContent=`${s.cls} · ID ${s.id}`;
@@ -685,7 +827,11 @@ function renderScoreEntry(){
   document.getElementById("page-title").textContent="Score Entry";
   document.getElementById("page-meta").textContent="Pick a class and subject";
   document.getElementById("topbar-actions").innerHTML="";
-  const allClasses=Object.values(CLASSES).flat();
+  const annexOpts=dbClient?`<div class="field"><label>Annex</label>
+    <select onchange="setAnnexFilter(this.value)">
+      <option value="">All annexes</option>
+      ${annexList.map(a=>`<option value="${a.id}" ${String(currentAnnexFilter)===String(a.id)?"selected":""}>${a.name}</option>`).join("")}
+    </select></div>`:"";
   document.getElementById("content").innerHTML=`
     <div class="card">
       <div class="card-head"><span class="card-title">Filter</span></div>
@@ -693,13 +839,14 @@ function renderScoreEntry(){
         <div class="field"><label>Class</label>
           <select id="entry-cls" onchange="onEntryClassChange(this.value)">
             <option value="">— Select class —</option>
-            ${allClasses.map(c=>`<option ${c===_entryClass?"selected":""}>${c}</option>`).join("")}
+            ${ALL_CLASSES.map(c=>`<option ${c===_entryClass?"selected":""}>${c}</option>`).join("")}
           </select></div>
         <div class="field"><label>Subject</label>
           <select id="entry-sub" onchange="onEntrySubjectChange(this.value)" ${_entryClass?"":"disabled"}>
             <option value="">— Select subject —</option>
             ${_entryClass?SUBJECTS[sectionForClass(_entryClass)].map(s=>`<option ${s===_entrySubject?"selected":""}>${s}</option>`).join(""):""}
           </select></div>
+        ${annexOpts}
       </div>
     </div>
     <div id="entry-table-wrap"></div>`;
@@ -719,7 +866,8 @@ function onEntrySubjectChange(sub){
   else document.getElementById("entry-table-wrap").innerHTML="";
 }
 function buildEntryTable(cls,sub){
-  const students=STUDENTS.filter(s=>s.cls===cls).sort((a,b)=>a.name.localeCompare(b.name));
+  const base=roster.filter(s=>s.cls===cls&&(!currentAnnexFilter||String(s.annex_id)===String(currentAnnexFilter)));
+  const students=base.sort((a,b)=>a.name.localeCompare(b.name));
   const wrap=document.getElementById("entry-table-wrap"); if(!wrap)return;
   if(!students.length){wrap.innerHTML=`<div class="empty"><i class="ti ti-users-off"></i>No students in ${cls}</div>`;return;}
   wrap.innerHTML=`
@@ -767,7 +915,8 @@ function updateEntryRow(sid,sub){
 
 /* ── report card ── */
 function showReportCard(sid){
-  const s=STUDENTS.find(x=>x.id===sid); if(!s)return;
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid); if(!s)return;
+  if(!s.sec)s.sec=CLASS_SECTION[s.cls]||"Pre-Primary";
   const subjs=SUBJECTS[s.sec],att=getAtt(sid);
   const pct=att.present?Math.round(parseInt(att.present)/parseInt(att.total)*100):0;
   const rows=subjs.map(sub=>{
@@ -849,7 +998,8 @@ function renderSearch(){
 function globalSearch(q){
   const el=document.getElementById("search-results");
   if(!q.trim()){el.innerHTML=`<div class="empty"><i class="ti ti-search"></i>Start typing to search</div>`;return;}
-  const res=STUDENTS.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||String(s.id).includes(q));
+  const pool=[...roster,...allStudentsDb.filter(d=>!roster.find(r=>r.id===d.id))];
+  const res=pool.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||String(s.id).includes(q));
   if(!res.length){el.innerHTML=`<div class="empty"><i class="ti ti-mood-sad"></i>No students found</div>`;return;}
   el.innerHTML=`<table><thead><tr><th>Name</th><th>Class</th><th class="col-id">Section</th><th class="col-id">ID</th><th></th></tr></thead><tbody>${
     res.map(s=>`<tr class="trow-click" onclick="openStudent(${s.id})">
@@ -860,6 +1010,365 @@ function globalSearch(q){
       <td><button class="btn btn-sm">Open</button></td>
     </tr>`).join("")}
   </tbody></table>`;
+}
+
+/* ── staff directory ── */
+function renderStaffDirectory(){
+  document.getElementById("page-title").textContent="Staff Directory";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  if(!dbClient){
+    document.getElementById("content").innerHTML=`<div class="empty"><i class="ti ti-plug-off"></i>Connect Supabase to view staff</div>`;return;
+  }
+  const annexOpts=`<select onchange="setAnnexFilter(this.value)" style="width:auto">
+    <option value="">All annexes</option>
+    ${annexList.map(a=>`<option value="${a.id}" ${String(currentAnnexFilter)===String(a.id)?"selected":""}>${a.name}</option>`).join("")}
+  </select>`;
+  const base=staffList.filter(s=>!currentAnnexFilter||String(s.annex_id)===String(currentAnnexFilter));
+  const teaching=base.filter(s=>s.staff_type==="teaching").sort((a,b)=>a.name.localeCompare(b.name));
+  const nonTeaching=base.filter(s=>s.staff_type==="non-teaching").sort((a,b)=>a.name.localeCompare(b.name));
+  const staffTable=(list)=>!list.length?`<div class="empty" style="padding:20px"><i class="ti ti-users-off"></i>None found</div>`
+    :`<table><thead><tr><th>Name</th><th>Role</th><th>Annex</th><th class="col-id">Phone</th></tr></thead><tbody>${
+      list.map(s=>{const ax=annexList.find(a=>a.id===s.annex_id);
+        return`<tr><td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+          <td style="color:var(--tx2);font-size:12px">${s.role||"—"}</td>
+          <td><span class="annex-pill">${ax?ax.name:"—"}</span></td>
+          <td class="col-id" style="color:var(--tx2)">${s.phone||"—"}</td></tr>`;}).join("")
+    }</tbody></table>`;
+  document.getElementById("content").innerHTML=`
+    <div class="filter-bar">${annexOpts}</div>
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-chalkboard"></i> Teaching Staff</span><span class="badge badge-neutral">${teaching.length}</span></div>
+      ${staffTable(teaching)}
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-briefcase"></i> Non-Teaching Staff</span><span class="badge badge-neutral">${nonTeaching.length}</span></div>
+      ${staffTable(nonTeaching)}
+    </div>`;
+}
+
+/* ── admin ── */
+let _adminTab="students";
+function renderAdmin(){
+  document.getElementById("page-title").textContent="Admin Panel";
+  document.getElementById("page-meta").textContent=adminUnlocked?"Unlocked":"PIN required";
+  document.getElementById("topbar-actions").innerHTML=adminUnlocked?`<button class="btn btn-sm" onclick="lockAdmin()"><i class="ti ti-lock"></i> Lock</button>`:"";
+  if(!dbClient){
+    document.getElementById("content").innerHTML=`<div class="card"><div class="empty"><i class="ti ti-plug-off"></i>Connect Supabase first to use Admin</div></div>`;return;
+  }
+  if(!adminUnlocked){
+    document.getElementById("content").innerHTML=`<div class="card" style="max-width:400px">
+      <div class="card-head"><span class="card-title"><i class="ti ti-shield-lock"></i> Admin Access</span></div>
+      ${storedPinHash===null
+        ?`<p style="font-size:13px;color:var(--tx2);margin-bottom:12px">No PIN set yet. Create your admin PIN:</p>
+          <div class="field"><label>New PIN</label><input type="password" id="admin-pin" placeholder="Enter PIN…" /></div>
+          <div class="field"><label>Confirm PIN</label><input type="password" id="admin-pin2" placeholder="Repeat PIN…" /></div>`
+        :`<p style="font-size:13px;color:var(--tx2);margin-bottom:12px">Enter your admin PIN:</p>
+          <div class="field"><label>PIN</label><input type="password" id="admin-pin" placeholder="Enter PIN…" onkeydown="if(event.key==='Enter')submitAdminPin()" /></div>`}
+      <button class="btn btn-primary" onclick="submitAdminPin()"><i class="ti ti-lock-open"></i> ${storedPinHash===null?"Create PIN & Unlock":"Unlock"}</button>
+    </div>`;
+    setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
+    return;
+  }
+  const tabs=["students","staff","new-term","security"];
+  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","security":"Security"};
+  document.getElementById("content").innerHTML=`
+    <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
+    <div id="admin-tab-content"></div>`;
+  renderAdminTab();
+}
+function switchAdminTab(tab){ _adminTab=tab; renderAdmin(); }
+function lockAdmin(){ adminUnlocked=false; renderAdmin(); }
+
+async function submitAdminPin(){
+  const pin=document.getElementById("admin-pin")?.value?.trim();
+  if(!pin){alert("Enter a PIN");return;}
+  const hash=await sha256(pin);
+  if(storedPinHash===null){
+    const pin2=document.getElementById("admin-pin2")?.value?.trim();
+    if(pin!==pin2){alert("PINs do not match");return;}
+    const {error}=await dbClient.from("admin_config").upsert({id:1,pin_hash:hash},{onConflict:"id"});
+    if(error){alert("Error saving PIN: "+error.message);return;}
+    storedPinHash=hash;
+  }else if(hash!==storedPinHash){alert("Incorrect PIN");return;}
+  adminUnlocked=true; renderAdmin();
+}
+
+function renderAdminTab(){
+  const el=document.getElementById("admin-tab-content"); if(!el)return;
+  if(_adminTab==="students")el.innerHTML=buildAdminStudentsHtml();
+  else if(_adminTab==="staff")el.innerHTML=buildAdminStaffHtml();
+  else if(_adminTab==="new-term")el.innerHTML=buildAdminNewTermHtml();
+  else if(_adminTab==="security")el.innerHTML=buildAdminSecurityHtml();
+}
+
+function buildAdminStudentsHtml(){
+  const migBtn=roster.length===0&&allStudentsDb.length===0
+    ?`<button class="btn btn-sm" onclick="migrateLocalStudents()"><i class="ti ti-database-import"></i> Migrate local students</button>`:"";
+  const annexOpts=`<select onchange="setAnnexFilter(this.value)" style="width:auto">
+    <option value="">All annexes</option>
+    ${annexList.map(a=>`<option value="${a.id}" ${String(currentAnnexFilter)===String(a.id)?"selected":""}>${a.name}</option>`).join("")}
+  </select>`;
+  const filtered=roster.filter(s=>!currentAnnexFilter||String(s.annex_id)===String(currentAnnexFilter))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=filtered.map(s=>{const ax=annexList.find(a=>a.id===s.annex_id);
+    return`<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+      <td>${s.cls}</td>
+      <td><span class="annex-pill">${ax?ax.name:"—"}</span></td>
+      <td class="col-id" style="color:var(--tx2)">${s.id}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-sm" onclick="openEditEnrollment(${s.id})"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-sm" onclick="confirmMarkLeft(${s.id},'${s.name.replace(/'/g,"\\'")}')"><i class="ti ti-user-minus"></i></button>
+      </div></td></tr>`;}).join("");
+  return`<div class="card">
+    <div class="card-head">
+      <span class="card-title">Active students — ${currentTerm} ${currentSession}</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${migBtn}
+        <button class="btn btn-sm btn-primary" onclick="openAddStudent()"><i class="ti ti-user-plus"></i> Add student</button>
+      </div>
+    </div>
+    <div class="filter-bar">${annexOpts}</div>
+    ${filtered.length?`<div style="overflow-x:auto"><table>
+      <thead><tr><th>Name</th><th>Class</th><th>Annex</th><th class="col-id">ID</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+    :`<div class="empty"><i class="ti ti-users-off"></i>No active students${currentAnnexFilter?" for this annex":""}</div>`}
+  </div>`;
+}
+
+function buildAdminStaffHtml(){
+  const annexOpts=`<select onchange="setAnnexFilter(this.value)" style="width:auto">
+    <option value="">All annexes</option>
+    ${annexList.map(a=>`<option value="${a.id}" ${String(currentAnnexFilter)===String(a.id)?"selected":""}>${a.name}</option>`).join("")}
+  </select>`;
+  const base=staffList.filter(s=>!currentAnnexFilter||String(s.annex_id)===String(currentAnnexFilter))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=base.map(s=>{const ax=annexList.find(a=>a.id===s.annex_id);
+    return`<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+      <td><span class="badge ${s.staff_type==="teaching"?"badge-teach":"badge-nonteach"}">${s.staff_type==="teaching"?"Teaching":"Non-Teaching"}</span></td>
+      <td style="color:var(--tx2);font-size:12px">${s.role||"—"}</td>
+      <td><span class="annex-pill">${ax?ax.name:"—"}</span></td>
+      <td class="col-id" style="color:var(--tx2)">${s.phone||"—"}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-sm" onclick="openEditStaff(${s.staff_id})"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-sm" onclick="confirmMarkStaffLeft(${s.staff_id},'${s.name.replace(/'/g,"\\'")}')"><i class="ti ti-user-minus"></i></button>
+      </div></td></tr>`;}).join("");
+  return`<div class="card">
+    <div class="card-head">
+      <span class="card-title">Staff — ${currentTerm} ${currentSession}</span>
+      <button class="btn btn-sm btn-primary" onclick="openAddStaff()"><i class="ti ti-user-plus"></i> Add staff</button>
+    </div>
+    <div class="filter-bar">${annexOpts}</div>
+    ${base.length?`<div style="overflow-x:auto"><table>
+      <thead><tr><th>Name</th><th>Type</th><th>Role</th><th>Annex</th><th class="col-id">Phone</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+    :`<div class="empty"><i class="ti ti-users-off"></i>No staff${currentAnnexFilter?" for this annex":""}</div>`}
+  </div>`;
+}
+
+function buildAdminNewTermHtml(){
+  const terms=["First Term","Second Term","Third Term"];
+  return`<div class="card">
+    <div class="card-head"><span class="card-title"><i class="ti ti-calendar-plus"></i> Initialize New Term</span></div>
+    <p style="font-size:13px;color:var(--tx2);margin-bottom:16px">Copy enrollments and staff from a source term into <strong>${currentTerm} · ${currentSession}</strong>. Students already enrolled this term are skipped.</p>
+    <div class="field"><label>Source term</label>
+      <select id="src-term">${terms.map(t=>`<option>${t}</option>`).join("")}</select></div>
+    <div class="field"><label>Source session</label>
+      <input id="src-session" placeholder="e.g. 2024/2025" /></div>
+    <div class="field" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="do-promote" style="width:auto" />
+      <label for="do-promote" style="margin:0;font-size:13px;color:var(--tx);cursor:pointer">Auto-promote students (JSS 1→JSS 2, SS 3→graduated)</label>
+    </div>
+    <button class="btn btn-primary" onclick="runInitNewTerm()"><i class="ti ti-copy"></i> Initialize</button>
+    <p style="font-size:11px;color:var(--tx3);margin-top:10px">Only adds missing enrollments — existing records are not changed.</p>
+  </div>`;
+}
+
+function buildAdminSecurityHtml(){
+  return`<div class="card" style="max-width:420px">
+    <div class="card-head"><span class="card-title">Change PIN</span></div>
+    <div class="field"><label>Current PIN</label><input type="password" id="sec-old-pin" placeholder="Current PIN…" /></div>
+    <div class="field"><label>New PIN</label><input type="password" id="sec-new-pin" placeholder="New PIN…" /></div>
+    <div class="field"><label>Confirm new PIN</label><input type="password" id="sec-confirm-pin" placeholder="Repeat new PIN…" /></div>
+    <button class="btn btn-primary" onclick="runChangePin()"><i class="ti ti-key"></i> Change PIN</button>
+  </div>
+  <div class="card" style="max-width:420px;margin-top:12px">
+    <div class="card-head"><span class="card-title">Session</span></div>
+    <button class="btn" onclick="lockAdmin()"><i class="ti ti-lock"></i> Lock admin session</button>
+  </div>`;
+}
+
+/* ── admin: student actions ── */
+function openAddStudent(){
+  const clsOpts=ALL_CLASSES.map(c=>`<option>${c}</option>`).join("");
+  const axOpts=annexList.map(a=>`<option value="${a.id}">${a.name}</option>`).join("");
+  openModal("Add Student",`
+    <div class="field"><label>Full name</label><input id="m-name" placeholder="Surname Firstname" /></div>
+    <div class="field"><label>Gender</label><select id="m-gender"><option>Male</option><option>Female</option></select></div>
+    <div class="field"><label>Class</label><select id="m-cls">${clsOpts}</select></div>
+    <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddStudent()"><i class="ti ti-check"></i> Add</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("m-name")?.focus(),50);
+}
+async function submitAddStudent(){
+  const name=document.getElementById("m-name")?.value?.trim();
+  const gender=document.getElementById("m-gender")?.value;
+  const cls=document.getElementById("m-cls")?.value;
+  const annexId=parseInt(document.getElementById("m-annex")?.value);
+  if(!name){alert("Enter student name");return;}
+  const {data:maxData}=await dbClient.from("students").select("id").gte("id",2001).order("id",{ascending:false}).limit(1);
+  const newId=maxData?.length?maxData[0].id+1:2001;
+  const sec=CLASS_SECTION[cls]||"Primary";
+  await dbClient.from("students").insert({id:newId,name,gender,annex_id:annexId});
+  await dbClient.from("enrollments").insert({student_id:newId,cls,sec,annex_id:annexId,status:"active",term:currentTerm,session:currentSession});
+  closeModal();
+  await loadRoster(); await loadAllStudentsDb();
+  renderAdmin();
+}
+function openEditEnrollment(sid){
+  const s=roster.find(x=>x.id===sid); if(!s)return;
+  const clsOpts=ALL_CLASSES.map(c=>`<option ${c===s.cls?"selected":""}>${c}</option>`).join("");
+  const axOpts=annexList.map(a=>`<option value="${a.id}" ${a.id===s.annex_id?"selected":""}>${a.name}</option>`).join("");
+  openModal(`Edit: ${s.name}`,`
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Enrollment for ${currentTerm} · ${currentSession}</p>
+    <div class="field"><label>Class</label><select id="m-cls">${clsOpts}</select></div>
+    <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitEditEnrollment(${sid})"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+async function submitEditEnrollment(sid){
+  const cls=document.getElementById("m-cls")?.value;
+  const annexId=parseInt(document.getElementById("m-annex")?.value);
+  const sec=CLASS_SECTION[cls]||"Primary";
+  await dbClient.from("enrollments").update({cls,sec,annex_id:annexId}).eq("student_id",sid).eq("term",currentTerm).eq("session",currentSession);
+  closeModal(); await loadRoster(); renderAdmin();
+}
+async function confirmMarkLeft(sid,name){
+  if(!confirm(`Mark ${name} as "left" for ${currentTerm} ${currentSession}?\nThey will not appear in this term's roster.`))return;
+  await dbClient.from("enrollments").update({status:"left"}).eq("student_id",sid).eq("term",currentTerm).eq("session",currentSession);
+  await loadRoster(); renderAdmin();
+}
+async function migrateLocalStudents(){
+  if(!confirm(`Migrate all ${STUDENTS.length} hardcoded students to Supabase?\nThey will be enrolled in ${currentTerm} ${currentSession} under the Mushin annex.`))return;
+  const studentRows=STUDENTS.map(s=>({id:s.id,name:s.name,gender:s.gender,annex_id:1}));
+  await dbClient.from("students").upsert(studentRows,{onConflict:"id"});
+  const enrollRows=STUDENTS.map(s=>({student_id:s.id,cls:s.cls,sec:s.sec,annex_id:1,status:"active",term:currentTerm,session:currentSession}));
+  await dbClient.from("enrollments").upsert(enrollRows,{onConflict:"student_id,term,session"});
+  await loadRoster(); await loadAllStudentsDb(); renderAdmin();
+  alert("Migration complete!");
+}
+
+/* ── admin: staff actions ── */
+function openAddStaff(){
+  const axOpts=annexList.map(a=>`<option value="${a.id}">${a.name}</option>`).join("");
+  openModal("Add Staff Member",`
+    <div class="field"><label>Full name</label><input id="m-name" placeholder="Surname Firstname" /></div>
+    <div class="field"><label>Gender</label><select id="m-gender"><option>Male</option><option>Female</option></select></div>
+    <div class="field"><label>Type</label>
+      <select id="m-type"><option value="teaching">Teaching</option><option value="non-teaching">Non-Teaching</option></select></div>
+    <div class="field"><label>Role / Position</label><input id="m-role" placeholder="e.g. Class Teacher, Admin Officer" /></div>
+    <div class="field"><label>Phone</label><input id="m-phone" type="tel" placeholder="08012345678" /></div>
+    <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddStaff()"><i class="ti ti-check"></i> Add</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("m-name")?.focus(),50);
+}
+async function submitAddStaff(){
+  const name=document.getElementById("m-name")?.value?.trim();
+  const gender=document.getElementById("m-gender")?.value;
+  const staffType=document.getElementById("m-type")?.value;
+  const role=document.getElementById("m-role")?.value?.trim();
+  const phone=document.getElementById("m-phone")?.value?.trim();
+  const annexId=parseInt(document.getElementById("m-annex")?.value);
+  if(!name){alert("Enter staff name");return;}
+  const {data,error}=await dbClient.from("staff").insert({name,gender,staff_type:staffType,role,phone,annex_id:annexId}).select();
+  if(error||!data?.[0]){alert("Error: "+(error?.message||"unknown"));return;}
+  await dbClient.from("staff_assignments").insert({staff_id:data[0].id,annex_id:annexId,term:currentTerm,session:currentSession,status:"active"});
+  closeModal(); await loadStaff(); renderAdmin();
+}
+function openEditStaff(staffId){
+  const s=staffList.find(x=>x.staff_id===staffId); if(!s)return;
+  const axOpts=annexList.map(a=>`<option value="${a.id}" ${a.id===s.annex_id?"selected":""}>${a.name}</option>`).join("");
+  openModal(`Edit: ${s.name}`,`
+    <div class="field"><label>Role / Position</label><input id="m-role" value="${s.role}" placeholder="e.g. Class Teacher" /></div>
+    <div class="field"><label>Phone</label><input id="m-phone" type="tel" value="${s.phone}" /></div>
+    <div class="field"><label>Type</label>
+      <select id="m-type">
+        <option value="teaching" ${s.staff_type==="teaching"?"selected":""}>Teaching</option>
+        <option value="non-teaching" ${s.staff_type==="non-teaching"?"selected":""}>Non-Teaching</option>
+      </select></div>
+    <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitEditStaff(${staffId})"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+async function submitEditStaff(staffId){
+  const role=document.getElementById("m-role")?.value?.trim();
+  const phone=document.getElementById("m-phone")?.value?.trim();
+  const staffType=document.getElementById("m-type")?.value;
+  const annexId=parseInt(document.getElementById("m-annex")?.value);
+  await dbClient.from("staff").update({role,phone,staff_type:staffType}).eq("id",staffId);
+  await dbClient.from("staff_assignments").update({annex_id:annexId}).eq("staff_id",staffId).eq("term",currentTerm).eq("session",currentSession);
+  closeModal(); await loadStaff(); renderAdmin();
+}
+async function confirmMarkStaffLeft(staffId,name){
+  if(!confirm(`Mark ${name} as "left" for ${currentTerm} ${currentSession}?`))return;
+  await dbClient.from("staff_assignments").update({status:"left"}).eq("staff_id",staffId).eq("term",currentTerm).eq("session",currentSession);
+  await loadStaff(); renderAdmin();
+}
+
+/* ── admin: new term init ── */
+async function runInitNewTerm(){
+  const srcTerm=document.getElementById("src-term")?.value;
+  const srcSession=document.getElementById("src-session")?.value?.trim();
+  const promote=document.getElementById("do-promote")?.checked;
+  if(!srcTerm||!srcSession){alert("Select source term and enter session");return;}
+  if(!confirm(`Copy enrollments from ${srcTerm} ${srcSession} → ${currentTerm} ${currentSession}?`))return;
+  const {data:srcEnr}=await dbClient.from("enrollments").select("student_id,cls,sec,annex_id").eq("term",srcTerm).eq("session",srcSession).eq("status","active");
+  if(srcEnr?.length){
+    const newEnr=srcEnr.map(e=>{
+      let cls=e.cls,sec=e.sec;
+      if(promote){
+        const next=PROMOTIONS[cls];
+        if(next===null)return null;
+        if(next){cls=next;sec=CLASS_SECTION[next]||sec;}
+      }
+      return{student_id:e.student_id,cls,sec,annex_id:e.annex_id,status:"active",term:currentTerm,session:currentSession};
+    }).filter(Boolean);
+    if(newEnr.length)await dbClient.from("enrollments").upsert(newEnr,{onConflict:"student_id,term,session"});
+  }
+  const {data:srcStf}=await dbClient.from("staff_assignments").select("staff_id,annex_id").eq("term",srcTerm).eq("session",srcSession).eq("status","active");
+  if(srcStf?.length){
+    const newStf=srcStf.map(s=>({staff_id:s.staff_id,annex_id:s.annex_id,term:currentTerm,session:currentSession,status:"active"}));
+    await dbClient.from("staff_assignments").upsert(newStf,{onConflict:"staff_id,term,session"});
+  }
+  await loadRoster(); await loadStaff(); renderAdmin();
+  alert(`Done! ${srcEnr?.length||0} student enrollments and ${srcStf?.length||0} staff copied.`);
+}
+
+/* ── admin: change PIN ── */
+async function runChangePin(){
+  const oldPin=document.getElementById("sec-old-pin")?.value?.trim();
+  const newPin=document.getElementById("sec-new-pin")?.value?.trim();
+  const confirmPin=document.getElementById("sec-confirm-pin")?.value?.trim();
+  if(!oldPin||!newPin||!confirmPin){alert("Fill all fields");return;}
+  if(newPin!==confirmPin){alert("New PINs do not match");return;}
+  const oldHash=await sha256(oldPin);
+  if(oldHash!==storedPinHash){alert("Current PIN is incorrect");return;}
+  const newHash=await sha256(newPin);
+  await dbClient.from("admin_config").upsert({id:1,pin_hash:newHash},{onConflict:"id"});
+  storedPinHash=newHash;
+  alert("PIN changed successfully");
 }
 
 /* ── settings ── */
@@ -926,7 +1435,8 @@ async function switchTermSession(){
   currentTerm=t; currentSession=s;
   localStorage.setItem("dbs-term",t); localStorage.setItem("dbs-session",s);
   store={scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
-  if(dbClient){dbStatus="loading";updateDbIndicator();await loadFromSupabase();dbStatus="connected";}
+  roster=[...STUDENTS]; staffList=[];
+  if(dbClient){dbStatus="loading";updateDbIndicator();const ok=await loadFromSupabase();dbStatus=ok?"connected":"error";}
   else loadLocalStore();
   updateDbIndicator(); updateTermDisplay();
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
