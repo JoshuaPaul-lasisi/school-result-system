@@ -154,7 +154,17 @@
       .content{padding:0;overflow:visible}
       .rc{max-width:none;display:block!important}
       .card{border:none;padding:0}
+      .paper-actions{display:none!important}
+      #paper-print-area{display:block!important;padding:0}
     }
+    /* ── exam paper viewer ── */
+    .paper-card{background:var(--bg2);border:.5px solid var(--bd3);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer}
+    .paper-card:hover{background:var(--bg)}
+    .paper-tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:var(--burg);color:#fff}
+    .paper-tag.ca1{background:#2563eb}
+    .paper-tag.ca2{background:#7c3aed}
+    .paper-tag.exam{background:#b91c1c}
+    #paper-print-area{display:none}
 
     /* ════════════════════════════════════════
        RESPONSIVE — tablet & mobile
@@ -293,6 +303,7 @@
       <div class="nav-item" onclick="nav('entry',null,this)"><i class="ti ti-table-plus"></i>Score Entry</div>
       <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
       <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
+      <div class="nav-item" onclick="nav('papers',null,this)"><i class="ti ti-file-text"></i>Exam Papers</div>
       <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
       <div class="nav-item" onclick="nav('admin',null,this)"><i class="ti ti-shield-lock"></i>Admin</div>
     </div>
@@ -460,6 +471,8 @@ let currentAnnexFilter = "";
 let adminUnlocked = false;
 let storedPinHash = null;
 let _curPage = "dashboard", _curArg = null;
+let examPapersStore = [];
+let _paperFilterCls = "", _paperFilterType = "";
 
 /* ── sidebar ── */
 function toggleSidebar() {
@@ -541,10 +554,19 @@ async function loadAdminPin() {
   else storedPinHash = null;
 }
 
+async function loadExamPapers() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("exam_papers")
+    .select("id,subject,cls,sec,paper_type,term,session,content,created_at")
+    .eq("term",currentTerm).eq("session",currentSession)
+    .order("cls").order("subject");
+  if (!error && data) examPapersStore = data;
+}
+
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -645,6 +667,7 @@ function nav(page,arg,el){
   else if(page==="entry")renderScoreEntry();
   else if(page==="search")renderSearch();
   else if(page==="staff")renderStaffDirectory();
+  else if(page==="papers")renderExamPapers();
   else if(page==="settings")renderSettings();
   else if(page==="admin")renderAdmin();
 }
@@ -653,6 +676,7 @@ function setAnnexFilter(val){
   if(_curPage==="class")renderSection(_curArg);
   else if(_curPage==="entry")renderScoreEntry();
   else if(_curPage==="staff")renderStaffDirectory();
+  else if(_curPage==="papers")renderExamPapers();
   else if(_curPage==="admin")renderAdmin();
 }
 function navToSection(sec){
@@ -1074,8 +1098,8 @@ function renderAdmin(){
     setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
     return;
   }
-  const tabs=["students","staff","new-term","security"];
-  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","security":"Security"};
+  const tabs=["students","staff","new-term","exam-papers","security"];
+  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","security":"Security"};
   document.getElementById("content").innerHTML=`
     <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
     <div id="admin-tab-content"></div>`;
@@ -1104,6 +1128,7 @@ function renderAdminTab(){
   if(_adminTab==="students")el.innerHTML=buildAdminStudentsHtml();
   else if(_adminTab==="staff")el.innerHTML=buildAdminStaffHtml();
   else if(_adminTab==="new-term")el.innerHTML=buildAdminNewTermHtml();
+  else if(_adminTab==="exam-papers"){el.innerHTML=buildAdminExamPapersHtml();refreshGenSubjects();}
   else if(_adminTab==="security")el.innerHTML=buildAdminSecurityHtml();
 }
 
@@ -1389,6 +1414,216 @@ async function runChangePin(){
   alert("PIN changed successfully");
 }
 
+/* ── exam papers: teacher view ── */
+const EXAM_SUBJECTS = {
+  "Junior Secondary": ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS"],
+  "Senior Secondary": ["Mathematics","English Language","ICT","Civic Education","Biology","Economics","Physics","Literature","Account","Chemistry","Government","Further Mathematics","CRS","Commerce"],
+};
+function getExamSubjects(cls){
+  if(["JSS 1","JSS 2","JSS 3"].includes(cls)) return EXAM_SUBJECTS["Junior Secondary"];
+  if(["SS 1","SS 2","SS 3"].includes(cls)) return EXAM_SUBJECTS["Senior Secondary"];
+  return [];
+}
+const EXAM_CLASSES = ["JSS 1","JSS 2","JSS 3","SS 1","SS 2","SS 3"];
+
+function renderExamPapers(){
+  document.getElementById("page-title").textContent="Exam Papers";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  let printDiv = document.getElementById("paper-print-area");
+  if(!printDiv){ printDiv=document.createElement("div"); printDiv.id="paper-print-area"; document.body.appendChild(printDiv); }
+  const clsOpts=`<select onchange="_paperFilterCls=this.value;renderExamPapersList()" style="min-width:120px">
+    <option value="">All classes</option>
+    ${EXAM_CLASSES.map(c=>`<option ${c===_paperFilterCls?"selected":""}>${c}</option>`).join("")}
+  </select>`;
+  const typeOpts=`<select onchange="_paperFilterType=this.value;renderExamPapersList()" style="min-width:110px">
+    <option value="">All types</option>
+    <option value="CA1" ${_paperFilterType==="CA1"?"selected":""}>CA1</option>
+    <option value="CA2" ${_paperFilterType==="CA2"?"selected":""}>CA2</option>
+    <option value="Exam" ${_paperFilterType==="Exam"?"selected":""}>Exam</option>
+  </select>`;
+  document.getElementById("content").innerHTML=`
+    <div class="filter-bar">${clsOpts}${typeOpts}</div>
+    <div id="papers-list"></div>
+    <div class="card" style="margin-top:12px;display:none" id="paper-viewer">
+      <div class="card-head paper-actions">
+        <span class="card-title" id="paper-viewer-title"></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-primary" onclick="printPaper()"><i class="ti ti-printer"></i> Print / Download</button>
+          <button class="btn btn-sm" onclick="closePaperViewer()"><i class="ti ti-x"></i></button>
+        </div>
+      </div>
+      <div id="paper-viewer-body" style="padding:8px 4px;font-family:serif;line-height:1.7;font-size:14px"></div>
+    </div>`;
+  renderExamPapersList();
+}
+
+function renderExamPapersList(){
+  const filtered=examPapersStore.filter(p=>
+    (!_paperFilterCls||p.cls===_paperFilterCls)&&
+    (!_paperFilterType||p.paper_type===_paperFilterType)
+  );
+  const el=document.getElementById("papers-list"); if(!el)return;
+  if(!filtered.length){
+    el.innerHTML=`<div class="card"><div class="empty"><i class="ti ti-file-off"></i>No exam papers available for this term yet</div></div>`;
+    return;
+  }
+  const byClass={};
+  filtered.forEach(p=>{if(!byClass[p.cls])byClass[p.cls]=[];byClass[p.cls].push(p);});
+  el.innerHTML=Object.entries(byClass).map(([cls,papers])=>`
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-head"><span class="card-title">${cls}</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${papers.map(p=>{
+          const tagCls=p.paper_type==="CA1"?"ca1":p.paper_type==="CA2"?"ca2":"exam";
+          return`<div class="paper-card" onclick="viewPaper(${p.id})">
+            <span class="paper-tag ${tagCls}">${p.paper_type}</span>
+            <span style="flex:1;font-size:13px">${p.subject}</span>
+            <button class="btn btn-sm btn-primary paper-actions" onclick="event.stopPropagation();printPaperById(${p.id})"><i class="ti ti-printer"></i> Print</button>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`).join("");
+}
+
+function viewPaper(id){
+  const p=examPapersStore.find(x=>x.id===id); if(!p)return;
+  const viewer=document.getElementById("paper-viewer");
+  document.getElementById("paper-viewer-title").textContent=`${p.cls} · ${p.subject} · ${p.paper_type}`;
+  document.getElementById("paper-viewer-body").innerHTML=p.content;
+  viewer.style.display="";
+  viewer.scrollIntoView({behavior:"smooth",block:"start"});
+  viewer.dataset.paperId=id;
+}
+
+function closePaperViewer(){
+  const v=document.getElementById("paper-viewer"); if(v)v.style.display="none";
+}
+
+function printPaperById(id){
+  const p=examPapersStore.find(x=>x.id===id); if(!p)return;
+  const area=document.getElementById("paper-print-area");
+  area.style.display="block";
+  area.innerHTML=p.content;
+  window.print();
+  area.style.display="none";
+  area.innerHTML="";
+}
+
+function printPaper(){
+  const v=document.getElementById("paper-viewer"); if(!v)return;
+  const id=parseInt(v.dataset.paperId); if(!id)return;
+  printPaperById(id);
+}
+
+/* ── admin: exam papers tab ── */
+function buildAdminExamPapersHtml(){
+  const clsOpts=EXAM_CLASSES.map(c=>`<option>${c}</option>`).join("");
+  const stored=examPapersStore.slice().sort((a,b)=>{
+    if(a.cls<b.cls)return -1;if(a.cls>b.cls)return 1;
+    return a.subject.localeCompare(b.subject);
+  });
+  const rows=stored.map(p=>{
+    const tagCls=p.paper_type==="CA1"?"ca1":p.paper_type==="CA2"?"ca2":"exam";
+    return`<tr>
+      <td>${p.cls}</td>
+      <td>${p.subject}</td>
+      <td><span class="paper-tag ${tagCls}" style="font-size:10px">${p.paper_type}</span></td>
+      <td style="font-size:11px;color:var(--tx2)">${new Date(p.created_at).toLocaleDateString()}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-sm" onclick="viewPaperAdmin(${p.id})"><i class="ti ti-eye"></i></button>
+        <button class="btn btn-sm" onclick="printPaperById(${p.id})"><i class="ti ti-printer"></i></button>
+        <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteExamPaper(${p.id},'${p.subject.replace(/'/g,"\\'")}','${p.cls}','${p.paper_type}')"><i class="ti ti-trash"></i></button>
+      </div></td>
+    </tr>`;
+  }).join("");
+  return`<div class="card">
+    <div class="card-head">
+      <span class="card-title">Generate Exam Paper</span>
+    </div>
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:14px">AI generates the paper using the scheme of work. The paper is saved and teachers can print it from the Exam Papers page.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+      <div class="field"><label>Class</label>
+        <select id="gen-cls" onchange="refreshGenSubjects()">${clsOpts}</select></div>
+      <div class="field"><label>Subject</label>
+        <select id="gen-sub"></select></div>
+      <div class="field"><label>Paper type</label>
+        <select id="gen-type">
+          <option value="CA1">CA1 (First Assessment)</option>
+          <option value="CA2">CA2 (Second Assessment)</option>
+          <option value="Exam">End-of-Term Exam</option>
+        </select></div>
+    </div>
+    <button class="btn btn-primary" onclick="generateExamPaper()"><i class="ti ti-sparkles"></i> Generate Paper</button>
+    <div id="gen-status" style="margin-top:10px;font-size:12px;color:var(--tx2)"></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-head"><span class="card-title">Generated Papers — ${currentTerm} ${currentSession}</span></div>
+    ${stored.length?`<div style="overflow-x:auto"><table>
+      <thead><tr><th>Class</th><th>Subject</th><th>Type</th><th>Generated</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+    :`<div class="empty"><i class="ti ti-file-off"></i>No papers generated yet</div>`}
+  </div>`;
+}
+
+function refreshGenSubjects(){
+  const cls=document.getElementById("gen-cls")?.value; if(!cls)return;
+  const subs=getExamSubjects(cls);
+  const sel=document.getElementById("gen-sub"); if(!sel)return;
+  sel.innerHTML=subs.map(s=>`<option>${s}</option>`).join("");
+}
+
+async function generateExamPaper(){
+  const cls=document.getElementById("gen-cls")?.value;
+  const subject=document.getElementById("gen-sub")?.value;
+  const paperType=document.getElementById("gen-type")?.value;
+  const status=document.getElementById("gen-status");
+  if(!cls||!subject||!paperType){alert("Select class, subject, and paper type");return;}
+  if(status)status.innerHTML=`<i class="ti ti-loader"></i> Generating ${subject} ${paperType} for ${cls}… this may take 15–30 seconds.`;
+  try{
+    const res=await fetch("/api/generate-exam",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({subject,cls,paperType,term:currentTerm,session:currentSession}),
+    });
+    if(!res.ok){
+      const err=await res.json().catch(()=>({error:res.statusText}));
+      throw new Error(err.error||res.statusText);
+    }
+    const {content}=await res.json();
+    if(!content)throw new Error("Empty response from AI");
+    const sec=CLASS_SECTION[cls]||"Junior Secondary";
+    const {error}=await dbClient.from("exam_papers").upsert(
+      {subject,cls,sec,paper_type:paperType,term:currentTerm,session:currentSession,content},
+      {onConflict:"subject,cls,paper_type,term,session"}
+    );
+    if(error)throw new Error("DB save failed: "+error.message);
+    await loadExamPapers();
+    renderAdminTab();
+    if(status)status.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Done! Paper saved.</span>`;
+  }catch(e){
+    console.error("generate-exam:",e);
+    if(status)status.innerHTML=`<span style="color:var(--tx-err)"><i class="ti ti-alert-circle"></i> Error: ${e.message}</span>`;
+  }
+}
+
+function viewPaperAdmin(id){
+  const p=examPapersStore.find(x=>x.id===id); if(!p)return;
+  openModal(`${p.cls} · ${p.subject} · ${p.paper_type}`,
+    `<div style="font-family:serif;line-height:1.7;font-size:13px;max-height:60vh;overflow-y:auto">${p.content}</div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-primary" onclick="printPaperById(${p.id})"><i class="ti ti-printer"></i> Print</button>
+      <button class="btn btn-sm" onclick="closeModal()">Close</button>
+    </div>`);
+}
+
+async function deleteExamPaper(id,subject,cls,paperType){
+  if(!confirm(`Delete ${subject} ${paperType} for ${cls}? This cannot be undone.`))return;
+  const {error}=await dbClient.from("exam_papers").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  await loadExamPapers(); renderAdminTab();
+}
+
 /* ── settings ── */
 function renderSettings(){
   document.getElementById("page-title").textContent="Settings";
@@ -1429,7 +1664,7 @@ async function switchTermSession(){
   currentTerm=t; currentSession=s;
   localStorage.setItem("dbs-term",t); localStorage.setItem("dbs-session",s);
   store={scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
-  roster=[...STUDENTS]; staffList=[];
+  roster=[...STUDENTS]; staffList=[]; examPapersStore=[];
   if(dbClient){dbStatus="loading";updateDbIndicator();const ok=await loadFromSupabase();dbStatus=ok?"connected":"error";}
   else loadLocalStore();
   updateDbIndicator(); updateTermDisplay();
