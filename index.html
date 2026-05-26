@@ -23,9 +23,12 @@
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%}
     body{font-family:var(--font-sans);font-size:14px;background:#eef0f2;display:flex;align-items:center;justify-content:center;min-height:100vh}
-    .app{display:grid;grid-template-columns:214px 1fr;width:100%;max-width:1120px;height:96vh;border:.5px solid var(--bd3);border-radius:var(--rlg);overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.09)}
 
-    /* sidebar */
+    /* ── app shell ── */
+    .app{display:grid;grid-template-columns:214px 1fr;width:100%;max-width:1120px;height:96vh;border:.5px solid var(--bd3);border-radius:var(--rlg);overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.09)}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
+
+    /* ── sidebar ── */
     .sidebar{background:var(--bg2);border-right:.5px solid var(--bd3);display:flex;flex-direction:column;overflow-y:auto}
     .logo{padding:14px 16px 12px;border-bottom:.5px solid var(--bd3)}
     .logo-name{font-size:13px;font-weight:600;color:var(--tx)}
@@ -36,50 +39,52 @@
     .db-lbl{font-size:10px;color:var(--tx3)}
     .nav-section{padding:8px 8px 0}
     .nav-label{font-size:10px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;padding:6px 8px 4px}
-    .nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--r);cursor:pointer;font-size:13px;color:var(--tx2);transition:background .15s;user-select:none}
+    .nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);cursor:pointer;font-size:13px;color:var(--tx2);transition:background .15s;user-select:none}
     .nav-item:hover{background:var(--bg)}
     .nav-item.active{background:var(--bg);color:var(--tx);font-weight:500}
     .nav-item i{font-size:15px;opacity:.7}
 
-    /* main */
-    .main{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+    /* ── main ── */
+    .main{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;min-width:0}
     .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:.5px solid var(--bd3);flex-shrink:0;gap:8px}
-    .topbar-left{min-width:0}
-    .topbar-title{font-size:15px;font-weight:600;color:var(--tx)}
-    .topbar-meta{font-size:12px;color:var(--tx2);margin-top:1px}
+    .topbar-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+    .topbar-text{min-width:0}
+    .topbar-title{font-size:15px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar-meta{font-size:12px;color:var(--tx2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .save-indicator{font-size:11px;color:var(--tx2);white-space:nowrap;flex-shrink:0}
     .content{flex:1;overflow-y:auto;padding:16px}
 
-    /* buttons */
+    /* hamburger — hidden on desktop */
+    .hamburger{display:none;align-items:center;justify-content:center;width:34px;height:34px;border:none;background:none;cursor:pointer;color:var(--tx);border-radius:var(--r);flex-shrink:0}
+    .hamburger:hover{background:var(--bg2)}
+    .hamburger i{font-size:20px}
+
+    /* ── buttons ── */
     .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r);border:.5px solid var(--bd2);background:var(--bg);color:var(--tx);font-size:13px;font-family:var(--font-sans);cursor:pointer;transition:background .15s}
     .btn:hover{background:var(--bg2)}
     .btn-primary{background:var(--burg);border-color:var(--burg);color:#fff}
     .btn-primary:hover{background:#6d1424}
     .btn-sm{padding:5px 10px;font-size:12px}
 
-    /* badges */
+    /* ── badges ── */
     .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
-    .badge-a{background:var(--bg-ok);color:var(--tx-ok)}
-    .badge-b{background:var(--bg-info);color:var(--tx-info)}
-    .badge-c{background:var(--bg-warn);color:var(--tx-warn)}
-    .badge-d{background:var(--bg-warn);color:var(--tx-warn)}
-    .badge-f{background:var(--bg-err);color:var(--tx-err)}
-    .badge-ok{background:var(--bg-ok);color:var(--tx-ok)}
-    .badge-err{background:var(--bg-err);color:var(--tx-err)}
-    .badge-neutral{background:var(--bg2);color:var(--tx2)}
+    .badge-a{background:var(--bg-ok);color:var(--tx-ok)} .badge-b{background:var(--bg-info);color:var(--tx-info)}
+    .badge-c{background:var(--bg-warn);color:var(--tx-warn)} .badge-d{background:var(--bg-warn);color:var(--tx-warn)}
+    .badge-f{background:var(--bg-err);color:var(--tx-err)} .badge-ok{background:var(--bg-ok);color:var(--tx-ok)}
+    .badge-err{background:var(--bg-err);color:var(--tx-err)} .badge-neutral{background:var(--bg2);color:var(--tx2)}
 
-    /* cards */
+    /* ── cards ── */
     .card{background:var(--bg);border:.5px solid var(--bd3);border-radius:var(--rlg);padding:14px 16px;margin-bottom:12px}
-    .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
     .card-title{font-size:13px;font-weight:600;color:var(--tx)}
 
-    /* stats */
+    /* ── stats ── */
     .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
     .stat{background:var(--bg2);border-radius:var(--r);padding:10px 12px}
     .stat-val{font-size:22px;font-weight:600;color:var(--tx)}
     .stat-lbl{font-size:11px;color:var(--tx2);margin-top:2px}
 
-    /* table */
+    /* ── table ── */
     table{width:100%;border-collapse:collapse;font-size:13px}
     th{text-align:left;padding:8px 10px;font-size:11px;font-weight:500;color:var(--tx2);border-bottom:.5px solid var(--bd3);white-space:nowrap}
     td{padding:8px 10px;border-bottom:.5px solid var(--bd3);color:var(--tx)}
@@ -87,28 +92,35 @@
     tr:hover td{background:var(--bg2)}
     .trow-click{cursor:pointer}
 
-    /* forms */
+    /* ── forms ── */
     input,select,textarea{font-family:var(--font-sans);font-size:13px;color:var(--tx);background:var(--bg);border:.5px solid var(--bd2);border-radius:var(--r);padding:7px 10px;width:100%}
     input:focus,select:focus,textarea:focus{outline:none;border-color:var(--burg)}
     .field{margin-bottom:12px}
     .field label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:4px}
 
-    /* score grid (student detail) */
-    .score-head{display:grid;grid-template-columns:1fr 80px 80px 80px 70px;gap:8px;padding:0 0 8px;border-bottom:.5px solid var(--bd3);margin-bottom:4px}
-    .score-head span{font-size:11px;font-weight:500;color:var(--tx2)}
-    .score-grid{display:grid;grid-template-columns:1fr 80px 80px 80px 70px;gap:8px;align-items:center;padding:7px 0;border-bottom:.5px solid var(--bd3)}
-    .score-grid:last-child{border-bottom:none}
+    /* ── score rows (student detail) ── */
+    .srow-hdr{display:flex;align-items:center;padding:0 0 8px;border-bottom:.5px solid var(--bd3);margin-bottom:4px;gap:8px}
+    .srow-hdr-name{flex:1;font-size:11px;font-weight:500;color:var(--tx2)}
+    .srow-hdr-fields{display:grid;grid-template-columns:80px 80px 80px 70px;gap:8px}
+    .srow-hdr-fields span{font-size:11px;font-weight:500;color:var(--tx2);text-align:center}
+    .srow{display:flex;align-items:center;padding:7px 0;border-bottom:.5px solid var(--bd3);gap:8px}
+    .srow:last-child{border-bottom:none}
+    .srow-name{flex:1;font-size:13px;min-width:0}
+    .srow-fields{display:grid;grid-template-columns:80px 80px 80px 70px;gap:8px;align-items:center;flex-shrink:0}
+    .srow-fields span{text-align:center}
     .score-input{padding:5px 8px;text-align:center;width:100%}
+    .mobile-field-labels{display:none;grid-template-columns:1fr 1fr 56px 48px;gap:6px;margin-bottom:2px}
+    .mobile-field-labels span{font-size:10px;color:var(--tx2);text-align:center}
 
-    /* search */
+    /* ── search ── */
     .search-bar{display:flex;gap:8px;margin-bottom:14px}
     .search-bar input{flex:1}
 
-    /* empty */
+    /* ── empty ── */
     .empty{text-align:center;padding:40px;color:var(--tx2)}
     .empty i{font-size:32px;margin-bottom:8px;display:block;opacity:.4}
 
-    /* report card */
+    /* ── report card ── */
     .rc{background:var(--bg);max-width:640px;margin:0 auto}
     .rc-header{border-bottom:2px solid var(--burg);padding-bottom:12px;margin-bottom:14px}
     .rc-school{font-size:17px;font-weight:700;color:var(--burg);text-align:center}
@@ -121,7 +133,7 @@
     .rc-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px}
     .rc-table th{background:var(--bg2);padding:7px 10px;text-align:left;border:.5px solid var(--bd3);font-size:11px;font-weight:500;color:var(--tx2)}
     .rc-table td{padding:6px 10px;border:.5px solid var(--bd3);color:var(--tx)}
-    .att-row{display:flex;gap:24px;font-size:12px;margin-bottom:14px;flex-wrap:wrap}
+    .att-row{display:flex;gap:20px;font-size:12px;margin-bottom:14px;flex-wrap:wrap}
     .att-item{display:flex;flex-direction:column;gap:2px}
     .att-item span:first-child{color:var(--tx2);font-size:11px}
     .att-item span:last-child{font-weight:600}
@@ -131,23 +143,91 @@
     .comment-label{font-size:10px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
     .sig-row{display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:.5px solid var(--bd3);font-size:11px;color:var(--tx2)}
 
-    /* settings */
+    /* ── settings ── */
     .setup-step{display:flex;gap:10px;margin-bottom:10px;font-size:12px}
     .setup-num{width:20px;height:20px;border-radius:50%;background:var(--burg);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;margin-top:1px}
 
-    /* print */
+    /* ── print ── */
     @media print{
       html,body{background:#fff;display:block}
-      .app,.sidebar,.topbar{display:none!important}
+      .app,.sidebar,.topbar,.overlay{display:none!important}
       .content{padding:0;overflow:visible}
       .rc{max-width:none;display:block!important}
       .card{border:none;padding:0}
     }
+
+    /* ════════════════════════════════════════
+       RESPONSIVE — tablet & mobile
+    ════════════════════════════════════════ */
+    @media (max-width:800px){
+      .stats-row{grid-template-columns:repeat(2,1fr)}
+    }
+
+    @media (max-width:700px){
+      /* full screen on mobile */
+      body{align-items:stretch;background:var(--bg);padding:0}
+      .app{grid-template-columns:1fr;height:100dvh;max-width:none;border-radius:0;border:none;box-shadow:none}
+
+      /* sidebar becomes a fixed drawer */
+      .sidebar{
+        position:fixed;top:0;left:0;bottom:0;
+        width:230px;z-index:100;
+        transform:translateX(-100%);
+        transition:transform .25s ease;
+        box-shadow:4px 0 20px rgba(0,0,0,.15);
+        border-right:.5px solid var(--bd3);
+      }
+      .sidebar.open{transform:translateX(0)}
+
+      /* show hamburger */
+      .hamburger{display:flex}
+
+      /* topbar tweaks */
+      .topbar{padding:10px 12px}
+      .content{padding:12px}
+
+      /* stats 2-col */
+      .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+      .stat-val{font-size:18px}
+
+      /* score rows: stack on mobile */
+      .srow-hdr{display:none}
+      .srow{flex-direction:column;align-items:stretch;padding:10px 0;gap:4px}
+      .srow-name{font-size:13px;font-weight:500}
+      .srow-fields{grid-template-columns:1fr 1fr 56px 48px;gap:6px}
+      .mobile-field-labels{display:grid}
+
+      /* attendance grid */
+      .att-grid{grid-template-columns:1fr 1fr!important}
+
+      /* section table: hide ID column */
+      .col-id{display:none}
+
+      /* rc info grid: single column */
+      .rc-info-grid{grid-template-columns:1fr}
+
+      /* sig row: stack */
+      .sig-row{flex-direction:column;gap:16px}
+      .sig-row > div > div{width:100%!important}
+
+      /* search bar */
+      .search-bar{flex-direction:column}
+
+      /* settings grid */
+      .settings-grid{grid-template-columns:1fr!important}
+
+      /* bulk entry table: scroll */
+      .entry-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+      #entry-tbl{min-width:420px}
+    }
   </style>
 </head>
 <body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
 <div class="app">
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
     <div class="logo">
       <div class="logo-name">Debbyfield Schools</div>
       <div class="logo-term" id="term-display"></div>
@@ -178,8 +258,13 @@
   <div class="main">
     <div class="topbar">
       <div class="topbar-left">
-        <div class="topbar-title" id="page-title">Dashboard</div>
-        <div class="topbar-meta" id="page-meta"></div>
+        <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div class="topbar-text">
+          <div class="topbar-title" id="page-title">Dashboard</div>
+          <div class="topbar-meta" id="page-meta"></div>
+        </div>
       </div>
       <span class="save-indicator" id="save-indicator"></span>
       <div id="topbar-actions"></div>
@@ -299,7 +384,6 @@ const SUBJECTS = {
   "Junior Secondary": ["Mathematics","English Language","Basic Science & Tech","NVE","Business Studies","CRS","Yoruba","History","CCA","Civic Education","ICT","Agricultural Science","EDGE Formation"],
   "Senior Secondary": ["Mathematics","English Language","Physics","Chemistry","Biology","Economics","Geography","Civic Education","ICT","Agricultural Science","Account","Government","Literature","CRS","EDGE Formation"],
 };
-
 const CLASSES = {
   "Pre-Primary":      ["Nursery 1","Nursery 2","KG 1","KG 2"],
   "Primary":          ["Basic 1","Basic 2","Basic 3","Basic 4","Basic 5"],
@@ -311,223 +395,146 @@ const CLASSES = {
 let store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
 let currentTerm    = localStorage.getItem("dbs-term")    || "Third Term";
 let currentSession = localStorage.getItem("dbs-session") || "2025/2026";
-let dbClient  = null;
-let dbStatus  = "offline"; // offline | loading | connected | error
-let pendingSaves = 0;
+let dbClient = null, dbStatus = "offline", pendingSaves = 0;
 const scoreTimers = {}, attTimers = {}, obsTimers = {};
+
+/* ── sidebar ── */
+function toggleSidebar() {
+  const s = document.getElementById("sidebar");
+  const o = document.getElementById("overlay");
+  const open = s.classList.toggle("open");
+  o.style.display = open ? "block" : "none";
+}
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("overlay").style.display = "none";
+}
 
 /* ── supabase ── */
 function initSupabase(url, key) {
-  try {
-    if (window.supabase && url && key) {
-      dbClient = window.supabase.createClient(url, key);
-    }
-  } catch(e) { dbClient = null; }
+  try { if (window.supabase && url && key) dbClient = window.supabase.createClient(url, key); }
+  catch(e) { dbClient = null; }
 }
-
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
     const [sr, ar, or_] = await Promise.all([
-      dbClient.from("scores").select("*").eq("term", currentTerm).eq("session", currentSession),
-      dbClient.from("attendance").select("*").eq("term", currentTerm).eq("session", currentSession),
-      dbClient.from("observations").select("*").eq("term", currentTerm).eq("session", currentSession),
+      dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
+      dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
+      dbClient.from("observations").select("*").eq("term",currentTerm).eq("session",currentSession),
     ]);
-    if (sr.error || ar.error || or_.error) throw new Error("query failed");
-
+    if (sr.error||ar.error||or_.error) throw new Error("query failed");
     store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
     for (const r of sr.data) {
-      if (!store.scores[r.student_id]) store.scores[r.student_id] = {};
-      store.scores[r.student_id][r.subject] = {ca: r.ca ?? "", exam: r.exam ?? ""};
+      if (!store.scores[r.student_id]) store.scores[r.student_id]={};
+      store.scores[r.student_id][r.subject]={ca:r.ca??'',exam:r.exam??''};
     }
-    for (const r of ar.data) {
-      store.attendance[r.student_id] = {total: r.total_days, present: r.days_present ?? ""};
-    }
+    for (const r of ar.data) store.attendance[r.student_id]={total:r.total_days,present:r.days_present??''};
     for (const r of or_.data) {
-      store.character[r.student_id]        = r.character_note    || "";
-      store.teacherComments[r.student_id]  = r.teacher_comment   || "";
-      store.principalComments[r.student_id]= r.principal_comment || "";
+      store.character[r.student_id]        = r.character_note    ||'';
+      store.teacherComments[r.student_id]  = r.teacher_comment   ||'';
+      store.principalComments[r.student_id]= r.principal_comment ||'';
     }
-    saveLocalStore();
-    return true;
-  } catch(e) {
-    console.error("Supabase load error:", e);
-    return false;
-  }
+    saveLocalStore(); return true;
+  } catch(e) { console.error("Supabase load:",e); return false; }
 }
-
-async function upsertScore(sid, subj) {
+async function upsertScore(sid, sub) {
   if (!dbClient) return;
-  const key = `${sid}|${subj}`;
-  clearTimeout(scoreTimers[key]);
-  markSaving();
-  scoreTimers[key] = setTimeout(async () => {
-    const sc = getScore(sid, subj);
-    const {error} = await dbClient.from("scores").upsert({
-      student_id: sid, subject: subj,
-      ca:   sc.ca   === "" ? null : parseFloat(sc.ca),
-      exam: sc.exam === "" ? null : parseFloat(sc.exam),
-      term: currentTerm, session: currentSession,
-    }, {onConflict: "student_id,subject,term,session"});
-    if (error) console.error("score upsert:", error);
-    markSaved();
-  }, 700);
+  const key=`${sid}|${sub}`; clearTimeout(scoreTimers[key]); markSaving();
+  scoreTimers[key]=setTimeout(async()=>{
+    const sc=getScore(sid,sub);
+    const {error}=await dbClient.from("scores").upsert({student_id:sid,subject:sub,ca:sc.ca===''?null:parseFloat(sc.ca),exam:sc.exam===''?null:parseFloat(sc.exam),term:currentTerm,session:currentSession},{onConflict:"student_id,subject,term,session"});
+    if(error)console.error("score upsert:",error); markSaved();
+  },700);
 }
-
 async function upsertAttendance(sid) {
   if (!dbClient) return;
-  clearTimeout(attTimers[sid]);
-  markSaving();
-  attTimers[sid] = setTimeout(async () => {
-    const a = getAtt(sid);
-    const {error} = await dbClient.from("attendance").upsert({
-      student_id: sid,
-      total_days:   parseInt(a.total) || 57,
-      days_present: a.present === "" ? null : parseInt(a.present),
-      term: currentTerm, session: currentSession,
-    }, {onConflict: "student_id,term,session"});
-    if (error) console.error("attendance upsert:", error);
-    markSaved();
-  }, 700);
+  clearTimeout(attTimers[sid]); markSaving();
+  attTimers[sid]=setTimeout(async()=>{
+    const a=getAtt(sid);
+    const {error}=await dbClient.from("attendance").upsert({student_id:sid,total_days:parseInt(a.total)||57,days_present:a.present===''?null:parseInt(a.present),term:currentTerm,session:currentSession},{onConflict:"student_id,term,session"});
+    if(error)console.error("att upsert:",error); markSaved();
+  },700);
 }
-
 async function upsertObservation(sid) {
   if (!dbClient) return;
-  clearTimeout(obsTimers[sid]);
-  markSaving();
-  obsTimers[sid] = setTimeout(async () => {
-    const {error} = await dbClient.from("observations").upsert({
-      student_id: sid,
-      character_note:    getChar(sid),
-      teacher_comment:   getTComment(sid),
-      principal_comment: getPComment(sid),
-      term: currentTerm, session: currentSession,
-    }, {onConflict: "student_id,term,session"});
-    if (error) console.error("observation upsert:", error);
-    markSaved();
-  }, 700);
+  clearTimeout(obsTimers[sid]); markSaving();
+  obsTimers[sid]=setTimeout(async()=>{
+    const {error}=await dbClient.from("observations").upsert({student_id:sid,character_note:getChar(sid),teacher_comment:getTComment(sid),principal_comment:getPComment(sid),term:currentTerm,session:currentSession},{onConflict:"student_id,term,session"});
+    if(error)console.error("obs upsert:",error); markSaved();
+  },700);
 }
 
 /* ── local store ── */
-function storeKey() {
-  return `dbs-v2-${currentTerm.replace(/\s/g,"-")}-${currentSession.replace(/\//g,"-")}`;
-}
-function loadLocalStore() {
-  try {
-    const raw = localStorage.getItem(storeKey()) || localStorage.getItem("dbs-records-v1");
-    if (raw) store = JSON.parse(raw);
-  } catch(e) {}
-}
-function saveLocalStore() {
-  try { localStorage.setItem(storeKey(), JSON.stringify(store)); } catch(e) {}
-}
+function storeKey(){return`dbs-v2-${currentTerm.replace(/\s/g,"-")}-${currentSession.replace(/\//g,"-")}`;}
+function loadLocalStore(){try{const r=localStorage.getItem(storeKey())||localStorage.getItem("dbs-records-v1");if(r)store=JSON.parse(r);}catch(e){}}
+function saveLocalStore(){try{localStorage.setItem(storeKey(),JSON.stringify(store));}catch(e){}}
 
 /* ── save indicator ── */
-function markSaving() {
-  pendingSaves++;
-  const el = document.getElementById("save-indicator");
-  if (el) el.textContent = "Saving…";
-}
-function markSaved() {
-  pendingSaves = Math.max(0, pendingSaves - 1);
-  if (pendingSaves === 0) {
-    const el = document.getElementById("save-indicator");
-    if (el) { el.textContent = "Saved ✓"; setTimeout(() => { if (el) el.textContent = ""; }, 2500); }
-  }
-}
+function markSaving(){pendingSaves++;const el=document.getElementById("save-indicator");if(el)el.textContent="Saving…";}
+function markSaved(){pendingSaves=Math.max(0,pendingSaves-1);if(pendingSaves===0){const el=document.getElementById("save-indicator");if(el){el.textContent="Saved ✓";setTimeout(()=>{if(el)el.textContent=""},2500);}}}
 
 /* ── db indicator ── */
-function updateDbIndicator() {
-  const dot = document.getElementById("db-dot");
-  const lbl = document.getElementById("db-lbl");
-  if (!dot || !lbl) return;
-  dot.className = "db-dot " + ({connected:"dot-ok",error:"dot-err",loading:"dot-spin",offline:"dot-off"}[dbStatus] || "dot-off");
-  lbl.textContent = {connected:"Supabase connected",error:"Connection error",loading:"Connecting…",offline:"Local only"}[dbStatus] || "Local only";
+function updateDbIndicator(){
+  const dot=document.getElementById("db-dot"),lbl=document.getElementById("db-lbl");
+  if(!dot||!lbl)return;
+  dot.className="db-dot "+({connected:"dot-ok",error:"dot-err",loading:"dot-spin",offline:"dot-off"}[dbStatus]||"dot-off");
+  lbl.textContent={connected:"Supabase connected",error:"Connection error",loading:"Connecting…",offline:"Local only"}[dbStatus]||"Local only";
 }
-
-function updateTermDisplay() {
-  const el = document.getElementById("term-display");
-  if (el) el.textContent = `${currentTerm} · ${currentSession}`;
-}
+function updateTermDisplay(){const el=document.getElementById("term-display");if(el)el.textContent=`${currentTerm} · ${currentSession}`;}
 
 /* ── getters / setters ── */
-function getScore(sid, sub)  { return (store.scores[sid]||{})[sub] || {ca:"",exam:""}; }
-function setScore(sid, sub, field, val) {
-  if (!store.scores[sid]) store.scores[sid] = {};
-  if (!store.scores[sid][sub]) store.scores[sid][sub] = {ca:"",exam:""};
-  store.scores[sid][sub][field] = val;
-  saveLocalStore(); upsertScore(sid, sub);
-}
-function getAtt(sid)         { return store.attendance[sid] || {total:57, present:""}; }
-function setAtt(sid, field, val) {
-  if (!store.attendance[sid]) store.attendance[sid] = {total:57,present:""};
-  store.attendance[sid][field] = val;
-  saveLocalStore(); upsertAttendance(sid);
-}
-function getChar(sid)        { return store.character[sid] || ""; }
-function setChar(sid, val)   { store.character[sid]=val; saveLocalStore(); upsertObservation(sid); }
-function getTComment(sid)    { return store.teacherComments[sid] || ""; }
-function setTComment(sid,val){ store.teacherComments[sid]=val; saveLocalStore(); upsertObservation(sid); }
-function getPComment(sid)    { return store.principalComments[sid] || ""; }
-function setPComment(sid,val){ store.principalComments[sid]=val; saveLocalStore(); upsertObservation(sid); }
+function getScore(sid,sub){return(store.scores[sid]||{})[sub]||{ca:'',exam:''};}
+function setScore(sid,sub,field,val){if(!store.scores[sid])store.scores[sid]={};if(!store.scores[sid][sub])store.scores[sid][sub]={ca:'',exam:''};store.scores[sid][sub][field]=val;saveLocalStore();upsertScore(sid,sub);}
+function getAtt(sid){return store.attendance[sid]||{total:57,present:''};}
+function setAtt(sid,field,val){if(!store.attendance[sid])store.attendance[sid]={total:57,present:''};store.attendance[sid][field]=val;saveLocalStore();upsertAttendance(sid);}
+function getChar(sid){return store.character[sid]||'';}
+function setChar(sid,val){store.character[sid]=val;saveLocalStore();upsertObservation(sid);}
+function getTComment(sid){return store.teacherComments[sid]||'';}
+function setTComment(sid,val){store.teacherComments[sid]=val;saveLocalStore();upsertObservation(sid);}
+function getPComment(sid){return store.principalComments[sid]||'';}
+function setPComment(sid,val){store.principalComments[sid]=val;saveLocalStore();upsertObservation(sid);}
 
 /* ── grade helpers ── */
-function total(sid, sub) {
-  const s = getScore(sid, sub);
-  const c = parseFloat(s.ca)||0, e = parseFloat(s.exam)||0;
-  if (!s.ca && !s.exam) return null;
-  return c + e;
-}
-function grade(t) {
-  if (t===null) return "-";
-  return t>=70?"A":t>=60?"B":t>=50?"C":t>=45?"D":"F";
-}
-function gradeBadge(g) {
-  if (g==="-") return `<span style="color:var(--tx3)">—</span>`;
-  return `<span class="badge badge-${g.toLowerCase()}">${g}</span>`;
-}
-function remark(g) { return {A:"Excellent",B:"Good",C:"Satisfactory",D:"Needs Improvement",F:"Fail"}[g]||""; }
+function total(sid,sub){const s=getScore(sid,sub);const c=parseFloat(s.ca)||0,e=parseFloat(s.exam)||0;if(!s.ca&&!s.exam)return null;return c+e;}
+function grade(t){if(t===null)return"-";return t>=70?"A":t>=60?"B":t>=50?"C":t>=45?"D":"F";}
+function gradeBadge(g){if(g==="-")return`<span style="color:var(--tx3)">—</span>`;return`<span class="badge badge-${g.toLowerCase()}">${g}</span>`;}
+function remark(g){return{A:"Excellent",B:"Good",C:"Satisfactory",D:"Needs Improvement",F:"Fail"}[g]||"";}
 
 /* ── utils ── */
-function initials(n) { return n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
-function avatarColor(n) {
-  return ["#8B1A2F","#185FA5","#0F6E56","#B57A1A","#534AB7"][n.charCodeAt(0)%5];
-}
-function sectionForClass(cls) {
-  for (const [sec, arr] of Object.entries(CLASSES)) if (arr.includes(cls)) return sec;
-  return null;
-}
-function avatar(name, size=28) {
-  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${avatarColor(name)};display:flex;align-items:center;justify-content:center;color:#fff;font-size:${Math.floor(size*0.36)}px;font-weight:600;flex-shrink:0">${initials(name)}</div>`;
-}
+function initials(n){return n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();}
+function avatarColor(n){return["#8B1A2F","#185FA5","#0F6E56","#B57A1A","#534AB7"][n.charCodeAt(0)%5];}
+function sectionForClass(cls){for(const[s,a]of Object.entries(CLASSES))if(a.includes(cls))return s;return null;}
+function avatar(name,size=28){return`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${avatarColor(name)};display:flex;align-items:center;justify-content:center;color:#fff;font-size:${Math.floor(size*.36)}px;font-weight:600;flex-shrink:0">${initials(name)}</div>`;}
 
 /* ── navigation ── */
-function nav(page, arg, el) {
-  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-  if (el?.classList) el.classList.add("active");
-  if (page==="dashboard") renderDashboard();
-  else if (page==="class") renderSection(arg);
-  else if (page==="entry") renderScoreEntry();
-  else if (page==="search") renderSearch();
-  else if (page==="settings") renderSettings();
+function nav(page,arg,el){
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  if(el?.classList)el.classList.add("active");
+  closeSidebar();
+  if(page==="dashboard")renderDashboard();
+  else if(page==="class")renderSection(arg);
+  else if(page==="entry")renderScoreEntry();
+  else if(page==="search")renderSearch();
+  else if(page==="settings")renderSettings();
 }
-
-function navToSection(sec) {
-  const items = [...document.querySelectorAll(".nav-item")];
-  const idx = {"Pre-Primary":1,"Primary":2,"Junior Secondary":3,"Senior Secondary":4}[sec];
+function navToSection(sec){
+  const items=[...document.querySelectorAll(".nav-item")];
+  const idx={"Pre-Primary":1,"Primary":2,"Junior Secondary":3,"Senior Secondary":4}[sec];
   items.forEach(n=>n.classList.remove("active"));
-  if (idx !== undefined) items[idx]?.classList.add("active");
+  if(idx!==undefined)items[idx]?.classList.add("active");
+  closeSidebar();
   renderSection(sec);
 }
 
 /* ── dashboard ── */
-function renderDashboard() {
-  document.getElementById("page-title").textContent = "Dashboard";
-  document.getElementById("page-meta").textContent = `${currentTerm} · ${currentSession} · ${STUDENTS.length} students`;
-  document.getElementById("topbar-actions").innerHTML = "";
-  const secs = ["Pre-Primary","Primary","Junior Secondary","Senior Secondary"];
-  const counts = secs.map(s => STUDENTS.filter(st=>st.sec===s).length);
-  document.getElementById("content").innerHTML = `
+function renderDashboard(){
+  document.getElementById("page-title").textContent="Dashboard";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession} · ${STUDENTS.length} students`;
+  document.getElementById("topbar-actions").innerHTML="";
+  const secs=["Pre-Primary","Primary","Junior Secondary","Senior Secondary"];
+  const counts=secs.map(s=>STUDENTS.filter(st=>st.sec===s).length);
+  document.getElementById("content").innerHTML=`
     <div class="stats-row">
       <div class="stat"><div class="stat-val">${STUDENTS.length}</div><div class="stat-lbl">Total students</div></div>
       <div class="stat"><div class="stat-val">${counts[0]+counts[1]}</div><div class="stat-lbl">Primary wing</div></div>
@@ -541,9 +548,8 @@ function renderDashboard() {
         <tbody>${secs.map((s,i)=>`
           <tr class="trow-click" onclick="navToSection('${s}')">
             <td>${s}</td>
-            <td style="color:var(--tx2)">${CLASSES[s].join(", ")}</td>
-            <td>${counts[i]}</td>
-            <td>${SUBJECTS[s].length}</td>
+            <td style="color:var(--tx2);font-size:12px">${CLASSES[s].join(", ")}</td>
+            <td>${counts[i]}</td><td>${SUBJECTS[s].length}</td>
             <td><button class="btn btn-sm" onclick="event.stopPropagation();navToSection('${s}')">View <i class="ti ti-arrow-right"></i></button></td>
           </tr>`).join("")}
         </tbody>
@@ -552,12 +558,12 @@ function renderDashboard() {
 }
 
 /* ── section list ── */
-function renderSection(sec) {
-  document.getElementById("page-title").textContent = sec;
-  const students = STUDENTS.filter(s=>s.sec===sec).sort((a,b)=>a.name.localeCompare(b.name));
-  document.getElementById("page-meta").textContent = `${students.length} students · ${SUBJECTS[sec].length} subjects`;
-  document.getElementById("topbar-actions").innerHTML = "";
-  document.getElementById("content").innerHTML = `
+function renderSection(sec){
+  document.getElementById("page-title").textContent=sec;
+  const students=STUDENTS.filter(s=>s.sec===sec).sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById("page-meta").textContent=`${students.length} students · ${SUBJECTS[sec].length} subjects`;
+  document.getElementById("topbar-actions").innerHTML="";
+  document.getElementById("content").innerHTML=`
     <div class="search-bar">
       <input id="sec-search" placeholder="Filter by name…" oninput="filterTable(this.value)" />
       <select id="cls-filter" onchange="filterTable(document.getElementById('sec-search').value)">
@@ -567,15 +573,15 @@ function renderSection(sec) {
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <table id="student-table">
-        <thead><tr><th>Name</th><th>Class</th><th>ID</th><th>Scores entered</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Class</th><th class="col-id">ID</th><th>Scores</th><th></th></tr></thead>
         <tbody>${students.map(s=>{
-          const subjs = SUBJECTS[sec];
-          const entered = subjs.filter(sub=>{const sc=getScore(s.id,sub);return sc.ca||sc.exam;}).length;
-          const pct = Math.round(entered/subjs.length*100);
-          return `<tr class="trow-click" data-name="${s.name.toLowerCase()}" data-cls="${s.cls}" onclick="openStudent(${s.id})">
+          const subjs=SUBJECTS[sec];
+          const entered=subjs.filter(sub=>{const sc=getScore(s.id,sub);return sc.ca||sc.exam;}).length;
+          const pct=Math.round(entered/subjs.length*100);
+          return`<tr class="trow-click" data-name="${s.name.toLowerCase()}" data-cls="${s.cls}" onclick="openStudent(${s.id})">
             <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
             <td>${s.cls}</td>
-            <td style="color:var(--tx2)">${s.id}</td>
+            <td class="col-id" style="color:var(--tx2)">${s.id}</td>
             <td>
               <div style="display:flex;align-items:center;gap:8px">
                 <div style="flex:1;height:4px;background:var(--bd3);border-radius:2px;max-width:80px">
@@ -590,53 +596,57 @@ function renderSection(sec) {
       </table>
     </div>`;
 }
-
-function filterTable(q) {
-  const cls = document.getElementById("cls-filter")?.value || "";
-  document.querySelectorAll("#student-table tbody tr").forEach(r => {
-    const show = (r.dataset.name||"").includes(q.toLowerCase()) && (!cls || r.dataset.cls===cls);
-    r.style.display = show ? "" : "none";
+function filterTable(q){
+  const cls=document.getElementById("cls-filter")?.value||"";
+  document.querySelectorAll("#student-table tbody tr").forEach(r=>{
+    const show=(r.dataset.name||"").includes(q.toLowerCase())&&(!cls||r.dataset.cls===cls);
+    r.style.display=show?"":"none";
   });
 }
 
 /* ── student detail ── */
-function openStudent(sid) {
-  const s = STUDENTS.find(x=>x.id===sid);
-  if (!s) return;
-  const subjs = SUBJECTS[s.sec];
-  document.getElementById("page-title").textContent = s.name;
-  document.getElementById("page-meta").textContent = `${s.cls} · ${s.sec} · ID ${s.id}`;
-  document.getElementById("topbar-actions").innerHTML = `
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-sm" onclick="navToSection('${s.sec}')"><i class="ti ti-arrow-left"></i> Back</button>
+function openStudent(sid){
+  const s=STUDENTS.find(x=>x.id===sid); if(!s)return;
+  const subjs=SUBJECTS[s.sec];
+  document.getElementById("page-title").textContent=s.name;
+  document.getElementById("page-meta").textContent=`${s.cls} · ID ${s.id}`;
+  document.getElementById("topbar-actions").innerHTML=`
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm" onclick="navToSection('${s.sec}')"><i class="ti ti-arrow-left"></i></button>
       <button class="btn btn-sm btn-primary" onclick="showReportCard(${sid})"><i class="ti ti-file-text"></i> Report Card</button>
     </div>`;
-  const att = getAtt(sid);
-  document.getElementById("content").innerHTML = `
+  const att=getAtt(sid);
+  document.getElementById("content").innerHTML=`
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Academic scores · ${currentTerm} ${currentSession}</span>
+        <span class="card-title">Scores · ${currentTerm}</span>
         <span style="font-size:11px;color:var(--tx2)">CA /40 · Exam /60</span>
       </div>
-      <div class="score-head">
-        <span>Subject</span><span style="text-align:center">CA /40</span><span style="text-align:center">Exam /60</span><span style="text-align:center">Total</span><span style="text-align:center">Grade</span>
+      <div class="srow-hdr">
+        <span class="srow-hdr-name">Subject</span>
+        <div class="srow-hdr-fields">
+          <span>CA /40</span><span>Exam /60</span><span>Total</span><span>Grade</span>
+        </div>
       </div>
       ${subjs.map(sub=>{
-        const sc=getScore(sid,sub), t=total(sid,sub), g=grade(t), k=sub.replace(/\W/g,"_");
-        return `<div class="score-grid">
-          <span>${sub}</span>
-          <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
-            oninput="setScore(${sid},'${sub}','ca',this.value);updateDetailRow(${sid},'${sub}')" />
-          <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
-            oninput="setScore(${sid},'${sub}','exam',this.value);updateDetailRow(${sid},'${sub}')" />
-          <span id="dt-${sid}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</span>
-          <span id="dg-${sid}-${k}" style="text-align:center">${gradeBadge(g)}</span>
+        const sc=getScore(sid,sub),t=total(sid,sub),g=grade(t),k=sub.replace(/\W/g,"_");
+        return`<div class="srow">
+          <div class="srow-name">${sub}</div>
+          <div class="mobile-field-labels"><span>CA /40</span><span>Exam /60</span><span>Total</span><span>Grade</span></div>
+          <div class="srow-fields">
+            <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
+              oninput="setScore(${sid},'${sub}','ca',this.value);updateDetailRow(${sid},'${sub}')" />
+            <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
+              oninput="setScore(${sid},'${sub}','exam',this.value);updateDetailRow(${sid},'${sub}')" />
+            <span id="dt-${sid}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</span>
+            <span id="dg-${sid}-${k}" style="text-align:center">${gradeBadge(g)}</span>
+          </div>
         </div>`;
       }).join("")}
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Attendance</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="att-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
         <div class="field"><label>Total school days</label>
           <input type="number" value="${att.total}" oninput="setAtt(${sid},'total',this.value);updateAttPct(${sid})" /></div>
         <div class="field"><label>Days present</label>
@@ -659,27 +669,24 @@ function openStudent(sid) {
         <textarea rows="2" placeholder="Principal's comment…" oninput="setPComment(${sid},this.value)">${getPComment(sid)}</textarea></div>
     </div>`;
 }
-
-function updateDetailRow(sid, sub) {
-  const k=sub.replace(/\W/g,"_"), t=total(sid,sub), g=grade(t);
-  const te=document.getElementById(`dt-${sid}-${k}`), ge=document.getElementById(`dg-${sid}-${k}`);
-  if (te) te.textContent = t!==null?t:"—";
-  if (ge) ge.innerHTML  = gradeBadge(g);
+function updateDetailRow(sid,sub){
+  const k=sub.replace(/\W/g,"_"),t=total(sid,sub),g=grade(t);
+  const te=document.getElementById(`dt-${sid}-${k}`),ge=document.getElementById(`dg-${sid}-${k}`);
+  if(te)te.textContent=t!==null?t:"—"; if(ge)ge.innerHTML=gradeBadge(g);
 }
-function updateAttPct(sid) {
-  const a=getAtt(sid), el=document.getElementById(`att-pct-${sid}`);
-  if (el) el.value = a.present ? Math.round(parseInt(a.present)/parseInt(a.total)*100)+"%" : "—";
+function updateAttPct(sid){
+  const a=getAtt(sid),el=document.getElementById(`att-pct-${sid}`);
+  if(el)el.value=a.present?Math.round(parseInt(a.present)/parseInt(a.total)*100)+"%":"—";
 }
 
 /* ── score entry (bulk) ── */
-let _entryClass="", _entrySubject="";
-
-function renderScoreEntry() {
-  document.getElementById("page-title").textContent = "Score Entry";
-  document.getElementById("page-meta").textContent = "Select a class and subject to fill scores for the whole class";
-  document.getElementById("topbar-actions").innerHTML = "";
-  const allClasses = Object.values(CLASSES).flat();
-  document.getElementById("content").innerHTML = `
+let _entryClass="",_entrySubject="";
+function renderScoreEntry(){
+  document.getElementById("page-title").textContent="Score Entry";
+  document.getElementById("page-meta").textContent="Pick a class and subject";
+  document.getElementById("topbar-actions").innerHTML="";
+  const allClasses=Object.values(CLASSES).flat();
+  document.getElementById("content").innerHTML=`
     <div class="card">
       <div class="card-head"><span class="card-title">Filter</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -687,110 +694,100 @@ function renderScoreEntry() {
           <select id="entry-cls" onchange="onEntryClassChange(this.value)">
             <option value="">— Select class —</option>
             ${allClasses.map(c=>`<option ${c===_entryClass?"selected":""}>${c}</option>`).join("")}
-          </select>
-        </div>
+          </select></div>
         <div class="field"><label>Subject</label>
           <select id="entry-sub" onchange="onEntrySubjectChange(this.value)" ${_entryClass?"":"disabled"}>
             <option value="">— Select subject —</option>
-            ${_entryClass ? SUBJECTS[sectionForClass(_entryClass)].map(s=>`<option ${s===_entrySubject?"selected":""}>${s}</option>`).join("") : ""}
-          </select>
-        </div>
+            ${_entryClass?SUBJECTS[sectionForClass(_entryClass)].map(s=>`<option ${s===_entrySubject?"selected":""}>${s}</option>`).join(""):""}
+          </select></div>
       </div>
     </div>
     <div id="entry-table-wrap"></div>`;
-  if (_entryClass && _entrySubject) buildEntryTable(_entryClass, _entrySubject);
+  if(_entryClass&&_entrySubject)buildEntryTable(_entryClass,_entrySubject);
 }
-
-function onEntryClassChange(cls) {
-  _entryClass = cls; _entrySubject = "";
-  const subjSel = document.getElementById("entry-sub");
-  const wrap    = document.getElementById("entry-table-wrap");
-  if (!cls) { subjSel.disabled=true; subjSel.innerHTML=`<option value="">— Select subject —</option>`; wrap.innerHTML=""; return; }
-  const sec = sectionForClass(cls);
-  subjSel.disabled = false;
-  subjSel.innerHTML = `<option value="">— Select subject —</option>${SUBJECTS[sec].map(s=>`<option>${s}</option>`).join("")}`;
-  wrap.innerHTML = "";
+function onEntryClassChange(cls){
+  _entryClass=cls;_entrySubject="";
+  const sub=document.getElementById("entry-sub"),wrap=document.getElementById("entry-table-wrap");
+  if(!cls){sub.disabled=true;sub.innerHTML=`<option value="">— Select subject —</option>`;wrap.innerHTML="";return;}
+  sub.disabled=false;
+  sub.innerHTML=`<option value="">— Select subject —</option>${SUBJECTS[sectionForClass(cls)].map(s=>`<option>${s}</option>`).join("")}`;
+  wrap.innerHTML="";
 }
-
-function onEntrySubjectChange(sub) {
-  _entrySubject = sub;
-  if (_entryClass && sub) buildEntryTable(_entryClass, sub);
-  else document.getElementById("entry-table-wrap").innerHTML = "";
+function onEntrySubjectChange(sub){
+  _entrySubject=sub;
+  if(_entryClass&&sub)buildEntryTable(_entryClass,sub);
+  else document.getElementById("entry-table-wrap").innerHTML="";
 }
-
-function buildEntryTable(cls, sub) {
-  const students = STUDENTS.filter(s=>s.cls===cls).sort((a,b)=>a.name.localeCompare(b.name));
-  const wrap = document.getElementById("entry-table-wrap");
-  if (!wrap) return;
-  if (!students.length) { wrap.innerHTML=`<div class="empty"><i class="ti ti-users-off"></i>No students in ${cls}</div>`; return; }
-  wrap.innerHTML = `
+function buildEntryTable(cls,sub){
+  const students=STUDENTS.filter(s=>s.cls===cls).sort((a,b)=>a.name.localeCompare(b.name));
+  const wrap=document.getElementById("entry-table-wrap"); if(!wrap)return;
+  if(!students.length){wrap.innerHTML=`<div class="empty"><i class="ti ti-users-off"></i>No students in ${cls}</div>`;return;}
+  wrap.innerHTML=`
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:12px 16px;border-bottom:.5px solid var(--bd3);display:flex;justify-content:space-between;align-items:center">
+      <div style="padding:12px 16px;border-bottom:.5px solid var(--bd3);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <span class="card-title">${cls} · ${sub}</span>
         <span style="font-size:11px;color:var(--tx2)">${students.length} students · CA max 40 · Exam max 60</span>
       </div>
-      <table id="entry-tbl">
-        <thead><tr>
-          <th>Name</th>
-          <th style="text-align:center;width:100px">CA /40</th>
-          <th style="text-align:center;width:100px">Exam /60</th>
-          <th style="text-align:center;width:72px">Total</th>
-          <th style="text-align:center;width:60px">Grade</th>
-        </tr></thead>
-        <tbody>${students.map(s=>{
-          const sc=getScore(s.id,sub), t=total(s.id,sub), g=grade(t), k=sub.replace(/\W/g,"_");
-          return `<tr>
-            <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
-            <td style="text-align:center">
-              <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
-                style="max-width:72px;margin:0 auto"
-                oninput="setScore(${s.id},'${sub}','ca',this.value);updateEntryRow(${s.id},'${sub}')" />
-            </td>
-            <td style="text-align:center">
-              <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
-                style="max-width:72px;margin:0 auto"
-                oninput="setScore(${s.id},'${sub}','exam',this.value);updateEntryRow(${s.id},'${sub}')" />
-            </td>
-            <td id="et-${s.id}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</td>
-            <td id="eg-${s.id}-${k}" style="text-align:center">${gradeBadge(g)}</td>
-          </tr>`;
-        }).join("")}</tbody>
-      </table>
+      <div class="entry-scroll">
+        <table id="entry-tbl">
+          <thead><tr>
+            <th>Name</th>
+            <th style="text-align:center;width:90px">CA /40</th>
+            <th style="text-align:center;width:90px">Exam /60</th>
+            <th style="text-align:center;width:70px">Total</th>
+            <th style="text-align:center;width:58px">Grade</th>
+          </tr></thead>
+          <tbody>${students.map(s=>{
+            const sc=getScore(s.id,sub),t=total(s.id,sub),g=grade(t),k=sub.replace(/\W/g,"_");
+            return`<tr>
+              <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.id+"")}${s.name}</div></td>
+              <td style="text-align:center">
+                <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
+                  style="max-width:70px;margin:0 auto"
+                  oninput="setScore(${s.id},'${sub}','ca',this.value);updateEntryRow(${s.id},'${sub}')" />
+              </td>
+              <td style="text-align:center">
+                <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
+                  style="max-width:70px;margin:0 auto"
+                  oninput="setScore(${s.id},'${sub}','exam',this.value);updateEntryRow(${s.id},'${sub}')" />
+              </td>
+              <td id="et-${s.id}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</td>
+              <td id="eg-${s.id}-${k}" style="text-align:center">${gradeBadge(g)}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>
+      </div>
     </div>`;
 }
-
-function updateEntryRow(sid, sub) {
-  const k=sub.replace(/\W/g,"_"), t=total(sid,sub), g=grade(t);
-  const te=document.getElementById(`et-${sid}-${k}`), ge=document.getElementById(`eg-${sid}-${k}`);
-  if (te) te.textContent = t!==null?t:"—";
-  if (ge) ge.innerHTML  = gradeBadge(g);
+function updateEntryRow(sid,sub){
+  const k=sub.replace(/\W/g,"_"),t=total(sid,sub),g=grade(t);
+  const te=document.getElementById(`et-${sid}-${k}`),ge=document.getElementById(`eg-${sid}-${k}`);
+  if(te)te.textContent=t!==null?t:"—"; if(ge)ge.innerHTML=gradeBadge(g);
 }
 
 /* ── report card ── */
-function showReportCard(sid) {
-  const s = STUDENTS.find(x=>x.id===sid);
-  if (!s) return;
-  const subjs=SUBJECTS[s.sec], att=getAtt(sid);
-  const pct = att.present ? Math.round(parseInt(att.present)/parseInt(att.total)*100) : 0;
-  const rows = subjs.map(sub=>{
-    const sc=getScore(sid,sub), t=total(sid,sub), g=grade(t), isEdge=sub==="EDGE Formation";
-    return `<tr style="${isEdge?"background:var(--bg2)":""}">
-      <td>${sub}${isEdge?' <span style="font-size:10px;color:#8A6F30">★ EDGE</span>':''}</td>
-      <td style="text-align:center">${sc.ca||"—"}</td>
-      <td style="text-align:center">${sc.exam||"—"}</td>
+function showReportCard(sid){
+  const s=STUDENTS.find(x=>x.id===sid); if(!s)return;
+  const subjs=SUBJECTS[s.sec],att=getAtt(sid);
+  const pct=att.present?Math.round(parseInt(att.present)/parseInt(att.total)*100):0;
+  const rows=subjs.map(sub=>{
+    const sc=getScore(sid,sub),t=total(sid,sub),g=grade(t),isEdge=sub==="EDGE Formation";
+    return`<tr style="${isEdge?"background:var(--bg2)":""}">
+      <td>${sub}${isEdge?' <span style="font-size:10px;color:#8A6F30">★</span>':''}</td>
+      <td style="text-align:center">${sc.ca||"—"}</td><td style="text-align:center">${sc.exam||"—"}</td>
       <td style="text-align:center;font-weight:600">${t!==null?t:"—"}</td>
       <td style="text-align:center">${g}</td>
       <td style="font-size:11px;color:var(--tx2)">${remark(g)}</td>
     </tr>`;
   }).join("");
-  document.getElementById("page-title").textContent = "Report Card";
-  document.getElementById("page-meta").textContent = `${s.name} · ${s.cls} · ${currentTerm} ${currentSession}`;
-  document.getElementById("topbar-actions").innerHTML = `
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i> Back</button>
+  document.getElementById("page-title").textContent="Report Card";
+  document.getElementById("page-meta").textContent=`${s.name} · ${s.cls}`;
+  document.getElementById("topbar-actions").innerHTML=`
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i></button>
       <button class="btn btn-sm btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
     </div>`;
-  document.getElementById("content").innerHTML = `
+  document.getElementById("content").innerHTML=`
     <div class="rc">
       <div class="rc-header">
         <div class="rc-school">DEBBYFIELD SCHOOLS</div>
@@ -816,7 +813,7 @@ function showReportCard(sid) {
         <div class="att-item"><span>Days absent</span><span>${att.present?parseInt(att.total)-parseInt(att.present):"—"}</span></div>
         <div class="att-item"><span>Attendance</span><span>${att.present?pct+"%":"—"}</span></div>
       </div>
-      <div style="font-size:11px;display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;color:var(--tx2)">
+      <div style="font-size:11px;display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;color:var(--tx2)">
         <span>A = Excellent (70–100)</span><span>B = Good (60–69)</span><span>C = Satisfactory (50–59)</span><span>D = Needs Improvement (45–49)</span><span>F = Fail (0–44)</span>
       </div>
       ${getChar(sid)?`<div class="char-box"><div class="char-label">EDGE Character Observation</div><div style="white-space:pre-wrap">${getChar(sid)}</div></div>`:""}
@@ -838,131 +835,110 @@ function showReportCard(sid) {
 }
 
 /* ── search ── */
-function renderSearch() {
-  document.getElementById("page-title").textContent = "Find Student";
-  document.getElementById("page-meta").textContent = "Search across all sections";
-  document.getElementById("topbar-actions").innerHTML = "";
-  document.getElementById("content").innerHTML = `
-    <div class="search-bar"><input id="global-search" placeholder="Type a name or student ID…" oninput="globalSearch(this.value)" autofocus /></div>
+function renderSearch(){
+  document.getElementById("page-title").textContent="Find Student";
+  document.getElementById("page-meta").textContent="Search all sections";
+  document.getElementById("topbar-actions").innerHTML="";
+  document.getElementById("content").innerHTML=`
+    <div class="search-bar"><input id="global-search" placeholder="Name or student ID…" oninput="globalSearch(this.value)" autofocus /></div>
     <div id="search-results" class="card" style="padding:0;overflow:hidden">
       <div class="empty"><i class="ti ti-search"></i>Start typing to search</div>
     </div>`;
   setTimeout(()=>document.getElementById("global-search")?.focus(),50);
 }
-function globalSearch(q) {
-  const el = document.getElementById("search-results");
-  if (!q.trim()) { el.innerHTML=`<div class="empty"><i class="ti ti-search"></i>Start typing to search</div>`; return; }
-  const res = STUDENTS.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||String(s.id).includes(q));
-  if (!res.length) { el.innerHTML=`<div class="empty"><i class="ti ti-mood-sad"></i>No students found</div>`; return; }
-  el.innerHTML=`<table><thead><tr><th>Name</th><th>Class</th><th>Section</th><th>ID</th><th></th></tr></thead><tbody>${
+function globalSearch(q){
+  const el=document.getElementById("search-results");
+  if(!q.trim()){el.innerHTML=`<div class="empty"><i class="ti ti-search"></i>Start typing to search</div>`;return;}
+  const res=STUDENTS.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||String(s.id).includes(q));
+  if(!res.length){el.innerHTML=`<div class="empty"><i class="ti ti-mood-sad"></i>No students found</div>`;return;}
+  el.innerHTML=`<table><thead><tr><th>Name</th><th>Class</th><th class="col-id">Section</th><th class="col-id">ID</th><th></th></tr></thead><tbody>${
     res.map(s=>`<tr class="trow-click" onclick="openStudent(${s.id})">
       <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
-      <td>${s.cls}</td><td>${s.sec}</td>
-      <td style="color:var(--tx2)">${s.id}</td>
+      <td>${s.cls}</td>
+      <td class="col-id">${s.sec}</td>
+      <td class="col-id" style="color:var(--tx2)">${s.id}</td>
       <td><button class="btn btn-sm">Open</button></td>
     </tr>`).join("")}
   </tbody></table>`;
 }
 
 /* ── settings ── */
-function renderSettings() {
-  const savedUrl = localStorage.getItem("dbs-sb-url")||"";
-  const savedKey = localStorage.getItem("dbs-sb-key")||"";
-  document.getElementById("page-title").textContent = "Settings";
-  document.getElementById("page-meta").textContent = "Database connection and term management";
-  document.getElementById("topbar-actions").innerHTML = "";
-  const connBadge = {connected:`<span class="badge badge-ok">Connected</span>`,error:`<span class="badge badge-err">Error</span>`,loading:`<span class="badge badge-neutral">Connecting…</span>`,offline:`<span class="badge badge-neutral">Not connected</span>`}[dbStatus];
-  document.getElementById("content").innerHTML = `
+function renderSettings(){
+  const savedUrl=localStorage.getItem("dbs-sb-url")||"";
+  const savedKey=localStorage.getItem("dbs-sb-key")||"";
+  document.getElementById("page-title").textContent="Settings";
+  document.getElementById("page-meta").textContent="Database & term management";
+  document.getElementById("topbar-actions").innerHTML="";
+  const connBadge={connected:`<span class="badge badge-ok">Connected</span>`,error:`<span class="badge badge-err">Error</span>`,loading:`<span class="badge badge-neutral">Connecting…</span>`,offline:`<span class="badge badge-neutral">Not connected</span>`}[dbStatus];
+  document.getElementById("content").innerHTML=`
     <div class="card">
       <div class="card-head"><span class="card-title">Supabase connection</span>${connBadge}</div>
       <div class="field"><label>Project URL</label>
         <input type="url" id="sb-url" placeholder="https://xxxxxxxxxxxx.supabase.co" value="${savedUrl}" /></div>
       <div class="field"><label>Anon / Public key</label>
         <input type="password" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIs…" value="${savedKey}" /></div>
-      <div style="display:flex;gap:8px;margin-top:4px">
+      <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="connectSupabase()"><i class="ti ti-plug"></i> Save &amp; Connect</button>
         ${savedUrl?`<button class="btn" onclick="disconnectSupabase()"><i class="ti ti-plug-off"></i> Disconnect</button>`:""}
       </div>
-      ${dbStatus==="error"?`<p style="margin-top:10px;font-size:12px;color:var(--tx-err)">Connection failed — check that the URL and key are correct and that the tables exist.</p>`:""}
+      ${dbStatus==="error"?`<p style="margin-top:10px;font-size:12px;color:var(--tx-err)">Connection failed — check the URL and key, and make sure you ran supabase-setup.sql.</p>`:""}
     </div>
-
     <div class="card">
       <div class="card-head"><span class="card-title">Active term &amp; session</span></div>
-      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Currently viewing: <strong>${currentTerm} · ${currentSession}</strong>. Switch to load a different term's data from Supabase.</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Currently: <strong>${currentTerm} · ${currentSession}</strong></p>
+      <div class="settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="field"><label>Term</label>
-          <select id="sw-term">
-            ${["First Term","Second Term","Third Term"].map(t=>`<option ${t===currentTerm?"selected":""}>${t}</option>`).join("")}
-          </select></div>
-        <div class="field"><label>Academic session (e.g. 2025/2026)</label>
+          <select id="sw-term">${["First Term","Second Term","Third Term"].map(t=>`<option ${t===currentTerm?"selected":""}>${t}</option>`).join("")}</select></div>
+        <div class="field"><label>Session (e.g. 2025/2026)</label>
           <input type="text" id="sw-session" value="${currentSession}" placeholder="2025/2026" /></div>
       </div>
-      <button class="btn btn-primary" onclick="switchTermSession()"><i class="ti ti-refresh"></i> Switch to this term / session</button>
-      <p style="font-size:11px;color:var(--tx2);margin-top:8px">All previous terms stay stored in Supabase and can be accessed at any time by switching back.</p>
+      <button class="btn btn-primary" onclick="switchTermSession()"><i class="ti ti-refresh"></i> Switch</button>
+      <p style="font-size:11px;color:var(--tx2);margin-top:8px">Previous terms stay in Supabase and can be accessed at any time by switching back.</p>
     </div>
-
     <div class="card" style="border-left:3px solid var(--gold)">
-      <div class="card-head"><span class="card-title" style="color:#8A6F30"><i class="ti ti-info-circle"></i> First-time Supabase setup</span></div>
+      <div class="card-head"><span class="card-title" style="color:#8A6F30">First-time setup</span></div>
       <div style="font-size:12px;color:var(--tx2)">
         <div class="setup-step"><div class="setup-num">1</div><div>Create a free project at <strong>supabase.com</strong></div></div>
-        <div class="setup-step"><div class="setup-num">2</div><div>In the SQL Editor, paste and run the contents of <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">supabase-setup.sql</code> (included in this repo)</div></div>
-        <div class="setup-step"><div class="setup-num">3</div><div>Go to <strong>Project Settings → API</strong> and copy your <strong>Project URL</strong> and <strong>anon public</strong> key</div></div>
-        <div class="setup-step"><div class="setup-num">4</div><div>Paste them above and click <strong>Save &amp; Connect</strong></div></div>
+        <div class="setup-step"><div class="setup-num">2</div><div>In the SQL Editor, run <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">supabase-setup.sql</code> from this repo</div></div>
+        <div class="setup-step"><div class="setup-num">3</div><div>Project Settings → API → copy <strong>Project URL</strong> and <strong>anon public</strong> key</div></div>
+        <div class="setup-step"><div class="setup-num">4</div><div>Paste above and click <strong>Save &amp; Connect</strong></div></div>
       </div>
     </div>`;
 }
-
-async function connectSupabase() {
-  const url = document.getElementById("sb-url")?.value?.trim();
-  const key = document.getElementById("sb-key")?.value?.trim();
-  if (!url || !key) { alert("Enter both the project URL and anon key."); return; }
-  localStorage.setItem("dbs-sb-url", url);
-  localStorage.setItem("dbs-sb-key", key);
-  dbStatus = "loading"; updateDbIndicator(); renderSettings();
-  initSupabase(url, key);
-  const ok = await loadFromSupabase();
-  dbStatus = ok ? "connected" : "error";
-  updateDbIndicator(); renderSettings();
+async function connectSupabase(){
+  const url=document.getElementById("sb-url")?.value?.trim();
+  const key=document.getElementById("sb-key")?.value?.trim();
+  if(!url||!key){alert("Enter both the project URL and anon key.");return;}
+  localStorage.setItem("dbs-sb-url",url); localStorage.setItem("dbs-sb-key",key);
+  dbStatus="loading"; updateDbIndicator(); renderSettings();
+  initSupabase(url,key);
+  const ok=await loadFromSupabase();
+  dbStatus=ok?"connected":"error"; updateDbIndicator(); renderSettings();
 }
-
-function disconnectSupabase() {
+function disconnectSupabase(){
   localStorage.removeItem("dbs-sb-url"); localStorage.removeItem("dbs-sb-key");
-  dbClient = null; dbStatus = "offline";
-  updateDbIndicator(); renderSettings();
+  dbClient=null; dbStatus="offline"; updateDbIndicator(); renderSettings();
 }
-
-async function switchTermSession() {
-  const t = document.getElementById("sw-term")?.value;
-  const s = document.getElementById("sw-session")?.value?.trim();
-  if (!t || !s) { alert("Select a term and enter a session."); return; }
-  currentTerm = t; currentSession = s;
-  localStorage.setItem("dbs-term", t); localStorage.setItem("dbs-session", s);
-  store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
-  if (dbClient) { dbStatus="loading"; updateDbIndicator(); await loadFromSupabase(); dbStatus="connected"; }
+async function switchTermSession(){
+  const t=document.getElementById("sw-term")?.value;
+  const s=document.getElementById("sw-session")?.value?.trim();
+  if(!t||!s){alert("Select a term and enter a session.");return;}
+  currentTerm=t; currentSession=s;
+  localStorage.setItem("dbs-term",t); localStorage.setItem("dbs-session",s);
+  store={scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
+  if(dbClient){dbStatus="loading";updateDbIndicator();await loadFromSupabase();dbStatus="connected";}
   else loadLocalStore();
   updateDbIndicator(); updateTermDisplay();
-  renderDashboard();
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
   document.querySelectorAll(".nav-item")[0]?.classList.add("active");
+  renderDashboard();
 }
 
 /* ── boot ── */
-loadLocalStore();
-updateTermDisplay();
-updateDbIndicator();
-renderDashboard();
-
-(async () => {
-  const url = localStorage.getItem("dbs-sb-url");
-  const key = localStorage.getItem("dbs-sb-key");
-  if (url && key) {
-    dbStatus = "loading"; updateDbIndicator();
-    initSupabase(url, key);
-    const ok = await loadFromSupabase();
-    dbStatus = ok ? "connected" : "error";
-    updateDbIndicator();
-    renderDashboard();
-  }
+loadLocalStore(); updateTermDisplay(); updateDbIndicator(); renderDashboard();
+(async()=>{
+  const url=localStorage.getItem("dbs-sb-url"), key=localStorage.getItem("dbs-sb-key");
+  if(url&&key){dbStatus="loading";updateDbIndicator();initSupabase(url,key);const ok=await loadFromSupabase();dbStatus=ok?"connected":"error";updateDbIndicator();renderDashboard();}
 })();
 </script>
 </body>
