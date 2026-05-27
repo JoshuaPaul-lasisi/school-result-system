@@ -446,8 +446,8 @@ const STUDENTS = [
 const SUBJECTS = {
   "Pre-Primary":      ["Literacy","Numeracy","Creativity","Handwriting","Health Habits","Rhymes","Social Habits","BST"],
   "Primary":          ["Mathematics","English Language","BST","PVS","NVE","CRS","Creativity","Handwriting","Yoruba"],
-  "Junior Secondary": ["Mathematics","English Language","Basic Science & Tech","NVE","Business Studies","CRS","Yoruba","History","CCA","Civic Education","ICT","Agricultural Science","EDGE Formation"],
-  "Senior Secondary": ["Mathematics","English Language","Physics","Chemistry","Biology","Economics","Geography","Civic Education","ICT","Agricultural Science","Account","Government","Literature","CRS","EDGE Formation"],
+  "Junior Secondary": ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS"],
+  "Senior Secondary": ["Mathematics","English Language","ICT","Civic Education","Biology","Economics","Physics","Literature","Account","Chemistry","Government","Further Mathematics","CRS","Commerce"],
 };
 const CLASSES = {
   "Pre-Primary":      ["Nursery 1","Nursery 2","KG 1","KG 2"],
@@ -1604,7 +1604,8 @@ function renderExamPapers(){
       <div class="card-head paper-actions">
         <span class="card-title" id="paper-viewer-title"></span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-sm btn-primary" onclick="printPaper()"><i class="ti ti-printer"></i> Print / Download</button>
+          <button class="btn btn-sm btn-primary" onclick="printPaper()"><i class="ti ti-printer"></i> Print</button>
+          <button class="btn btn-sm" onclick="downloadPaperAsWord()"><i class="ti ti-file-word"></i> Word</button>
           <button class="btn btn-sm" onclick="closePaperViewer()"><i class="ti ti-x"></i></button>
         </div>
       </div>
@@ -1768,6 +1769,7 @@ function viewPaperAdmin(id){
     `<div style="font-family:serif;line-height:1.7;font-size:13px;max-height:60vh;overflow-y:auto">${p.content}</div>
     <div style="margin-top:12px;display:flex;gap:8px">
       <button class="btn btn-sm btn-primary" onclick="printPaperById(${p.id})"><i class="ti ti-printer"></i> Print</button>
+      <button class="btn btn-sm" onclick="downloadAsWord(examPapersStore.find(x=>x.id===${p.id})?.content||'','${p.cls}_${p.subject}_${p.paper_type}')"><i class="ti ti-file-word"></i> Word</button>
       <button class="btn btn-sm" onclick="closeModal()">Close</button>
     </div>`);
 }
@@ -2175,8 +2177,8 @@ async function switchTermSession(){
 
 /* ── EDGE Tests: teacher view ── */
 const EDGE_MOCK_SUBJECTS = {
-  "JSS 2": ["English Language","Mathematics","Basic Science","Basic Technology","Social Studies","Civic Education","Christian Religious Studies","Business Studies","Computer Studies","Agricultural Science","Home Economics","Cultural & Creative Arts","Physical & Health Education","Yoruba Language"],
-  "SS 2":  ["English Language","Mathematics","Physics","Chemistry","Biology","Economics","Financial Accounting","Government","Literature in English","Geography","Agricultural Science"],
+  "JSS 2": ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS"],
+  "SS 2":  ["Mathematics","English Language","ICT","Civic Education","Biology","Economics","Physics","Literature","Account","Chemistry","Government","Further Mathematics","CRS","Commerce"],
 };
 
 function edgeTestLabel(t){
@@ -2207,7 +2209,8 @@ function renderEdgeTests(){
       <div class="card-head paper-actions">
         <span class="card-title" id="edge-viewer-title"></span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-sm btn-primary" onclick="printEdgeTest()"><i class="ti ti-printer"></i> Print / Download</button>
+          <button class="btn btn-sm btn-primary" onclick="printEdgeTest()"><i class="ti ti-printer"></i> Print</button>
+          <button class="btn btn-sm" onclick="downloadEdgeTestAsWord()"><i class="ti ti-file-word"></i> Word</button>
           <button class="btn btn-sm" onclick="document.getElementById('edge-viewer').style.display='none'"><i class="ti ti-x"></i></button>
         </div>
       </div>
@@ -2391,6 +2394,7 @@ function openEdgeViewerAdmin(id){
     `<div style="font-family:serif;line-height:1.7;font-size:13px;max-height:60vh;overflow-y:auto">${t.content}</div>
     <div style="margin-top:12px;display:flex;gap:8px">
       <button class="btn btn-sm btn-primary" onclick="printEdgeTestById(${t.id})"><i class="ti ti-printer"></i> Print</button>
+      <button class="btn btn-sm" onclick="downloadEdgeTestAsWord(${t.id})"><i class="ti ti-file-word"></i> Word</button>
       <button class="btn btn-sm" onclick="closeModal()">Close</button>
     </div>`);
 }
@@ -2400,6 +2404,40 @@ async function deleteEdgeTest(id){
   const {error}=await dbClient.from("edge_tests").delete().eq("id",id);
   if(error){alert("Error: "+error.message);return;}
   await loadEdgeTests(); renderAdminTab();
+}
+
+/* ── Word document download ── */
+function downloadAsWord(content, filename){
+  if(!content){alert("No content to download");return;}
+  const preHtml=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>${filename}</title>
+<style>
+body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm;line-height:1.6}
+h2,h3{color:#8B1A2F;text-align:center}h4{color:#185FA5;margin-top:14px}
+ol{margin-left:20px}li{margin-bottom:5px}hr{border:1px solid #ccc;margin:14px 0}
+</style>
+</head><body>`;
+  const postHtml=`</body></html>`;
+  const blob=new Blob(['﻿',preHtml+content+postHtml],{type:'application/msword'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename.replace(/[^a-z0-9 ._-]/gi,'_').trim()+'.doc';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function downloadPaperAsWord(){
+  const v=document.getElementById("paper-viewer");if(!v)return;
+  const id=parseInt(v.dataset.paperId);if(!id)return;
+  const p=examPapersStore.find(x=>x.id===id);if(!p)return;
+  downloadAsWord(p.content,`${p.cls} ${p.subject} ${p.paper_type} ${currentTerm} ${currentSession}`);
+}
+function downloadEdgeTestAsWord(explicitId){
+  const id=explicitId||(()=>{const v=document.getElementById("edge-viewer");return v?parseInt(v.dataset.testId):0;})();
+  if(!id)return;
+  const t=edgeTestsStore.find(x=>x.id===id);if(!t)return;
+  const label=t.test_type==="weekly"?`${t.cls} Week${t.week_number} Half${t.half}`:`${t.cls} ${t.subject||''} Mock${t.mock_number}`;
+  downloadAsWord(t.content,`${label} ${currentTerm} ${currentSession}`);
 }
 
 /* ── boot ── */

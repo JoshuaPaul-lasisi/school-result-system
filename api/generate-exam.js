@@ -654,10 +654,18 @@ function buildPrompt(subject, cls, paperType, term, session) {
 
   if (paperType === "CA1" || paperType === "CA2") {
     instructions = `Generate a ${typeLabel} test paper for ${subject}, ${cls}, ${term} ${session}.
-Duration: 45 minutes. Total marks: 40.
+Duration: 30 minutes. Total marks: 40.
 The paper has ONE section: 40 multiple-choice (objective) questions, 1 mark each.
 Focus on the FIRST HALF of the scheme of work topics for ${paperType === "CA1" ? "CA1 (earlier topics)" : "CA2 (later topics)"}.`;
     sectionInstructions = `
+First, generate a STUDENT REVISION GUIDE in a styled HTML box before the paper:
+<div style="background:#fffbea;border:2px solid #f4c542;padding:14px;margin-bottom:20px;border-radius:6px;page-break-inside:avoid">
+<h3 style="margin:0 0 8px;color:#8B1A2F;border-bottom:1px solid #f4c542;padding-bottom:6px">📚 STUDENT REVISION GUIDE — Study These Before Your Test</h3>
+<p style="font-size:11px;color:#666;margin-bottom:10px">Review these key topics. Your teacher expects you to know these for this ${typeLabel}.</p>
+[Insert 8-12 specific bullet points covering the key concepts, formulas, definitions, and facts a student must know for this test. Be specific — not just topic titles but actual content to remember.]
+</div>
+
+Then generate the test paper:
 SECTION A — Objectives (40 marks)
 Circle the letter of the correct answer.
 Generate exactly 40 multiple-choice questions, each with options A, B, C, D.
@@ -669,6 +677,14 @@ Duration: ${dur}. Total marks: 100.
 Section A: 40 multiple-choice questions (40 marks, 1 mark each).
 Section B: 5 theory/essay questions (60 marks, 15 marks each); candidates attempt ANY 4.`;
     sectionInstructions = `
+First, generate a STUDENT REVISION GUIDE in a styled HTML box before the paper:
+<div style="background:#fffbea;border:2px solid #f4c542;padding:14px;margin-bottom:20px;border-radius:6px;page-break-inside:avoid">
+<h3 style="margin:0 0 8px;color:#8B1A2F;border-bottom:1px solid #f4c542;padding-bottom:6px">📚 STUDENT REVISION GUIDE — Study These Before Your Exam</h3>
+<p style="font-size:11px;color:#666;margin-bottom:10px">Review all key topics below. This covers the full scope of the exam.</p>
+[Insert 12-16 specific bullet points organized by major topic areas. Include key formulas, theorems, definitions, and concepts a student must know. Be specific and useful — a student should be able to study directly from this list.]
+</div>
+
+Then generate the exam paper:
 SECTION A — Objectives (40 marks)
 Circle the letter of the correct answer.
 Generate exactly 40 multiple-choice questions with options A, B, C, D.
