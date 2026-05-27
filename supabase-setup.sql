@@ -231,8 +231,6 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='payment_log'      AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON payment_log      FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
 END $$;
 
--- ── indexes ───────────────────────────────────────────────────────────────────
-
 -- ── EDGE testing system ──────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS edge_tests (
