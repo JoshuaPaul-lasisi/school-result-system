@@ -4,19 +4,58 @@
 
 // ─── SUBJECT HALVES ──────────────────────────────────────────────────────────
 
+// JSS halves: each entry is an object with a label and components array
+// Components map to JSS1_SCHEME keys for topic lookup
 const JSS_HALVES = {
-  A: ["English Language","Mathematics","Basic Science","Basic Technology","Social Studies","Civic Education","Christian Religious Studies"],
-  B: ["Business Studies","Computer Studies","Agricultural Science","Home Economics","Cultural & Creative Arts","Physical & Health Education","Yoruba Language"],
+  A: [
+    { label: "Mathematics",      components: ["Mathematics"] },
+    { label: "English Language", components: ["English Language"] },
+    { label: "NVE",              components: ["Social Studies","Civic Education","Security Education"] },
+    { label: "BST",              components: ["Basic Science","Basic Technology","ICT"] },
+  ],
+  B: [
+    { label: "PVS",              components: ["Agricultural Science","Home Economics"] },
+    { label: "CCA",              components: ["Cultural & Creative Arts"] },
+    { label: "CRS",              components: ["Christian Religious Studies"] },
+  ],
 };
 
+// SS halves: each entry is an object with a label and components array
 const SS_HALVES = {
-  A: ["English Language","Mathematics","Physics","Chemistry","Biology","Economics"],
-  B: ["Financial Accounting","Government","Literature in English","Geography","Agricultural Science"],
+  A: [
+    { label: "Mathematics",      components: ["Mathematics"] },
+    { label: "English Language", components: ["English Language"] },
+    { label: "ICT",              components: ["ICT"] },
+    { label: "Civic Education",  components: ["Civic Education"] },
+    { label: "Biology",          components: ["Biology"] },
+    { label: "Economics",        components: ["Economics"] },
+    { label: "Physics",          components: ["Physics"] },
+  ],
+  B: [
+    { label: "Literature",       components: ["Literature in English"] },
+    { label: "Account",          components: ["Financial Accounting"] },
+    { label: "Chemistry",        components: ["Chemistry"] },
+    { label: "Government",       components: ["Government"] },
+    { label: "Further Mathematics", components: ["Further Mathematics"] },
+    { label: "CRS",              components: ["Christian Religious Studies"] },
+    { label: "Commerce",         components: ["Commerce"] },
+  ],
+};
+
+// Composite subject structure for mock exams
+const COMPOSITE_SUBJECTS = {
+  "NVE":        { fullName: "National Values Education",      components: ["Social Studies","Civic Education","Security Education"] },
+  "BST":        { fullName: "Basic Science & Technology",     components: ["Basic Science","Basic Technology","ICT"] },
+  "PVS":        { fullName: "Practical & Vocational Studies", components: ["Agricultural Science","Home Economics"] },
+  "CCA":        { fullName: "Cultural & Creative Arts",       components: ["Cultural & Creative Arts"] },
+  "CRS":        { fullName: "Christian Religious Studies",    components: ["Christian Religious Studies"] },
+  "Literature": { fullName: "Literature in English",          components: ["Literature in English"] },
+  "Account":    { fullName: "Financial Accounting",           components: ["Financial Accounting"] },
 };
 
 // Mock exam subjects per class
-const JSS2_SUBJECTS = [...JSS_HALVES.A, ...JSS_HALVES.B];
-const SS2_SUBJECTS  = [...SS_HALVES.A, ...SS_HALVES.B];
+const JSS2_SUBJECTS = ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS"];
+const SS2_SUBJECTS  = ["Mathematics","English Language","ICT","Civic Education","Biology","Economics","Physics","Literature","Account","Chemistry","Government","Further Mathematics","CRS","Commerce"];
 
 // ─── FULL SCHEME OF WORK ─────────────────────────────────────────────────────
 // 11 topics per term per subject (Week 1–11, Week 11 = revision)
@@ -42,6 +81,11 @@ const JSS1_SCHEME = {
     t2:["Building Materials — Cement, Sand, Aggregates, Blocks","Adhesives, Abrasives and Surface Finishes","Fastenings — Nails, Screws, Bolts and Nuts","Sheet Metal Work — Cutting, Bending, Joining","Moulding and Casting Basics","Walling, Bricklaying and Concrete Work","Basic Electrical Circuits — Symbols and Components","Series and Parallel Circuits — Connections & Calculations","Basic Electronics — Resistors, Capacitors, Diodes","Safety in Electrical Work; First Aid for Electric Shock","Revision & CA"],
     t3:["Technical Drawing — Equipment, Standards, Conventions","Isometric Drawing — 3D Objects","Oblique Drawing — Cabinet and Cavalier","Orthographic Projection — First Angle","Perspective Drawing — One-Point Perspective","Development of Prisms and Cylinders","Maintenance of Tools and Equipment","Applied Technology — Simple Workshop Project","Technology and Development in Society","Entrepreneurship in Technology","Revision & Exam"],
   },
+  "ICT": {
+    t1:["History of Computers — Generations and Pioneers","Types of Computers — Desktop, Laptop, Tablet, Mainframe","Hardware — Input Devices and Their Uses","Hardware — Output Devices and Their Uses","Hardware — Storage Devices (Primary and Secondary)","Hardware — The CPU and Processing","Software — System Software (OS Types)","Software — Application Software (Types and Examples)","The Desktop, GUI, Icons, Taskbar","Starting, Using and Properly Shutting Down a Computer","Revision & CA"],
+    t2:["Microsoft Word — Opening, Interface, Basic Typing","Formatting Text — Font, Size, Bold, Italic, Underline","Paragraph Formatting — Alignment, Spacing, Indents","Inserting Tables, Images and Page Breaks","Saving, Printing and Sharing Documents","Microsoft Excel — Interface and Cell Basics","Entering and Formatting Data in Excel","Simple Formulas — SUM, AVERAGE, MAX, MIN","Creating Charts — Bar, Pie, Line","Introduction to PowerPoint — Slides and Layouts","Revision & CA"],
+    t3:["The Internet — What It Is and How It Works","Web Browsing and Search Engines","Email — Creating, Sending, Organising","Social Media — Responsible and Safe Use","Cybersecurity — Passwords, Phishing, Online Safety","Computer Networks — LAN, WAN, Wi-Fi","Introduction to Programming — Algorithms","Flowcharts and Pseudocode","Basic Coding Introduction (Scratch or Python)","Technology and Society — Digital Citizenship","Revision & Exam"],
+  },
   "Social Studies": {
     t1:["Introduction to Social Studies; The Family","Types of Family; Family Roles and Relationships","The Community — Types, Features, Importance","Social Environment — Neighbourhood and Society","Natural Environment — Land, Water, Air, Forest","Population — Growth, Distribution in Nigeria","Migration — Internal and External; Push-Pull Factors","Culture — Components, Importance, Cultural Diffusion","Socialization — Agents and Importance","Social Vices — Causes, Effects, Prevention","Revision & CA"],
     t2:["Local Government — Structure and Functions","State Government — Executive, Legislature, Judiciary","Federal Government — Structure and Roles","Democratic Governance — Features and Importance","Citizenship — Rights, Duties and Responsibilities","National Identity — Symbols, Anthem, Pledge","Pre-Colonial Nigeria — Kingdoms and Empires","Colonial Period — British Rule and Independence","Post-Independence Nigeria — Key Events","National Unity and Integration","Revision & CA"],
@@ -52,20 +96,15 @@ const JSS1_SCHEME = {
     t2:["Human Rights — Origin, Types, Importance","Violation of Human Rights — Cases and Effects","Institutions that Protect Rights — NHRC, NAPTIP, NSCDC","Corruption — Definition, Causes, Effects","Anti-Corruption Agencies — EFCC, ICPC, CCB","National Security — Threats and Responses","Citizenship — Types and How It is Acquired","Duties of a Nigerian Citizen","National Symbols — Flag, Coat of Arms, Anthem, Seal","National Integration — Unity in Diversity","Revision & CA"],
     t3:["Drug and Substance Abuse — Causes, Effects, Prevention","Cultism in Schools — Dangers and Prevention","HIV/AIDS and STIs — Facts and Prevention","Environmental Civic Duties","Community Development and Service","Inter-Ethnic Relations in Nigeria","Religious Tolerance and Peaceful Coexistence","Peace-Building and Conflict Resolution","Globalization and Nigerian Citizenship","Review of Key Civic Concepts and Values","Revision & Exam"],
   },
+  "Security Education": {
+    t1:["Introduction to Security Education — Meaning, Need, Scope","Personal Safety at Home — Identifying Risks, Rules","Road Safety — Pedestrian Safety, Traffic Signs, Seatbelts","Fire Safety — Causes, Prevention, Extinguishers, Escape Plans","Water Safety — Drowning Prevention, Flood Safety, Hazards","Cybersafety — Safe Internet Use, Online Privacy, Reporting","Anti-Bullying — Types, Effects, How to Report and Prevent","School Safety — Emergency Drills, First Aid Box, Safe Play","Security Agencies — Police, NSCDC, LASTMA, Vigilante Groups","Emergency Contacts — Calling for Help, Emergency Numbers Nigeria","Revision & CA"],
+    t2:["Drug Abuse — Types of Drugs, Causes, Effects, Prevention","Human Trafficking — Meaning, Methods, Warning Signs, Prevention","Terrorism — Understanding the Threat, Prevention, Staying Safe","Kidnapping — Causes, Awareness, Prevention, Response Guidelines","Armed Robbery — Community Prevention, Safety Measures","National Security Agencies — Police, Army, Navy, Air Force, DSS","Crime and Consequences — Types, Reporting, Legal Process","Security Consciousness — Observation Skills, Suspicious Activity","Community Policing — Neighbourhood Watch, Citizens' Role","Cybercrime — Types, Dangers, Reporting Online Crimes (NDLEA)","Revision & CA"],
+    t3:["Conflict Resolution — Mediation, Negotiation, Dialogue, Peace","Peaceful Coexistence — Tolerance, Diversity, National Unity","Natural Disasters — Floods, Drought, Earthquakes: Preparation","Emergency Response — NEMA, Red Cross, Evacuation Procedures","First Aid Basics — CPR Steps, Treating Cuts, Burns, Fractures","Civil Defence — NSCDC Roles, Civil Emergencies, Safety","Border Security — NDLEA, Customs, Immigration: Functions","Cybercrime Legislation — CYBERCRIMES ACT 2015 in Nigeria","Youth and National Security — Responsibilities, Anti-terrorism","Security Agencies Coordination — Military, Para-military, Civil","Revision & Exam"],
+  },
   "Christian Religious Studies": {
     t1:["Creation — God Creates the World (Gen 1–2)","Creation of Man and Woman; Human Dignity","The Fall of Man — Sin and Its Consequences","Cain and Abel — Jealousy and Its Consequences","Noah and the Flood — Obedience and Faith","Abraham — The Call of Faith (Gen 12)","Abraham and Isaac — Trust in God","Jacob and Esau — Consequences of Deception","Joseph — Forgiveness and God's Sovereign Plan","Moses — Deliverer of Israel (Exodus 1–3)","Revision & CA"],
     t2:["The Ten Commandments — Law and Morality","Joshua — Courage and Leadership","Samuel — The Call of God; Listening to God","David — Heart of Worship; Integrity and Failure","Solomon — Wisdom, Its Source and Its Limits","Elijah — Serving God Against Overwhelming Opposition","Isaiah — Prophecy of the Coming Messiah","Jeremiah — Perseverance Under Persecution","Daniel — Unwavering Faith Under Pressure","Esther — Courage to Stand for God's People","Revision & CA"],
     t3:["The Birth of Jesus — Incarnation and Purpose","Baptism and Temptation of Jesus","The Sermon on the Mount — Kingdom Values","The Miracles of Jesus — Faith and Compassion","The Parables of Jesus — Kingdom of God","Jesus and the Outcasts — Grace and Inclusion","The Last Supper and Betrayal","Death and Resurrection — The Heart of the Gospel","Pentecost — The Coming of the Holy Spirit","The Early Church — Community, Mission, Growth","Revision & Exam"],
-  },
-  "Business Studies": {
-    t1:["Introduction to Business — Meaning, Types, Importance","Sole Proprietorship — Features, Advantages, Disadvantages","Partnership — Formation, Types, Advantages","Limited Liability Companies — Public and Private","Co-operative Societies — Types and Importance","Trade — Home Trade and Foreign Trade","Functions and Qualities of a Trader","Channels of Distribution — Roles of Intermediaries","Retail Trade — Types of Retailers and Their Functions","Wholesale Trade — Functions of a Wholesaler","Revision & CA"],
-    t2:["The Office — Meaning, Functions, Types","Office Equipment and Their Uses","Filing and Record Keeping — Systems and Importance","Business Communication — Formal Letters","Business Communication — Memos and Circulars","Money — Origin, Functions, Qualities","Banking — Types of Banks and Their Services","Savings and Current Accounts — Differences","Cheques, Drafts and Electronic Payment","Insurance — Meaning, Principles, Types","Revision & CA"],
-    t3:["Introduction to Keyboarding / Typewriting","Home Keys and Correct Posture","Upper Row Keys — Drill Practice","Lower Row Keys — Drill Practice","Capital Letters, Numbers, Punctuation Marks","Typing Simple Business Documents","Introduction to Bookkeeping — Concepts","Double Entry — Debit and Credit Explained","The Cash Book — Simple Entries","Petty Cash Book — Imprest System","Revision & Exam"],
-  },
-  "Computer Studies": {
-    t1:["History of Computers — Generations and Pioneers","Types of Computers — Desktop, Laptop, Tablet, Mainframe","Hardware — Input Devices and Their Uses","Hardware — Output Devices and Their Uses","Hardware — Storage Devices (Primary and Secondary)","Hardware — The CPU and Processing","Software — System Software (OS Types)","Software — Application Software (Types and Examples)","The Desktop, GUI, Icons, Taskbar","Starting, Using and Properly Shutting Down a Computer","Revision & CA"],
-    t2:["Microsoft Word — Opening, Interface, Basic Typing","Formatting Text — Font, Size, Bold, Italic, Underline","Paragraph Formatting — Alignment, Spacing, Indents","Inserting Tables, Images and Page Breaks","Saving, Printing and Sharing Documents","Microsoft Excel — Interface and Cell Basics","Entering and Formatting Data in Excel","Simple Formulas — SUM, AVERAGE, MAX, MIN","Creating Charts — Bar, Pie, Line","Introduction to PowerPoint — Slides and Layouts","Revision & CA"],
-    t3:["The Internet — What It Is and How It Works","Web Browsing and Search Engines","Email — Creating, Sending, Organising","Social Media — Responsible and Safe Use","Cybersecurity — Passwords, Phishing, Online Safety","Computer Networks — LAN, WAN, Wi-Fi","Introduction to Programming — Algorithms","Flowcharts and Pseudocode","Basic Coding Introduction (Scratch or Python)","Technology and Society — Digital Citizenship","Revision & Exam"],
   },
   "Agricultural Science": {
     t1:["Introduction to Agriculture — Meaning, Branches, Importance","Types of Agriculture — Subsistence, Commercial, Mixed","Farm Tools — Hand Tools, Power Tools, Maintenance","Farm Safety Rules and First Aid on the Farm","Soil — Formation, Profile, Composition","Soil Types and Physical Properties","Soil Fertility — Factors, Importance, Management","Soil Erosion — Types, Causes, Control Measures","Soil Conservation — Methods and Importance","Fertilizers — Organic (Manure, Compost) and Inorganic","Revision & CA"],
@@ -81,16 +120,6 @@ const JSS1_SCHEME = {
     t1:["Introduction to CCA — Visual Arts, Music, Drama, Dance","Drawing — Materials, Equipment and Types","Line Drawing, Shading Techniques — Pencil Work","Still Life Drawing — Observation and Proportion","Colour Theory — Primary, Secondary, Tertiary Colours","Colour Mixing — Watercolour and Crayon","Pattern and Design — Symmetry and Repetition","Introduction to Music — Elements (Rhythm, Melody, Harmony)","Musical Notation — Notes, Clef, Time Signature","Traditional Nigerian Music — Instruments and Styles","Revision & CA"],
     t2:["Drama — Introduction, Elements, Dramatic Structure","Voice Production, Projection and Expression","Mime and Role Play — Physical Storytelling","Story Dramatisation — Short Scenes","Introduction to Dance — Types and Functions","Traditional Dances of Nigeria (Yoruba, Igbo, Hausa)","Paper Craft — Origami, Collage, Paper Sculpture","Clay Modelling — Forms and Techniques","Weaving and Basketry Introduction","Tie and Dye — Adire Eleko and Adire Eleso","Revision & CA"],
     t3:["Pottery — Hand-Building Techniques","Sculpture — Relief and Three-Dimensional Carving","Batik Design — Wax-Resist Dyeing","Printmaking — Potato Prints, Lino Cuts","Lettering and Calligraphy — Uses in Design","Drama Performance — Short Play for Class","Music — Singing in Parts, Harmony and Rounds","Arts in Society — Cultural Preservation and Identity","Arts and Entrepreneurship — Making a Living Creatively","CCA Exhibition and Class Performance Day","Revision & Exam"],
-  },
-  "Physical & Health Education": {
-    t1:["Introduction to PHE — Importance of Physical Activity","Physical Fitness — Components: Strength, Stamina, Flexibility","Warming Up and Cooling Down Properly","Athletics — Sprint, Middle Distance, Relay Techniques","Athletics — High Jump, Long Jump, Triple Jump","Athletics — Shot Put, Discus, Javelin Introduction","Football — Rules, Positions, Tactics","Football Skills — Dribbling, Passing, Shooting, Heading","Volleyball — Rules, Court Layout, Positions","Volleyball Skills — Serving, Setting, Passing, Spiking","Revision & CA"],
-    t2:["Basketball — Rules, Court, Positions","Basketball Skills — Dribbling, Shooting, Defense","Handball — Introduction, Rules and Skills","Table Tennis — Equipment, Rules, Basic Techniques","Badminton — Equipment, Rules, Basic Strokes","Health Education — Personal Hygiene and Grooming","Disease Prevention — Immunization Schedule","Nutrition and Physical Performance","First Aid — Sprains, Strains, Fractures, CPR Basics","Alcohol, Drugs and Sport — Effects and Rules","Revision & CA"],
-    t3:["Swimming — Pool Safety and Basic Strokes","Indigenous Nigerian Games — Ayo, Tug-of-War, etc.","Gymnastics — Forward Roll, Cartwheel, Balance Beam","Rope Jumping, Flexibility and Stretching Routines","Mental Health and Emotional Wellbeing","Stress Management and Relaxation Techniques","Reproductive Health Education","Sports Leadership, Teamwork and Fair Play","Career Pathways in Sports","Sports Day Preparation and Team Practice","Revision & Exam"],
-  },
-  "Yoruba Language": {
-    t1:["Ìfáàrọ̀ Yorùbá — Mò Èdè Mi (Introduction to Yoruba)","Ẹbí àti Àgbèjọ — Describing Family and Household","Òrọ̀ Orúkọ — Nouns: Types and Usage","Òrọ̀ Ìṣe — Verbs and Tenses in Yoruba","Àpèjúwe — Adjectives, Adverbs and Comparisons","Àmì Ohùn — Tonal Marks and Correct Pronunciation","Ìlò Àmì Ìsọ̀rọ̀ — Punctuation in Yoruba Writing","Kíkà — Reading Comprehension: Simple Narrative","Ìkọ̀wé — Composition: Informal Letter (Lẹ́tà)","Àsà Yorùbá — Proverbs and Their Meanings","Revision & CA"],
-    t2:["Ìtàn Àtẹnudẹnu — Yoruba Oral Tradition and Folktales","Ẹ̀wì — Yoruba Praise Poetry (Oriki) Introduction","Òrọ̀ Àpọ̀nwọ̀ — Pronouns and Their Use","Ìbéèrè àti Ìdáhùn — Questions and Answers","Ìfọ̀rọ̀wérọ̀ — Conversation Drills on Daily Topics","Ọjà — Market Vocabulary and Role Play","Àwùjọ àti Ìjọba — Community and Social Life","Orin Yorùbá — Songs, Poems and Rhythms","Kíkà — Comprehension: Descriptive Passage","Ìkọ̀wé — Composition: Descriptive Essay","Revision & CA"],
-    t3:["Ìtàn Yorùbá — History, Kingdoms, Heroes","Ìdárayá àti Àṣà — Traditional Festivals and Customs","Ìdásọ̀ Àpapọ̀ — Complex Sentence Construction","Òrọ̀ Àsọyé — Reported Speech in Yoruba","Kíkà — Expository Passage Comprehension","Akopọ̀ Òrọ̀ — Summary Writing in Yoruba","Ìkọ̀wé — Argumentative Writing","Ìtàn Kíkà — Introduction to Yoruba Written Literature","Sísọ Yorùbá — Oral Expression and Presentation","Àtúnyẹ̀wò Gbogbo — General Revision","Revision & Exam"],
   },
 };
 
@@ -140,15 +169,35 @@ const SS1_SCHEME = {
     t2:["Drama — Elements: Plot, Conflict, Catharsis, Dramatic Irony","Stage Directions, Stagecraft and Theatre Conventions","Types of Drama — Tragedy, Comedy, Tragicomedy, Farce","Prescribed Text (Drama) — In-Depth Character Analysis","Dramatic Themes — Power, Betrayal, Redemption, Identity","Poetry — Forms: Lyric, Narrative, Dramatic, Epic","Poetic Devices — Rhyme Scheme, Metre, Stanza, Enjambment","Sound Devices — Alliteration, Assonance, Onomatopoeia","Imagery and Figurative Language in Poetry","Prescribed Poetry — Analysis of Individual Poems","Revision & CA"],
     t3:["Extended Prose Analysis — Structural and Thematic Reading","Extended Drama Analysis — Dramatic Techniques, Social Context","African Literature — Themes, Language, Post-Colonial Identity","Comparative Analysis — Two Texts: Style, Theme, Character","Critical Writing — Essay Structure: Introduction, Body, Conclusion","Unseen Passages — Prose Extract Analysis Technique","Unseen Poetry — Approach and Annotation Technique","Literature and Society — How Texts Reflect and Shape Culture","Revision of All Prescribed Texts — Key Quotes and Arguments","Examination Technique — Timing, Planning, Answering","Revision & Exam"],
   },
-  "Geography": {
-    t1:["Introduction to Geography — Branches, Tools, Importance","Maps and Map Reading — Scale, Grid References, Contours","Earth's Structure — Crust, Mantle, Core","Plate Tectonics — Theory, Evidence, Boundaries","Earthquakes — Causes, Effects, Measurement, Distribution","Volcanoes — Types, Formation, Products, Distribution","Weathering — Physical, Chemical, Biological; Results","Erosion and Deposition — Agents: Rivers, Wind, Ice, Sea","Rivers — Long Profile, Processes, Landforms (V-Valley to Delta)","Coasts — Erosion Landforms (Cliff, Cave, Arch, Stack), Beaches","Revision & CA"],
-    t2:["Climate and Weather — Difference; Elements and Controls","Climate Classification — Tropical, Temperate, Polar Zones","The Atmosphere — Layers, Composition, Pressure Belts","Tropical Rainforest Climate — Features, Location, Vegetation","Savanna Climate — Guinea and Sudan Savanna, Vegetation","Mediterranean Climate — Features, Vegetation, Land Use","World Population — Distribution, Density, Factors","Population Growth — Birth Rates, Death Rates, Migration","Urban Geography — Urbanisation, CBD, Suburbs, Problems","Rural-Urban Migration — Causes, Effects, Solutions","Revision & CA"],
-    t3:["Agriculture — Types, Systems, Factors of Production","Nigerian Agriculture — Problems, Green Revolution, Solutions","Mining — Types, Methods, Environmental Impact","Petroleum Industry in Nigeria — Exploration, Refining, Pipelines","Manufacturing Industry — Types, Location Factors","Transportation — Road, Rail, Water, Air; Nigeria's Network","Trade — Internal and External; Balance of Trade","Natural Hazards — Floods, Droughts, Desertification in Nigeria","Environmental Problems — Erosion, Deforestation, Pollution","Sustainable Development and Environmental Management","Revision & Exam"],
-  },
   "Agricultural Science": {
     t1:["Introduction to Agricultural Science — Scope, Importance, Branches","Crop Production — Land Preparation: Clearing, Tilling, Ridging","Propagation — Sexual and Vegetative Propagation Methods","Planting — Spacing, Seed Rate, Transplanting, Nursery Practice","Agrochemicals — Fertilisers: Types, Methods of Application","Weed Management — Classification, Effects, Control Methods","Pest Management — Types of Pests, IPM Approach","Disease Management — Plant Diseases: ID, Control, Prevention","Harvesting — Methods, Maturity Indices, Post-Harvest Handling","Storage — Methods, Losses, Preservation Techniques","Revision & CA"],
     t2:["Soil Science — Formation, Profile, Horizons","Soil Properties — Physical: Texture, Structure, Porosity","Soil Properties — Chemical: pH, Nutrient Content, CEC","Soil Fertility and Management — Depletion and Improvement","Soil Conservation — Erosion Types, Control Structures","Irrigation and Drainage — Methods, Importance, Waterlogging","Agricultural Economics — Farm Planning, Records, Costing","Agricultural Ecology — Agroecosystems, Biodiversity","Animal Husbandry — Livestock: Cattle, Pigs, Poultry, Sheep","Animal Feeds and Nutrition — Types, Formulation, Feed Conversion","Revision & CA"],
     t3:["Fishery — Types of Fish, Pond Construction and Management","Aquaculture — Species, Feeding, Health Management, Harvesting","Forestry — Types of Forest, Products, Conservation","Agricultural Machinery — Tractors, Implements, Maintenance","Biotechnology in Agriculture — GMOs, Tissue Culture, Applications","Agro-Processing — Value Addition, Food Technology Basics","Marketing of Agricultural Produce — Channels, Prices, Problems","Agricultural Finance — Loans, Cooperatives, Government Support","Entrepreneurship in Agriculture — Business Planning, Opportunities","Agricultural Development in Nigeria — Policies, Agencies, Challenges","Revision & Exam"],
+  },
+  "ICT": {
+    t1:["Introduction to ICT — Meaning, Scope, Importance in Modern Society","Computer Hardware — System Unit, Peripherals, Ports and Connectors","Computer Software — System Software vs Application Software","Operating Systems — Windows, Linux, macOS: Functions and Features","File Management — Creating, Naming, Organising, Searching Files","Word Processing — Advanced Features: Mail Merge, Tables, Templates","Spreadsheets — Functions, Formulas, Conditional Formatting","Database Concepts — Tables, Records, Fields, Queries, Reports","Presentation Software — Slide Design, Animations, Transitions","Input and Output Devices — Types, Functions, Selection Criteria","Revision & CA"],
+    t2:["Computer Networks — Types: LAN, MAN, WAN; Topologies","Network Hardware — Routers, Switches, Modems, Hubs, NICs","Internet Services — WWW, Email, FTP, VoIP, Cloud Computing","Web Design Basics — HTML Tags, Structure, Formatting, Links","Search Engines — Effective Search Techniques, Boolean Operators","Cybersecurity — Threats: Viruses, Malware, Phishing, Hacking","Data Protection — Firewalls, Antivirus, Encryption, Passwords","Social Media — Responsible Use, Digital Footprint, Netiquette","E-Commerce — Online Shopping, Mobile Banking, Digital Payments","ICT and Society — Digital Divide, Ethics, Privacy, Cyber Laws","Revision & CA"],
+    t3:["Programming Concepts — Algorithms, Flowcharts, Pseudocode","Introduction to Python — Variables, Data Types, Input/Output","Control Structures — if/elif/else Statements in Python","Loops in Python — for and while Loops with Examples","Functions in Python — Definition, Parameters, Return Values","Data Structures — Lists, Tuples, Dictionaries in Python","Debugging and Testing — Error Types, Tracing, Correcting Code","Introduction to Artificial Intelligence — Concepts and Applications","Robotics and Automation — Concepts, Applications in Industry","Emerging Technologies — IoT, Big Data, Blockchain, AR/VR","Revision & Exam"],
+  },
+  "Civic Education": {
+    t1:["Civic Education — Meaning, Scope, Objectives and Relevance","Democracy — Features, Types, Principles, Merits and Demerits","Constitution — Meaning, Types, Features, Supremacy of Law","Rule of Law — Principles, Importance, Threats in Nigeria","Citizenship — Types, Rights, Duties, How Citizenship Is Acquired","Human Rights — Origin, Categories, UDHR, Nigerian Constitution","Violation of Human Rights — Forms, Effects, Reporting Channels","Arms of Government — Legislature, Executive, Judiciary: Functions","Separation of Powers and Checks and Balances","Elections and Electoral Process — INEC, Voting, Electoral Malpractice","Revision & CA"],
+    t2:["Federalism in Nigeria — Features, Benefits, Challenges","Inter-Governmental Relations — Revenue Sharing, Cooperation","Political Parties — Functions, Funding, Party System in Nigeria","Pressure Groups and Civil Society — Types, Methods, Importance","National Values — Integrity, Discipline, Patriotism, Tolerance","Anti-Corruption Crusade — EFCC, ICPC, CCB, Whistleblowing","Drug Abuse — Types of Drugs, Causes, Effects, NDLEA, Prevention","Human Trafficking — Causes, Methods, Effects, NAPTIP, Laws","Cultism — Forms, Causes, Dangers, Prevention in Schools","Environmental Citizenship — Duties, Pollution, Conservation","Revision & CA"],
+    t3:["National Security — Threats: Terrorism, Insurgency, Communal Clashes","Government Responses to Insecurity — Military, Police, DSS","Global Citizenship — International Organisations, UN, AU, ECOWAS","Population and Development — Challenges of Population Growth","Entrepreneurship and Civic Responsibility — Business Ethics","Gender Equality and Social Justice — Women's Rights in Nigeria","Community Development — Self-Help Projects, Volunteerism","Media and Democracy — Role of the Press, Freedom of Information","Civic Participation — Voting, Community Service, Advocacy","Review of Key Civic Themes and Examination Preparation","Revision & Exam"],
+  },
+  "Further Mathematics": {
+    t1:["Surds — Simplification, Rationalisation, Operations on Surds","Indices and Logarithms — Laws, Equations, Applications","Polynomials — Degree, Operations, Division, Remainder Theorem","Polynomial Equations — Factor Theorem, Roots, Relationships","Rational Functions — Partial Fractions (Linear, Quadratic Denominators)","Sequences and Series — AP: nth Term, Sum, Arithmetic Mean","Geometric Progression — nth Term, Sum, Geometric Mean, Infinity","Binomial Theorem — Expansion, General Term, Pascal's Triangle","Principle of Mathematical Induction — Method and Applications","Permutation and Combination — Counting Principles, nPr, nCr","Revision & CA"],
+    t2:["Probability — Classical, Empirical; Conditional Probability, Bayes","Random Variables — Discrete and Continuous; Expectation, Variance","Binomial Distribution — Parameters, Mean, Variance, Applications","Normal Distribution — Standard Normal, Z-Scores, Tables","Coordinate Geometry — Conic Sections: Circle, Parabola, Ellipse","Vectors in 3D — Magnitude, Direction Cosines, Dot Product","Matrices and Determinants — 3×3 Determinant, Cramer's Rule","Systems of Linear Equations — Gaussian Elimination, Matrix Method","Complex Numbers — Argand Diagram, Modulus-Argument, Operations","De Moivre's Theorem — nth Roots of Complex Numbers","Revision & CA"],
+    t3:["Differential Calculus — Higher Derivatives, Implicit Differentiation","Applications of Differentiation — Maxima, Minima, Curve Sketching","Integration Techniques — Integration by Parts, Substitution","Definite Integrals — Area Between Curves, Volumes of Revolution","Differential Equations — First-Order Separable Equations","Trigonometry — Addition Formulae, Double Angle, Half Angle","Inverse Trigonometric Functions — Derivatives and Integrals","Numerical Methods — Trapezium Rule, Simpson's Rule, Newton-Raphson","Linear Programming — Formulation, Graphical Method, Optimisation","General Further Mathematics Revision — Past Questions Practice","Revision & Exam"],
+  },
+  "Commerce": {
+    t1:["Introduction to Commerce — Meaning, Scope, Branches, Importance","Trade — Meaning, Types: Home Trade and Foreign Trade","Home Trade — Retail Trade: Types of Retailers, Functions","Retail Trade — Departmental Stores, Supermarkets, E-Commerce","Wholesale Trade — Functions, Services to Retailers and Producers","Channels of Distribution — Direct, Indirect; Merits and Problems","Aids to Trade — Transport: Types, Modes, Importance in Commerce","Transport — Road, Rail, Air, Water: Advantages and Disadvantages","Warehousing — Types of Warehouses, Functions, Bonded Warehouses","Insurance — Principles: Indemnity, Insurable Interest, Subrogation","Revision & CA"],
+    t2:["Insurance — Types: Life, Fire, Marine, Motor, Burglary","Banking — Types of Banks: Commercial, Central, Development Banks","Commercial Bank Services — Loans, Overdrafts, Remittances, Accounts","Central Bank of Nigeria — Functions, Monetary Policy, Regulation","Money — Functions, Types, Qualities of Good Money","Credit — Types of Credit, Hire Purchase, Leasing, Instalment","Advertising — Meaning, Types, Media, Objectives, Criticisms","Sales Promotion — Methods, Consumer Promotions, Trade Deals","E-Commerce — Online Business, Digital Marketing, Payment Systems","Tourism — Meaning, Importance, Challenges for Nigeria","Revision & CA"],
+    t3:["Communication in Commerce — Types, Media, ICT in Business","Office — Meaning, Functions, Types, Open vs Private Plan","Business Documents — Invoice, Receipt, Statement, Credit/Debit Note","Import and Export Trade — Procedure, Documents, Trade Finance","Balance of Trade and Balance of Payments — Concepts, Problems","Tariffs and Trade Barriers — Types, Reasons, WTO, ECOWAS","Entrepreneurship — Meaning, Characteristics, Business Formation","Business Ownership — Sole Trader, Partnership, Ltd, PLC, Co-ops","Consumer Protection — NAFDAC, SON, CAC, Consumer Rights","Revision of Commerce Concepts and Examination Strategy","Revision & Exam"],
+  },
+  "Christian Religious Studies": {
+    t1:["Introduction to CRS — Meaning, Importance, Sources of Christian Faith","The Bible — Divisions, Canon, Versions, Inspiration of Scripture","Creation — God's Creative Work (Genesis 1–2): Order and Purpose","The Fall — Disobedience, Consequences, God's Plan of Redemption","Cain and Abel — Worship, Jealousy, Murder, Consequences","Noah and the Flood — Faith, Obedience, God's Covenant, Rainbow","Abraham — Call, Promise, Migration, Faith as Righteousness","Abraham's Tests — Hagar/Ishmael, Covenant of Circumcision, Isaac","Jacob — The Supplanter: Birthright, Blessing, Dream at Bethel","Joseph — Dreams, Betrayal, Slavery, Faithfulness in Egypt","Revision & CA"],
+    t2:["Joseph in Egypt — Temptation, Prison, Interpretation, Exaltation","Moses — Birth, Call at Burning Bush, Plagues, The Exodus","The Ten Commandments — Law and the Covenant at Sinai","Joshua — Conquest of Canaan, Rahab, Battle of Jericho","Judges — Gideon, Samson: Calling, Failure and Faithfulness","Samuel — Call, Eli, Ark of God, Anointing of Saul","David — Anointing, Goliath, Jonathan, Rise to Power","David's Failures — Bathsheba, Uriah, Nathan's Rebuke, Repentance","Solomon — Wisdom, Temple Building, Apostasy, Kingdom Division","Elijah — Confronting Ahab, Mount Carmel, Still Small Voice","Revision & CA"],
+    t3:["The Incarnation — Birth of Jesus: Prophecy, Virgin Birth, Wise Men","Ministry of Jesus — Baptism, Temptation, Early Galilean Ministry","Sermon on the Mount — Beatitudes, Lord's Prayer, Kingdom Ethics","Miracles of Jesus — Healing, Nature Miracles, Raising the Dead","Parables of Jesus — Prodigal Son, Good Samaritan, Sower","Jesus and Outcasts — Zacchaeus, Samaritan Woman, Tax Collectors","The Passion Narrative — Triumphal Entry, Cleansing Temple, Betrayal","Crucifixion and Resurrection — Theological Significance, Evidence","The Great Commission and Ascension — Mission of the Church","Pentecost and Early Church — Acts 2, Spread of the Gospel","Revision & Exam"],
   },
 };
 
@@ -170,8 +219,6 @@ function termNumber(term) {
 function topicsCoveredInTerm(scheme, subject, term, upToWeek) {
   const tk = termKey(term);
   const topics = scheme[subject]?.[tk] || [];
-  // topics[0] = Week 1, topics[N-1] = Week N
-  // For test on weekN, cover topics from weeks 1 to weekN-1
   return topics.slice(0, upToWeek - 1).filter(t => !t.startsWith("Revision"));
 }
 
@@ -193,8 +240,8 @@ function cumulativeTestIndex(term, weekNumber) {
   return (termNumber(term) - 1) * testsPerTerm + (weekNumber - 2);
 }
 
-// Half for a given week (odd = A, even = B counting from week 3)
-// Week 3→A(1), Week 4→B(2), Week 5→A(3), Week 6→B(4) ...
+// Half for a given week (A for odd count from week 3, B for even)
+// Week 3→A, Week 4→B, Week 5→A, Week 6→B ...
 function weekHalf(weekNumber) {
   return ((weekNumber - 3) % 2 === 0) ? "A" : "B";
 }
@@ -226,70 +273,346 @@ function mockDifficultyDescription(mockNumber, examType) {
   return descriptions[mockNumber] || descriptions[1];
 }
 
+// ─── REVISION GUIDE HTML ──────────────────────────────────────────────────────
+
+function buildRevisionGuideHTML(subjectGroups) {
+  // subjectGroups: array of { heading: string, bullets: string[] }
+  const innerSections = subjectGroups.map(({ heading, bullets }) => {
+    const lis = bullets.map(b => `    <li>${b}</li>`).join("\n");
+    return `  <h4 style="color:#185FA5;margin:10px 0 6px">${heading}</h4>\n  <ul style="margin:0 0 10px;padding-left:20px;font-size:12px">\n${lis}\n  </ul>`;
+  }).join("\n");
+
+  return `<div style="background:#fffbea;border:2px solid #f4c542;padding:16px;margin-bottom:24px;border-radius:6px;page-break-inside:avoid">
+  <h3 style="margin:0 0 10px;color:#8B1A2F;border-bottom:1px solid #f4c542;padding-bottom:8px">&#x1F4DA; STUDENT REVISION GUIDE — Study These Topics Before Your Test</h3>
+  <p style="font-size:11px;color:#666;margin-bottom:12px">Review all bullet points below. These are the key areas your teacher expects you to know for this test.</p>
+${innerSections}
+</div>`;
+}
+
+// Build revision guide topic bullets for a subject (all covered topics up to now)
+function revisionBulletsForSubject(scheme, subject, term, weekNumber) {
+  const prev = topicsFromPreviousTerms(scheme, subject, term);
+  const curr = topicsCoveredInTerm(scheme, subject, term, weekNumber);
+  const combined = [...prev, ...curr];
+  if (combined.length === 0) return [`Introductory concepts and overview of ${subject}`];
+  return combined;
+}
+
 // ─── PROMPT BUILDERS ─────────────────────────────────────────────────────────
 
 function buildWeeklyTestPrompt(cls, half, weekNumber, term, session) {
   const isJSS = cls === "JSS 1";
   const scheme = isJSS ? JSS1_SCHEME : SS1_SCHEME;
   const halves = isJSS ? JSS_HALVES : SS_HALVES;
-  const subjects = halves[half];
+  const subjectGroups = halves[half];
   const testIndex = cumulativeTestIndex(term, weekNumber);
   const diffDesc = difficultyDescription(testIndex);
   const examType = isJSS ? "BECE/JSCE" : "WAEC/NECO";
-  const totalQs = subjects.length * 4;
-  const tn = termNumber(term);
 
-  const subjectDetails = subjects.map(sub => {
-    const prevTopics = topicsFromPreviousTerms(scheme, sub, term);
-    const thisTermTopics = topicsCoveredInTerm(scheme, sub, term, weekNumber);
-    const allCovered = [...prevTopics, ...thisTermTopics];
-    let topicText = "";
-    if (prevTopics.length > 0) {
-      topicText += `  [From previous term(s)]: ${prevTopics.join("; ")}\n`;
-    }
-    if (thisTermTopics.length > 0) {
-      topicText += `  [${term} up to Week ${weekNumber - 1}]: ${thisTermTopics.join("; ")}`;
-    }
-    if (allCovered.length === 0) {
-      topicText = "  [Topics from scheme are all new — test general introductory knowledge of this subject]";
-    }
-    return `▸ ${sub}\n${topicText}`;
-  }).join("\n\n");
+  if (isJSS) {
+    return buildJSSWeeklyTestPrompt(cls, half, weekNumber, term, session, subjectGroups, scheme, testIndex, diffDesc, examType);
+  } else {
+    return buildSSWeeklyTestPrompt(cls, half, weekNumber, term, session, subjectGroups, scheme, testIndex, diffDesc, examType);
+  }
+}
 
-  return `You are generating an EDGE Weekly Test for Debbyfield Schools.
+function buildJSSWeeklyTestPrompt(cls, half, weekNumber, term, session, subjectGroups, scheme, testIndex, diffDesc, examType) {
+  // Build revision guide
+  const revGuideGroups = subjectGroups.flatMap(group => {
+    return group.components.map(comp => ({
+      heading: comp === group.label ? comp : `${group.label} — ${comp}`,
+      bullets: revisionBulletsForSubject(scheme, comp, term, weekNumber),
+    }));
+  });
+  const revisionGuideHTML = buildRevisionGuideHTML(revGuideGroups);
 
-EDGE is an accelerated academic programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Weekly tests challenge them ABOVE the standard ${examType} level to build mastery.
+  if (half === "A") {
+    // Half A: Mathematics, English Language, NVE (Social Studies/Civic Ed/Security Ed), BST (Basic Science/Basic Tech/ICT)
+    // Section A: 60 marks, Section B: 40 marks
+    return `You are generating an EDGE Weekly Test for Debbyfield Schools.
+
+EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level.
 
 ━━━ TEST PARAMETERS ━━━
-Class: ${cls} | Term: ${term} ${session} | Week: ${weekNumber} | Half: ${half}
-Test Index: ${testIndex} of 24 for this class's EDGE year
-Duration: 35 minutes | Total: ${totalQs} marks
+Class: ${cls} | Term: ${term} ${session} | Week: ${weekNumber} | Half: A
+Test Index: ${testIndex} of 24 | Duration: 2 hours | Total: 100 marks
 
 ━━━ DIFFICULTY ━━━
 ${diffDesc}
 Rules:
 • NO pure recall questions (no "What is the definition of...?")
-• Every question must test understanding, application, analysis, or evaluation
+• Every question tests understanding, application, analysis, or evaluation
 • Use scenario-based questions, data interpretation, error-detection, or multi-step problems
-• Distractors (wrong options) must be plausible — not obviously wrong
+• Distractors must be plausible — not obviously wrong
 • Avoid giving away answers through option patterns
 
-━━━ SUBJECTS AND COVERED TOPICS ━━━
-${subjectDetails}
+━━━ COVERED TOPICS ━━━
+${subjectGroups.map(group => {
+  return group.components.map(comp => {
+    const prev = topicsFromPreviousTerms(scheme, comp, term);
+    const curr = topicsCoveredInTerm(scheme, comp, term, weekNumber);
+    const all = [...prev, ...curr];
+    let txt = `▸ ${comp}\n`;
+    if (prev.length > 0) txt += `  [Previous terms]: ${prev.join("; ")}\n`;
+    if (curr.length > 0) txt += `  [${term} up to Week ${weekNumber - 1}]: ${curr.join("; ")}`;
+    if (all.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
+    return txt;
+  }).join("\n\n");
+}).join("\n\n")}
 
-━━━ FORMAT ━━━
-Generate EXACTLY 4 questions per subject, numbered 1–${totalQs} sequentially.
-All questions are Multiple Choice with 4 options: (A) (B) (C) (D)
+━━━ FORMAT — JSS Half A ━━━
+Generate the complete test in HTML (no <html>/<body> tags) following EXACTLY this structure:
 
-HTML format (no <html>/<body> tags):
-• <h2>DEBBYFIELD SCHOOLS — EDGE Weekly Test</h2>
-• <p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half ${half}</strong><br>Duration: 35 minutes &nbsp;|&nbsp; Total: ${totalQs} marks &nbsp;|&nbsp; All questions carry 1 mark each</p>
-• <hr>
-• For each subject: <h4 style="color:#8B1A2F;margin-top:16px">[Subject Name]</h4> followed by <ol start="[first Q number]">...<li>...</li>...</ol>
-• Each question: <li>[Question text]<br><span style="color:#444">(A) ... &nbsp;&nbsp; (B) ... &nbsp;&nbsp; (C) ... &nbsp;&nbsp; (D) ...</span></li>
-• At the very end: <hr><p style="color:#666;font-size:0.85em"><strong>ANSWERS:</strong> 1-X &nbsp; 2-X &nbsp; 3-X ... (all ${totalQs} answers on one or two lines)</p>
+1. Header:
+<h2 style="text-align:center">DEBBYFIELD SCHOOLS — EDGE Weekly Test</h2>
+<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half A</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks</p>
+<hr>
 
-Generate the test now:`;
+2. Revision Guide (insert the following HTML block exactly):
+${revisionGuideHTML}
+
+3. SECTION A — Objectives [60 marks, ~1 hour]
+<h3>SECTION A — Objectives [60 marks]</h3>
+<p><em>Choose the correct option. Each question carries 1 mark.</em></p>
+
+Generate MCQ questions in numbered <ol> lists, grouped under subject headings:
+
+<h4 style="color:#8B1A2F;margin-top:16px">Mathematics (Q1–15)</h4>
+<ol start="1">15 MCQ questions</ol>
+
+<h4 style="color:#8B1A2F;margin-top:16px">English Language (Q16–30)</h4>
+<ol start="16">15 MCQ questions</ol>
+
+<h4 style="color:#8B1A2F;margin-top:16px">NVE — National Values Education (Q31–45)</h4>
+<p style="font-size:11px;color:#555;margin:4px 0 8px"><em>Social Studies: Q31–35 &nbsp;|&nbsp; Civic Education: Q36–40 &nbsp;|&nbsp; Security Education: Q41–45</em></p>
+<ol start="31">15 MCQ questions (5 Social Studies, 5 Civic Education, 5 Security Education, in that order)</ol>
+
+<h4 style="color:#8B1A2F;margin-top:16px">BST — Basic Science & Technology (Q46–60)</h4>
+<p style="font-size:11px;color:#555;margin:4px 0 8px"><em>Basic Science: Q46–50 &nbsp;|&nbsp; Basic Technology: Q51–55 &nbsp;|&nbsp; ICT: Q56–60</em></p>
+<ol start="46">15 MCQ questions (5 Basic Science, 5 Basic Technology, 5 ICT, in that order)</ol>
+
+Each MCQ item format:
+<li>[Question text]<br><span style="color:#444">(A) ... &nbsp;&nbsp; (B) ... &nbsp;&nbsp; (C) ... &nbsp;&nbsp; (D) ...</span></li>
+
+<hr>
+
+4. SECTION B — Theory [40 marks, ~1 hour]
+<h3>SECTION B — Theory [40 marks]</h3>
+<p><em>Answer ALL questions.</em></p>
+
+Generate exactly 6 theory questions:
+
+<p><strong>Question 1 [Mathematics — 10 marks]</strong></p>
+[3-part mathematics theory question: parts (a), (b), (c) with mark allocations summing to 10]
+
+<p><strong>Question 2 [Mathematics — 10 marks]</strong></p>
+[2-part mathematics theory question: parts (a), (b) with mark allocations summing to 10]
+
+<p><strong>Question 3 [English Language — 10 marks]</strong></p>
+[Comprehension passage or language use question with sub-parts summing to 10 marks]
+
+<p><strong>Question 4 [English Language — 10 marks]</strong></p>
+[Essay, letter writing, or creative writing question worth 10 marks]
+
+<p><strong>Question 5 [NVE — 10 marks]</strong></p>
+[Three-part NVE question: (a) Social Studies [3 marks], (b) Civic Education [3 marks], (c) Security Education [4 marks]]
+
+<p><strong>Question 6 [BST — 10 marks]</strong></p>
+[Three-part BST question: (a) Basic Science [4 marks], (b) Basic Technology [3 marks], (c) ICT [3 marks]]
+
+<hr>
+
+5. Answers section:
+<p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> 1-X &nbsp; 2-X &nbsp; ... (all 60 answers)</p>
+<p style="color:#666;font-size:0.85em"><strong>SECTION B MARK SCHEME:</strong> Brief allocation per sub-part for each question</p>
+
+Generate the complete test now:`;
+  } else {
+    // Half B: PVS (Agricultural Science + Home Economics), CCA, CRS
+    // Section A: 60 marks (PVS 20 = 10 Agric + 10 HE, CCA 20, CRS 20), Section B: 40 marks (4 questions × 10)
+    return `You are generating an EDGE Weekly Test for Debbyfield Schools.
+
+EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level.
+
+━━━ TEST PARAMETERS ━━━
+Class: ${cls} | Term: ${term} ${session} | Week: ${weekNumber} | Half: B
+Test Index: ${testIndex} of 24 | Duration: 2 hours | Total: 100 marks
+
+━━━ DIFFICULTY ━━━
+${diffDesc}
+Rules:
+• NO pure recall questions
+• Every question tests understanding, application, analysis, or evaluation
+• Use scenario-based questions, data interpretation, or multi-step problems
+• Distractors must be plausible
+
+━━━ COVERED TOPICS ━━━
+${subjectGroups.map(group => {
+  return group.components.map(comp => {
+    const prev = topicsFromPreviousTerms(scheme, comp, term);
+    const curr = topicsCoveredInTerm(scheme, comp, term, weekNumber);
+    const all = [...prev, ...curr];
+    let txt = `▸ ${comp}\n`;
+    if (prev.length > 0) txt += `  [Previous terms]: ${prev.join("; ")}\n`;
+    if (curr.length > 0) txt += `  [${term} up to Week ${weekNumber - 1}]: ${curr.join("; ")}`;
+    if (all.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
+    return txt;
+  }).join("\n\n");
+}).join("\n\n")}
+
+━━━ FORMAT — JSS Half B ━━━
+Generate the complete test in HTML (no <html>/<body> tags) following EXACTLY this structure:
+
+1. Header:
+<h2 style="text-align:center">DEBBYFIELD SCHOOLS — EDGE Weekly Test</h2>
+<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half B</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks</p>
+<hr>
+
+2. Revision Guide (insert the following HTML block exactly):
+${revisionGuideHTML}
+
+3. SECTION A — Objectives [60 marks, ~1 hour]
+<h3>SECTION A — Objectives [60 marks]</h3>
+<p><em>Choose the correct option. Each question carries 1 mark.</em></p>
+
+<h4 style="color:#8B1A2F;margin-top:16px">PVS — Practical & Vocational Studies (Q1–20)</h4>
+<p style="font-size:11px;color:#555;margin:4px 0 8px"><em>Agricultural Science: Q1–10 &nbsp;|&nbsp; Home Economics: Q11–20</em></p>
+<ol start="1">20 MCQ questions (10 Agricultural Science, 10 Home Economics, in that order)</ol>
+
+<h4 style="color:#8B1A2F;margin-top:16px">CCA — Cultural & Creative Arts (Q21–40)</h4>
+<ol start="21">20 MCQ questions</ol>
+
+<h4 style="color:#8B1A2F;margin-top:16px">CRS — Christian Religious Studies (Q41–60)</h4>
+<ol start="41">20 MCQ questions</ol>
+
+Each MCQ item format:
+<li>[Question text]<br><span style="color:#444">(A) ... &nbsp;&nbsp; (B) ... &nbsp;&nbsp; (C) ... &nbsp;&nbsp; (D) ...</span></li>
+
+<hr>
+
+4. SECTION B — Theory [40 marks, ~1 hour]
+<h3>SECTION B — Theory [40 marks]</h3>
+<p><em>Answer ALL questions.</em></p>
+
+<p><strong>Question 1 [Agricultural Science — 10 marks]</strong></p>
+[Theory question with sub-parts summing to 10 marks]
+
+<p><strong>Question 2 [Home Economics — 10 marks]</strong></p>
+[Theory question with sub-parts summing to 10 marks]
+
+<p><strong>Question 3 [CCA — 10 marks]</strong></p>
+[Theory question with sub-parts summing to 10 marks]
+
+<p><strong>Question 4 [CRS — 10 marks]</strong></p>
+[Theory question with sub-parts summing to 10 marks]
+
+<hr>
+
+5. Answers section:
+<p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> 1-X &nbsp; 2-X &nbsp; ... (all 60 answers)</p>
+<p style="color:#666;font-size:0.85em"><strong>SECTION B MARK SCHEME:</strong> Brief allocation per sub-part for each question</p>
+
+Generate the complete test now:`;
+  }
+}
+
+function buildSSWeeklyTestPrompt(cls, half, weekNumber, term, session, subjectGroups, scheme, testIndex, diffDesc, examType) {
+  // SS: 7 subjects per half, 10 MCQ each = 70 marks Section A, 7 theory Qs attempt any 5 × 6 marks = 30 marks Section B
+  const subjectLabels = subjectGroups.map(g => g.label);
+
+  // Build revision guide groups (one per subject label, using component topics)
+  const revGuideGroups = subjectGroups.map(group => {
+    const bullets = group.components.flatMap(comp =>
+      revisionBulletsForSubject(scheme, comp, term, weekNumber)
+    );
+    return { heading: group.label, bullets };
+  });
+  const revisionGuideHTML = buildRevisionGuideHTML(revGuideGroups);
+
+  // Build covered topics text
+  const topicsText = subjectGroups.map((group, idx) => {
+    return group.components.map(comp => {
+      const prev = topicsFromPreviousTerms(scheme, comp, term);
+      const curr = topicsCoveredInTerm(scheme, comp, term, weekNumber);
+      const all = [...prev, ...curr];
+      let txt = `▸ ${group.label}${comp !== group.label ? ` (${comp})` : ""}\n`;
+      if (prev.length > 0) txt += `  [Previous terms]: ${prev.join("; ")}\n`;
+      if (curr.length > 0) txt += `  [${term} up to Week ${weekNumber - 1}]: ${curr.join("; ")}`;
+      if (all.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
+      return txt;
+    }).join("\n\n");
+  }).join("\n\n");
+
+  // Build MCQ numbering: each subject gets Q numbers
+  let qStart = 1;
+  const subjectMCQSections = subjectGroups.map(group => {
+    const start = qStart;
+    const end = qStart + 9;
+    qStart += 10;
+    return `<h4 style="color:#8B1A2F;margin-top:16px">${group.label} (Q${start}–${end})</h4>\n<ol start="${start}">10 MCQ questions</ol>`;
+  }).join("\n\n");
+
+  // Theory question numbering
+  const theoryQs = subjectGroups.map((group, idx) => {
+    return `<p><strong>Question ${idx + 1} [${group.label} — 6 marks]</strong></p>\n[Theory question with sub-parts summing to 6 marks, drawn from covered topics for ${group.label}]`;
+  }).join("\n\n");
+
+  return `You are generating an EDGE Weekly Test for Debbyfield Schools.
+
+EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level.
+
+━━━ TEST PARAMETERS ━━━
+Class: ${cls} | Term: ${term} ${session} | Week: ${weekNumber} | Half: ${half}
+Test Index: ${testIndex} of 24 | Duration: 2 hours | Total: 100 marks
+
+━━━ DIFFICULTY ━━━
+${diffDesc}
+Rules:
+• NO pure recall questions
+• Every question tests understanding, application, analysis, or evaluation
+• Use scenario-based questions, data interpretation, error-detection, or multi-step problems
+• Distractors must be plausible — not obviously wrong
+
+━━━ COVERED TOPICS ━━━
+${topicsText}
+
+━━━ FORMAT — SS Half ${half} ━━━
+Generate the complete test in HTML (no <html>/<body> tags) following EXACTLY this structure:
+
+1. Header:
+<h2 style="text-align:center">DEBBYFIELD SCHOOLS — EDGE Weekly Test</h2>
+<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half ${half}</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks</p>
+<hr>
+
+2. Revision Guide (insert the following HTML block exactly):
+${revisionGuideHTML}
+
+3. SECTION A — Objectives [70 marks]
+<h3>SECTION A — Objectives [70 marks]</h3>
+<p><em>Choose the correct option. Each question carries 1 mark. Answer ALL 70 questions.</em></p>
+
+Generate 10 MCQ questions per subject in numbered lists:
+${subjectMCQSections}
+
+Each MCQ item format:
+<li>[Question text]<br><span style="color:#444">(A) ... &nbsp;&nbsp; (B) ... &nbsp;&nbsp; (C) ... &nbsp;&nbsp; (D) ...</span></li>
+
+<hr>
+
+4. SECTION B — Theory [30 marks]
+<h3>SECTION B — Theory [30 marks]</h3>
+<p><em>Answer ANY FIVE questions. Each question carries 6 marks.</em></p>
+
+Generate exactly 7 theory questions (one per subject):
+${theoryQs}
+
+<hr>
+
+5. Answers section:
+<p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> 1-X &nbsp; 2-X &nbsp; ... (all 70 answers)</p>
+<p style="color:#666;font-size:0.85em"><strong>SECTION B MARK SCHEME:</strong> Brief mark allocation per sub-part for each question</p>
+
+Generate the complete test now:`;
 }
 
 function buildMockExamPrompt(cls, subject, mockNumber, term, session) {
@@ -301,17 +624,54 @@ function buildMockExamPrompt(cls, subject, mockNumber, term, session) {
   const termLabel = `Term ${Math.ceil(mockNumber / 2)}, Mock ${mockNumber % 2 === 0 ? 2 : 1} of that term`;
   const duration = isJSS ? "2 hours" : "2 hours 30 minutes";
 
-  const subjectTopics = allTopics(scheme, subject);
-  const topicText = subjectTopics.length > 0
-    ? subjectTopics.map((t, i) => `${i + 1}. ${t}`).join("\n")
-    : `Full ${examType} syllabus for ${subject}`;
+  // Resolve composite subjects
+  const composite = COMPOSITE_SUBJECTS[subject];
+  const components = composite ? composite.components : [subject];
+  const fullName = composite ? composite.fullName : subject;
+
+  // Gather all topics for all components
+  const componentTopics = components.map(comp => {
+    const topics = allTopics(scheme, comp);
+    return { comp, topics };
+  });
+
+  // Build flat topic list for prompt
+  const topicText = componentTopics.map(({ comp, topics }) => {
+    if (topics.length === 0) return `${comp}: Full ${examType} syllabus`;
+    return `${comp}:\n${topics.map((t, i) => `  ${i + 1}. ${t}`).join("\n")}`;
+  }).join("\n\n");
+
+  // Build revision guide for mock
+  const revGuideGroups = componentTopics.map(({ comp, topics }) => ({
+    heading: comp,
+    bullets: topics.length > 0 ? topics : [`Full ${examType} syllabus for ${comp}`],
+  }));
+  const revisionGuideHTML = buildRevisionGuideHTML(revGuideGroups);
+
+  // Determine Section A distribution for composite subjects
+  let sectionAInstruction = "";
+  if (components.length === 1) {
+    sectionAInstruction = "Generate exactly 50 multiple-choice questions covering all topics.";
+  } else {
+    const perComp = Math.floor(50 / components.length);
+    const remainder = 50 - perComp * components.length;
+    const dist = components.map((c, i) => `${c}: ${perComp + (i === components.length - 1 ? remainder : 0)} questions`).join(", ");
+    sectionAInstruction = `For composite subject, distribute 50 MCQs equally across components: ${dist}. Label each group with a sub-heading.`;
+  }
+
+  let sectionBInstruction = "";
+  if (components.length === 1) {
+    sectionBInstruction = "Generate 5 theory questions covering the full syllabus.";
+  } else {
+    sectionBInstruction = `Generate 5 theory questions. Ensure questions cover all components (${components.join(", ")}). Some questions may integrate multiple components. Each question should have sub-parts.`;
+  }
 
   return `You are generating EDGE Mock Exam ${mockNumber} for Debbyfield Schools.
 
 EDGE Mock Exams are for ${cls} students preparing for ${examType}. The school's philosophy is: students should practise at a harder level than the real exam so that when the actual exam comes, it feels easy.
 
 ━━━ MOCK PARAMETERS ━━━
-Class: ${cls} | Subject: ${subject}
+Class: ${cls} | Subject: ${fullName} (${subject})
 Mock Number: ${mockNumber} of 6 | ${termLabel} | ${term} ${session}
 Difficulty Multiplier: ×${mult} vs standard ${examType}
 
@@ -327,30 +687,37 @@ ${mult >= 3 ? "• Include at least one question that would challenge A-Level or
 ${mult >= 3.5 ? "• Some questions may integrate topics from 2–3 different areas of the syllabus simultaneously" : ""}
 
 ━━━ COMPLETE SYLLABUS COVERAGE ━━━
-All topics from the full ${isJSS ? "JSS 1" : "SS 1"} scheme are in scope for this mock:
+All topics from the full ${isJSS ? "JSS 1" : "SS 1"} scheme are in scope:
 ${topicText}
 
 ━━━ FORMAT ━━━
-SECTION A — Objectives (50 marks): exactly 50 multiple-choice questions, 1 mark each
-SECTION B — Theory (50 marks): 5 questions, candidates attempt ANY 4 (each worth 12.5 marks)
-  Each theory question must have sub-parts (a), (b), (c) [and (d) if needed]
-  Total theory marks per question: 12.5
 
-HTML format (no <html>/<body> tags):
-• <h2 style="text-align:center">DEBBYFIELD SCHOOLS</h2>
-• <h3 style="text-align:center">EDGE Mock Exam ${mockNumber} — ${cls} ${subject}</h3>
-• <p style="text-align:center">${term} ${session} &nbsp;|&nbsp; Duration: ${duration} &nbsp;|&nbsp; Total: 100 marks</p>
-• <p style="text-align:center;color:#8B1A2F;font-weight:600">Difficulty Level: ×${mult} vs ${examType} Standard</p>
-• <hr>
-• <h3>SECTION A — Objectives [50 marks]</h3>
-• <p><em>Choose the correct answer from options A–D. Each question carries 1 mark.</em></p>
-• Numbered list <ol> with all 50 questions, options on same line
-• <hr>
-• <h3>SECTION B — Theory [50 marks]</h3>
-• <p><em>Answer ANY FOUR questions. Each question carries 12.5 marks.</em></p>
-• 5 numbered theory questions with clear sub-parts
-• <hr>
-• ANSWERS and mark scheme: <p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> [1-X 2-X ... all 50]<br><strong>SECTION B MARK SCHEME:</strong> [brief allocation per sub-part]</p>
+Generate the complete mock exam in HTML (no <html>/<body> tags):
+
+<h2 style="text-align:center">DEBBYFIELD SCHOOLS</h2>
+<h3 style="text-align:center">EDGE Mock Exam ${mockNumber} — ${cls} ${fullName}</h3>
+<p style="text-align:center">${term} ${session} &nbsp;|&nbsp; Duration: ${duration} &nbsp;|&nbsp; Total: 100 marks</p>
+<p style="text-align:center;color:#8B1A2F;font-weight:600">Difficulty Level: ×${mult} vs ${examType} Standard</p>
+<hr>
+
+Insert this revision guide block:
+${revisionGuideHTML}
+
+<h3>SECTION A — Objectives [50 marks]</h3>
+<p><em>Choose the correct answer from options A–D. Each question carries 1 mark.</em></p>
+${sectionAInstruction}
+<ol>[50 numbered MCQ questions with options on same line]</ol>
+
+<hr>
+
+<h3>SECTION B — Theory [50 marks]</h3>
+<p><em>Answer ANY FOUR questions. Each question carries 12.5 marks.</em></p>
+${sectionBInstruction}
+[5 theory questions, each with clear sub-parts (a), (b), (c) [and (d) if needed], marks shown per sub-part, totalling 12.5 marks per question]
+
+<hr>
+
+<p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> [1-X 2-X ... all 50 on one or two lines]<br><strong>SECTION B MARK SCHEME:</strong> [brief allocation per sub-part for all 5 questions]</p>
 
 Generate the mock exam now:`;
 }
@@ -373,6 +740,22 @@ export default async function handler(req, res) {
   }
   if (testType === "mock" && (!subject || !mockNumber)) {
     return res.status(400).json({ error: "Mock exams require: subject, mockNumber (1-6)" });
+  }
+
+  // Validate mock subject for JSS 2 and SS 2
+  if (testType === "mock") {
+    const isJSS = ["JSS 1","JSS 2"].includes(cls);
+    const isSS  = ["SS 1","SS 2"].includes(cls);
+    if (isJSS && !JSS2_SUBJECTS.includes(subject)) {
+      return res.status(400).json({
+        error: `Invalid subject for JSS mock. Valid subjects: ${JSS2_SUBJECTS.join(", ")}`,
+      });
+    }
+    if (isSS && !SS2_SUBJECTS.includes(subject)) {
+      return res.status(400).json({
+        error: `Invalid subject for SS mock. Valid subjects: ${SS2_SUBJECTS.join(", ")}`,
+      });
+    }
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
