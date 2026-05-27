@@ -305,6 +305,7 @@
       <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
       <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
       <div class="nav-item" onclick="nav('papers',null,this)"><i class="ti ti-file-text"></i>Exam Papers</div>
+      <div class="nav-item" onclick="nav('edge',null,this)"><i class="ti ti-bolt"></i>EDGE Tests</div>
       <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
       <div class="nav-item" onclick="nav('admin',null,this)"><i class="ti ti-shield-lock"></i>Admin</div>
     </div>
@@ -484,6 +485,9 @@ let studentProfiles = {};   // keyed by student_id
 let guardiansMap = {};      // keyed by student_id → array of guardians
 let feeStructure = [];      // array of fee structure rows
 let paymentLog = [];        // array of payment log rows for current term/session
+let edgeTestsStore = [];    // EDGE tests for current term/session
+let _edgeFilterCls = "", _edgeFilterType = "";
+let _edgeAdminSubTab = "weekly";
 
 /* ── sidebar ── */
 function toggleSidebar() {
@@ -574,6 +578,15 @@ async function loadExamPapers() {
   if (!error && data) examPapersStore = data;
 }
 
+async function loadEdgeTests() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("edge_tests")
+    .select("id,test_type,cls,subject,half,week_number,mock_number,term,session,content,created_at")
+    .eq("term",currentTerm).eq("session",currentSession)
+    .order("cls").order("created_at");
+  if (!error && data) edgeTestsStore = data;
+}
+
 async function loadStudentProfiles() {
   if (!dbClient) return;
   const {data,error} = await dbClient.from("student_profiles").select("*");
@@ -614,7 +627,7 @@ async function loadPaymentLog() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -716,6 +729,7 @@ function nav(page,arg,el){
   else if(page==="search")renderSearch();
   else if(page==="staff")renderStaffDirectory();
   else if(page==="papers")renderExamPapers();
+  else if(page==="edge")renderEdgeTests();
   else if(page==="settings")renderSettings();
   else if(page==="admin")renderAdmin();
   else if(page==="finance-dashboard")renderFinanceDashboard();
@@ -728,6 +742,7 @@ function setAnnexFilter(val){
   else if(_curPage==="entry")renderScoreEntry();
   else if(_curPage==="staff")renderStaffDirectory();
   else if(_curPage==="papers")renderExamPapers();
+  else if(_curPage==="edge")renderEdgeTests();
   else if(_curPage==="admin")renderAdmin();
   else if(_curPage==="finance-ledger")renderFinanceLedger();
 }
@@ -1150,8 +1165,8 @@ function renderAdmin(){
     setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
     return;
   }
-  const tabs=["students","staff","new-term","exam-papers","fee-setup","security"];
-  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","security":"Security"};
+  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","security"];
+  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","security":"Security"};
   document.getElementById("content").innerHTML=`
     <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
     <div id="admin-tab-content"></div>`;
@@ -1182,6 +1197,7 @@ function renderAdminTab(){
   else if(_adminTab==="new-term")el.innerHTML=buildAdminNewTermHtml();
   else if(_adminTab==="exam-papers"){el.innerHTML=buildAdminExamPapersHtml();refreshGenSubjects();}
   else if(_adminTab==="fee-setup")el.innerHTML=buildAdminFeeHtml();
+  else if(_adminTab==="edge"){el.innerHTML=buildAdminEdgeHtml();refreshEdgeSubjects();}
   else if(_adminTab==="security")el.innerHTML=buildAdminSecurityHtml();
 }
 
@@ -2148,13 +2164,242 @@ async function switchTermSession(){
   currentTerm=t; currentSession=s;
   localStorage.setItem("dbs-term",t); localStorage.setItem("dbs-session",s);
   store={scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
-  roster=[...STUDENTS]; staffList=[]; examPapersStore=[]; feeStructure=[]; paymentLog=[];
+  roster=[...STUDENTS]; staffList=[]; examPapersStore=[]; edgeTestsStore=[]; feeStructure=[]; paymentLog=[];
   if(dbClient){dbStatus="loading";updateDbIndicator();const ok=await loadFromSupabase();dbStatus=ok?"connected":"error";}
   else loadLocalStore();
   updateDbIndicator(); updateTermDisplay();
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
   document.querySelectorAll(".nav-item")[0]?.classList.add("active");
   renderDashboard();
+}
+
+/* ── EDGE Tests: teacher view ── */
+const EDGE_MOCK_SUBJECTS = {
+  "JSS 2": ["English Language","Mathematics","Basic Science","Basic Technology","Social Studies","Civic Education","Christian Religious Studies","Business Studies","Computer Studies","Agricultural Science","Home Economics","Cultural & Creative Arts","Physical & Health Education","Yoruba Language"],
+  "SS 2":  ["English Language","Mathematics","Physics","Chemistry","Biology","Economics","Financial Accounting","Government","Literature in English","Geography","Agricultural Science"],
+};
+
+function edgeTestLabel(t){
+  if(t.test_type==="weekly") return `Week ${t.week_number} — Half ${t.half}`;
+  return `${t.subject} — Mock ${t.mock_number}`;
+}
+
+function renderEdgeTests(){
+  document.getElementById("page-title").textContent="EDGE Tests";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  const clsFilter=`<select onchange="_edgeFilterCls=this.value;renderEdgeTestsList()" style="min-width:110px">
+    <option value="">All Classes</option>
+    <option value="JSS 1" ${_edgeFilterCls==="JSS 1"?"selected":""}>JSS 1</option>
+    <option value="SS 1"  ${_edgeFilterCls==="SS 1"?"selected":""}>SS 1</option>
+    <option value="JSS 2" ${_edgeFilterCls==="JSS 2"?"selected":""}>JSS 2</option>
+    <option value="SS 2"  ${_edgeFilterCls==="SS 2"?"selected":""}>SS 2</option>
+  </select>`;
+  const typeFilter=`<select onchange="_edgeFilterType=this.value;renderEdgeTestsList()" style="min-width:110px">
+    <option value="">All Types</option>
+    <option value="weekly" ${_edgeFilterType==="weekly"?"selected":""}>Weekly Tests</option>
+    <option value="mock"   ${_edgeFilterType==="mock"?"selected":""}>Mock Exams</option>
+  </select>`;
+  document.getElementById("content").innerHTML=`
+    <div class="filter-bar">${clsFilter}${typeFilter}</div>
+    <div id="edge-list"></div>
+    <div class="card" style="margin-top:12px;display:none" id="edge-viewer">
+      <div class="card-head paper-actions">
+        <span class="card-title" id="edge-viewer-title"></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-primary" onclick="printEdgeTest()"><i class="ti ti-printer"></i> Print / Download</button>
+          <button class="btn btn-sm" onclick="document.getElementById('edge-viewer').style.display='none'"><i class="ti ti-x"></i></button>
+        </div>
+      </div>
+      <div id="edge-viewer-body" style="padding:8px 4px;font-family:serif;line-height:1.7;font-size:14px"></div>
+    </div>`;
+  renderEdgeTestsList();
+}
+
+function renderEdgeTestsList(){
+  const filtered=edgeTestsStore.filter(t=>
+    (!_edgeFilterCls||t.cls===_edgeFilterCls)&&
+    (!_edgeFilterType||t.test_type===_edgeFilterType)
+  );
+  const el=document.getElementById("edge-list"); if(!el)return;
+  if(!filtered.length){
+    el.innerHTML=`<div class="card"><div class="empty"><i class="ti ti-bolt-off"></i>No EDGE tests generated yet for this term</div></div>`;
+    return;
+  }
+  const byClass={};
+  filtered.forEach(t=>{if(!byClass[t.cls])byClass[t.cls]=[];byClass[t.cls].push(t);});
+  el.innerHTML=Object.entries(byClass).map(([cls,tests])=>`
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-head"><span class="card-title">${cls}</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${tests.map(t=>{
+          const isWeekly=t.test_type==="weekly";
+          return`<div class="paper-card" onclick="openEdgeViewer(${t.id})">
+            <span class="paper-tag ${isWeekly?"ca1":"exam"}" style="min-width:56px;text-align:center">${isWeekly?"Weekly":"Mock"}</span>
+            <span style="flex:1;font-size:13px">${edgeTestLabel(t)}</span>
+            <button class="btn btn-sm btn-primary paper-actions" onclick="event.stopPropagation();printEdgeTestById(${t.id})"><i class="ti ti-printer"></i> Print</button>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`).join("");
+}
+
+function openEdgeViewer(id){
+  const t=edgeTestsStore.find(x=>x.id===id); if(!t)return;
+  const viewer=document.getElementById("edge-viewer");
+  document.getElementById("edge-viewer-title").textContent=`${t.cls} · ${edgeTestLabel(t)}`;
+  document.getElementById("edge-viewer-body").innerHTML=t.content;
+  viewer.style.display="";
+  viewer.dataset.testId=id;
+  viewer.scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function printEdgeTest(){
+  const v=document.getElementById("edge-viewer"); if(!v)return;
+  printEdgeTestById(parseInt(v.dataset.testId));
+}
+
+function printEdgeTestById(id){
+  const t=edgeTestsStore.find(x=>x.id===id); if(!t)return;
+  let area=document.getElementById("paper-print-area");
+  if(!area){area=document.createElement("div");area.id="paper-print-area";document.body.appendChild(area);}
+  area.style.display="block"; area.innerHTML=t.content;
+  window.print();
+  area.style.display="none"; area.innerHTML="";
+}
+
+/* ── EDGE Tests: admin tab ── */
+function buildAdminEdgeHtml(){
+  const weekOpts=[3,4,5,6,7,8,9,10].map(w=>{
+    const half=((w-3)%2===0)?"A":"B";
+    return`<option value="${w}">Week ${w} &nbsp;(Half ${half})</option>`;
+  }).join("");
+  const mockOpts=[1,2,3,4,5,6].map(n=>{
+    const termN=Math.ceil(n/2), mockN=(n%2===0?2:1);
+    const mult=[1.5,2.0,2.5,3.0,3.5,4.0][n-1];
+    return`<option value="${n}">Mock ${n} — Term ${termN}, Mock ${mockN} &nbsp;(×${mult})</option>`;
+  }).join("");
+  const rows=edgeTestsStore.slice().sort((a,b)=>a.cls<b.cls?-1:a.cls>b.cls?1:0).map(t=>{
+    const isWeekly=t.test_type==="weekly";
+    return`<tr>
+      <td><span class="paper-tag ${isWeekly?"ca1":"exam"}" style="font-size:10px">${isWeekly?"Weekly":"Mock"}</span></td>
+      <td>${t.cls}</td>
+      <td style="font-size:12px">${edgeTestLabel(t)}</td>
+      <td style="font-size:11px;color:var(--tx2)">${new Date(t.created_at).toLocaleDateString()}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-sm" onclick="openEdgeViewerAdmin(${t.id})"><i class="ti ti-eye"></i></button>
+        <button class="btn btn-sm" onclick="printEdgeTestById(${t.id})"><i class="ti ti-printer"></i></button>
+        <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteEdgeTest(${t.id})"><i class="ti ti-trash"></i></button>
+      </div></td>
+    </tr>`;
+  }).join("");
+  return`
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-bolt" style="color:#8B1A2F"></i> Weekly Test Generator</span></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">JSS 1 &amp; SS 1 weekly tests — combined multi-subject paper, 4 questions per subject, 35 minutes. Difficulty increases each week (tests 1–24).</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field"><label>Class</label>
+          <select id="edge-weekly-cls"><option>JSS 1</option><option>SS 1</option></select></div>
+        <div class="field"><label>Week Number</label>
+          <select id="edge-weekly-week">${weekOpts}</select></div>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="generateEdgeTest('weekly')"><i class="ti ti-sparkles"></i> Generate Weekly Test</button>
+      <div id="edge-weekly-status" style="margin-top:8px;font-size:12px;color:var(--tx2)"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-trophy" style="color:#8B1A2F"></i> Mock Exam Generator</span></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">JSS 2 &amp; SS 2 mock exams — full JSCE/WAEC format, 50 MCQ + 5 theory. 6 mocks per session, difficulty ×1.5 → ×4.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="field"><label>Class</label>
+          <select id="edge-mock-cls" onchange="refreshEdgeSubjects()"><option>JSS 2</option><option>SS 2</option></select></div>
+        <div class="field"><label>Mock Number</label>
+          <select id="edge-mock-num">${mockOpts}</select></div>
+      </div>
+      <div class="field" style="margin-bottom:12px"><label>Subject</label>
+        <select id="edge-mock-sub"></select></div>
+      <button class="btn btn-primary" style="width:100%" onclick="generateEdgeTest('mock')"><i class="ti ti-sparkles"></i> Generate Mock Exam</button>
+      <div id="edge-mock-status" style="margin-top:8px;font-size:12px;color:var(--tx2)"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-title">Generated EDGE Tests — ${currentTerm} ${currentSession}</span></div>
+    ${edgeTestsStore.length?`<div style="overflow-x:auto"><table>
+      <thead><tr><th>Type</th><th>Class</th><th>Description</th><th>Generated</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+    :`<div class="empty"><i class="ti ti-bolt-off"></i>No EDGE tests generated yet for this term</div>`}
+  </div>`;
+}
+
+function refreshEdgeSubjects(){
+  const cls=document.getElementById("edge-mock-cls")?.value; if(!cls)return;
+  const subs=EDGE_MOCK_SUBJECTS[cls]||[];
+  const sel=document.getElementById("edge-mock-sub"); if(!sel)return;
+  sel.innerHTML=subs.map(s=>`<option>${s}</option>`).join("");
+}
+
+async function generateEdgeTest(testType){
+  const statusId=testType==="weekly"?"edge-weekly-status":"edge-mock-status";
+  const status=document.getElementById(statusId);
+  let cls,half,weekNumber,subject,mockNumber;
+  if(testType==="weekly"){
+    cls=document.getElementById("edge-weekly-cls")?.value;
+    weekNumber=parseInt(document.getElementById("edge-weekly-week")?.value||"3");
+    half=((weekNumber-3)%2===0)?"A":"B";
+    if(!cls){alert("Select a class");return;}
+  } else {
+    cls=document.getElementById("edge-mock-cls")?.value;
+    subject=document.getElementById("edge-mock-sub")?.value;
+    mockNumber=parseInt(document.getElementById("edge-mock-num")?.value||"1");
+    if(!cls||!subject){alert("Select class and subject");return;}
+  }
+  const label=testType==="weekly"?`${cls} Week ${weekNumber} Half ${half}`:
+    `${cls} ${subject} Mock ${mockNumber}`;
+  if(status)status.innerHTML=`<i class="ti ti-loader"></i> Generating ${label}… this may take 20–40 seconds.`;
+  try{
+    const body={testType,cls,term:currentTerm,session:currentSession};
+    if(testType==="weekly"){body.half=half;body.weekNumber=weekNumber;}
+    else{body.subject=subject;body.mockNumber=mockNumber;}
+    const res=await fetch("/api/generate-edge",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body),
+    });
+    if(!res.ok){
+      const err=await res.json().catch(()=>({error:res.statusText}));
+      throw new Error(err.error||res.statusText);
+    }
+    const {content}=await res.json();
+    if(!content)throw new Error("Empty response from AI");
+    const row={test_type:testType,cls,term:currentTerm,session:currentSession,content};
+    if(testType==="weekly"){row.half=half;row.week_number=weekNumber;}
+    else{row.subject=subject;row.mock_number=mockNumber;}
+    const {error:dbErr}=await dbClient.from("edge_tests").insert(row);
+    if(dbErr)throw new Error("DB save failed: "+dbErr.message);
+    await loadEdgeTests();
+    renderAdminTab();
+    if(status)status.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Done! Test saved.</span>`;
+  }catch(e){
+    console.error("generate-edge:",e);
+    if(status)status.innerHTML=`<span style="color:var(--tx-err)"><i class="ti ti-alert-circle"></i> Error: ${e.message}</span>`;
+  }
+}
+
+function openEdgeViewerAdmin(id){
+  const t=edgeTestsStore.find(x=>x.id===id); if(!t)return;
+  openModal(`${t.cls} · ${edgeTestLabel(t)}`,
+    `<div style="font-family:serif;line-height:1.7;font-size:13px;max-height:60vh;overflow-y:auto">${t.content}</div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-primary" onclick="printEdgeTestById(${t.id})"><i class="ti ti-printer"></i> Print</button>
+      <button class="btn btn-sm" onclick="closeModal()">Close</button>
+    </div>`);
+}
+
+async function deleteEdgeTest(id){
+  if(!confirm("Delete this EDGE test? This cannot be undone."))return;
+  const {error}=await dbClient.from("edge_tests").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  await loadEdgeTests(); renderAdminTab();
 }
 
 /* ── boot ── */

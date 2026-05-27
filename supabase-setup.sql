@@ -233,6 +233,44 @@ END $$;
 
 -- ── indexes ───────────────────────────────────────────────────────────────────
 
+-- ── EDGE testing system ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS edge_tests (
+  id          BIGSERIAL PRIMARY KEY,
+  test_type   TEXT NOT NULL CHECK (test_type IN ('weekly','mock')),
+  cls         TEXT NOT NULL,
+  subject     TEXT,           -- mock exams only
+  half        TEXT,           -- weekly tests only: 'A' or 'B'
+  week_number INTEGER,        -- weekly tests only: 3–10
+  mock_number INTEGER,        -- mock exams only: 1–6
+  term        TEXT NOT NULL,
+  session     TEXT NOT NULL,
+  content     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS edge_scores (
+  id            BIGSERIAL PRIMARY KEY,
+  student_id    INTEGER NOT NULL REFERENCES students(id),
+  edge_test_id  BIGINT  NOT NULL REFERENCES edge_tests(id) ON DELETE CASCADE,
+  score         NUMERIC(6,2),
+  max_score     NUMERIC(6,2),
+  term          TEXT NOT NULL,
+  session       TEXT NOT NULL,
+  recorded_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(student_id, edge_test_id)
+);
+
+ALTER TABLE edge_tests  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE edge_scores ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='edge_tests'  AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON edge_tests  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='edge_scores' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON edge_scores FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+-- ── indexes ───────────────────────────────────────────────────────────────────
+
 CREATE INDEX IF NOT EXISTS scores_term_session            ON scores(term, session);
 CREATE INDEX IF NOT EXISTS attendance_term_session        ON attendance(term, session);
 CREATE INDEX IF NOT EXISTS observations_term_session      ON observations(term, session);
@@ -245,3 +283,7 @@ CREATE INDEX IF NOT EXISTS guardians_student_id           ON guardians(student_i
 CREATE INDEX IF NOT EXISTS fee_structure_term_session     ON fee_structure(term, session);
 CREATE INDEX IF NOT EXISTS payment_log_term_session       ON payment_log(term, session);
 CREATE INDEX IF NOT EXISTS payment_log_student_id         ON payment_log(student_id);
+CREATE INDEX IF NOT EXISTS edge_tests_term_session        ON edge_tests(term, session);
+CREATE INDEX IF NOT EXISTS edge_tests_cls                 ON edge_tests(cls);
+CREATE INDEX IF NOT EXISTS edge_scores_student_id         ON edge_scores(student_id);
+CREATE INDEX IF NOT EXISTS edge_scores_test_id            ON edge_scores(edge_test_id);
