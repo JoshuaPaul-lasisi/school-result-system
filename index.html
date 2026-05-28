@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Debbyfield Schools — Academic Records</title>
+  <title>Debbyfield Operational System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -263,6 +263,44 @@
       .modal-overlay{padding:8px;align-items:flex-end}
       .modal-box{max-height:85vh;border-radius:var(--rlg) var(--rlg) 0 0}
     }
+
+    /* ── hub ── */
+    .app.hub-mode{grid-template-columns:1fr}
+    .app.hub-mode .sidebar{display:none}
+    .app.hub-mode .topbar{display:none}
+    .hub-page{display:flex;flex-direction:column;align-items:center;padding:32px 20px 48px;min-height:100%;background:var(--bg2)}
+    .hub-brand{text-align:center;margin-bottom:8px}
+    .hub-school-name{font-size:24px;font-weight:700;color:var(--burg);letter-spacing:-.3px}
+    .hub-system-name{font-size:13px;color:var(--tx2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase}
+    .hub-status-bar{display:flex;align-items:center;gap:10px;background:var(--bg);border:.5px solid var(--bd3);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--tx2);margin:18px 0 28px}
+    .hub-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:100%;max-width:720px}
+    .hub-tile{background:var(--bg);border:.5px solid var(--bd3);border-radius:12px;padding:22px 16px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;text-align:center;user-select:none}
+    .hub-tile:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.1);border-color:var(--bd2)}
+    .hub-tile:active{transform:translateY(-1px);box-shadow:0 3px 12px rgba(0,0,0,.08)}
+    .hub-tile-icon{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .hub-tile-icon i{font-size:27px}
+    .hub-tile-label{font-size:14px;font-weight:600;color:var(--tx)}
+    .hub-tile-desc{font-size:11px;color:var(--tx2);line-height:1.55}
+    .hub-tile-lock{font-size:10px;color:var(--tx3);display:flex;align-items:center;gap:3px;margin-top:1px}
+    .hub-tile.tile-locked{border-color:#e8c0c8}
+    .hub-tile.tile-locked:hover{border-color:var(--burg);box-shadow:0 8px 28px rgba(139,26,47,.12)}
+    .hub-tile.tile-locked .hub-tile-label{color:var(--burg)}
+    /* section sidebar */
+    .nav-back{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;color:var(--tx2);cursor:pointer;border-bottom:.5px solid var(--bd3);transition:color .15s;user-select:none}
+    .nav-back:hover{color:var(--tx)}
+    .nav-back i{font-size:16px}
+    .section-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px 10px;border-bottom:.5px solid var(--bd3);margin-bottom:4px}
+    .section-hdr-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .section-hdr-icon i{font-size:15px}
+    .section-hdr-label{font-size:13px;font-weight:600;color:var(--tx)}
+    @media(max-width:700px){
+      .hub-tiles{grid-template-columns:repeat(2,1fr)}
+      .hub-tile.tile-locked{grid-column:1/-1;max-width:280px;margin:0 auto;width:100%}
+    }
+    @media(max-width:400px){
+      .hub-tiles{grid-template-columns:1fr}
+      .hub-tile.tile-locked{max-width:none}
+    }
   </style>
 </head>
 <body>
@@ -279,7 +317,7 @@
   </div>
 </div>
 
-<div class="app">
+<div class="app hub-mode" id="app">
   <div class="sidebar" id="sidebar">
     <div class="logo">
       <div class="logo-name">Debbyfield Schools</div>
@@ -289,33 +327,7 @@
         <span class="db-lbl" id="db-lbl">Local only</span>
       </div>
     </div>
-    <div class="nav-section">
-      <div class="nav-label">Overview</div>
-      <div class="nav-item active" onclick="nav('dashboard',null,this)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
-    </div>
-    <div class="nav-section">
-      <div class="nav-label">Classes</div>
-      <div class="nav-item" onclick="nav('class','Pre-Primary',this)"><i class="ti ti-star"></i>Pre-Primary</div>
-      <div class="nav-item" onclick="nav('class','Primary',this)"><i class="ti ti-school"></i>Primary</div>
-      <div class="nav-item" onclick="nav('class','Junior Secondary',this)"><i class="ti ti-book"></i>JSS</div>
-      <div class="nav-item" onclick="nav('class','Senior Secondary',this)"><i class="ti ti-certificate"></i>SS</div>
-    </div>
-    <div class="nav-section">
-      <div class="nav-label">Tools</div>
-      <div class="nav-item" onclick="nav('entry',null,this)"><i class="ti ti-table-plus"></i>Score Entry</div>
-      <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
-      <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
-      <div class="nav-item" onclick="nav('papers',null,this)"><i class="ti ti-file-text"></i>Exam Papers</div>
-      <div class="nav-item" onclick="nav('edge',null,this)"><i class="ti ti-bolt"></i>EDGE Tests</div>
-      <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
-      <div class="nav-item" onclick="nav('admin',null,this)"><i class="ti ti-shield-lock"></i>Admin</div>
-    </div>
-    <div class="nav-section">
-      <div class="nav-label">Finance</div>
-      <div class="nav-item" onclick="nav('finance-dashboard',null,this)"><i class="ti ti-chart-bar"></i>Overview</div>
-      <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Daily Log</div>
-      <div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>
-    </div>
+    <div id="sidebar-nav"></div>
   </div>
 
   <div class="main">
@@ -489,6 +501,166 @@ let paymentLog = [];        // array of payment log rows for current term/sessio
 let edgeTestsStore = [];    // EDGE tests for current term/session
 let _edgeFilterCls = "", _edgeFilterType = "";
 let _edgeAdminSubTab = "weekly";
+let _curSection = null;
+
+/* ── hub & section navigation ── */
+const SECTION_META = {
+  academic:         { icon:"ti-certificate",  bg:"#e3f2fd", color:"#185FA5", label:"Academic" },
+  finance:          { icon:"ti-cash",          bg:"#e8f5e9", color:"#2e7d32", label:"Finance" },
+  students:         { icon:"ti-user-search",   bg:"#fff8e1", color:"#d97706", label:"Students" },
+  staff:            { icon:"ti-users",          bg:"#f3e8ff", color:"#6a1b9a", label:"Staff" },
+  "principals-desk":{ icon:"ti-shield-lock",   bg:"#fdeef1", color:"#8B1A2F", label:"Principal's Desk" },
+};
+
+function renderHub(){
+  _curSection=null;
+  document.getElementById("app").classList.add("hub-mode");
+  document.getElementById("sidebar-nav").innerHTML="";
+  document.getElementById("content").innerHTML=`
+    <div class="hub-page">
+      <div class="hub-brand">
+        <div class="hub-school-name">Debbyfield Schools</div>
+        <div class="hub-system-name">Operational System</div>
+      </div>
+      <div class="hub-status-bar">
+        <span id="hub-db-dot" class="db-dot ${{"connected":"dot-ok","error":"dot-err","loading":"dot-spin","offline":"dot-off"}[dbStatus]||"dot-off"}"></span>
+        <span>${currentTerm} &nbsp;·&nbsp; ${currentSession}</span>
+        <span style="color:var(--bd2)">|</span>
+        <span>${roster.length} students</span>
+      </div>
+      <div class="hub-tiles">
+        ${[
+          {id:"academic",         icon:"ti-certificate",  bg:"#e3f2fd", color:"#185FA5", label:"Academic",          desc:"Classes, scores, exam papers & EDGE tests"},
+          {id:"finance",          icon:"ti-cash",          bg:"#e8f5e9", color:"#2e7d32", label:"Finance",           desc:"Fee structure, payments & ledger"},
+          {id:"students",         icon:"ti-user-search",   bg:"#fff8e1", color:"#d97706", label:"Students",          desc:"Student records & report cards"},
+          {id:"staff",            icon:"ti-users",          bg:"#f3e8ff", color:"#6a1b9a", label:"Staff",             desc:"Staff directory & assignments"},
+          {id:"principals-desk",  icon:"ti-shield-lock",   bg:"#fdeef1", color:"#8B1A2F", label:"Principal's Desk",  desc:"Settings, enrollment & system admin", locked:true},
+        ].map(t=>`
+          <div class="hub-tile${t.locked?" tile-locked":""}" onclick="enterSection('${t.id}')">
+            <div class="hub-tile-icon" style="background:${t.bg}"><i class="ti ${t.icon}" style="color:${t.color}"></i></div>
+            <div class="hub-tile-label">${t.label}</div>
+            <div class="hub-tile-desc">${t.desc}</div>
+            ${t.locked?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> PIN required</div>`:""}
+          </div>`).join("")}
+      </div>
+    </div>`;
+}
+
+function navToHub(){ renderHub(); closeSidebar(); }
+
+function enterSection(name){
+  if(name==="principals-desk"&&!adminUnlocked){
+    openModal("Principal's Desk",`
+      <div style="text-align:center;padding:4px 0 18px">
+        <div style="width:56px;height:56px;border-radius:16px;background:#fdeef1;margin:0 auto 12px;display:flex;align-items:center;justify-content:center">
+          <i class="ti ti-shield-lock" style="font-size:28px;color:#8B1A2F"></i>
+        </div>
+        <p style="font-size:13px;color:var(--tx2)">
+          ${storedPinHash===null?"Create your PIN to access Principal's Desk":"Enter your PIN to continue"}
+        </p>
+      </div>
+      ${storedPinHash===null
+        ?`<div class="field"><label>New PIN</label><input type="password" id="hub-pin" placeholder="Enter PIN…"></div>
+          <div class="field"><label>Confirm PIN</label><input type="password" id="hub-pin2" placeholder="Repeat PIN…"></div>`
+        :`<div class="field"><label>PIN</label><input type="password" id="hub-pin" placeholder="Enter PIN…" onkeydown="if(event.key==='Enter')submitHubPin()"></div>`}
+      <button class="btn btn-primary" style="width:100%" onclick="submitHubPin()">
+        <i class="ti ti-lock-open"></i> ${storedPinHash===null?"Create PIN & Enter":"Enter"}
+      </button>`);
+    setTimeout(()=>document.getElementById("hub-pin")?.focus(),80);
+    return;
+  }
+  _curSection=name;
+  document.getElementById("app").classList.remove("hub-mode");
+  renderSidebar(name);
+  const defaults={
+    academic:        ()=>{ _curPage="dashboard"; renderDashboard(); },
+    finance:         ()=>{ _curPage="finance-dashboard"; renderFinanceDashboard(); },
+    students:        ()=>{ _curPage="search"; renderSearch(); },
+    staff:           ()=>{ _curPage="staff"; renderStaffDirectory(); },
+    "principals-desk":()=>{ _curPage="settings"; renderSettings(); },
+  };
+  (defaults[name]||defaults.academic)();
+  // mark first nav item active
+  setTimeout(()=>{
+    const first=document.querySelector("#sidebar-nav .nav-item");
+    if(first)first.classList.add("active");
+  },0);
+}
+
+async function submitHubPin(){
+  if(!dbClient){alert("Database not connected");return;}
+  const pin=document.getElementById("hub-pin")?.value?.trim();
+  if(!pin){alert("Enter a PIN");return;}
+  const hash=await sha256(pin);
+  if(storedPinHash===null){
+    const pin2=document.getElementById("hub-pin2")?.value?.trim();
+    if(pin!==pin2){alert("PINs do not match");return;}
+    const{error}=await dbClient.from("admin_config").upsert({id:1,pin_hash:hash},{onConflict:"id"});
+    if(error){alert("Error saving PIN: "+error.message);return;}
+    storedPinHash=hash;
+  }else if(hash!==storedPinHash){alert("Incorrect PIN");return;}
+  adminUnlocked=true;
+  closeModal();
+  enterSection("principals-desk");
+}
+
+function renderSidebar(section){
+  const meta=SECTION_META[section]||{};
+  const navHtml={
+    academic:`
+      <div class="nav-section">
+        <div class="nav-label">Overview</div>
+        <div class="nav-item" onclick="nav('dashboard',null,this)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Classes</div>
+        <div class="nav-item" onclick="nav('class','Pre-Primary',this)"><i class="ti ti-star"></i>Pre-Primary</div>
+        <div class="nav-item" onclick="nav('class','Primary',this)"><i class="ti ti-school"></i>Primary</div>
+        <div class="nav-item" onclick="nav('class','Junior Secondary',this)"><i class="ti ti-book"></i>JSS</div>
+        <div class="nav-item" onclick="nav('class','Senior Secondary',this)"><i class="ti ti-certificate"></i>SS</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Tools</div>
+        <div class="nav-item" onclick="nav('entry',null,this)"><i class="ti ti-table-plus"></i>Score Entry</div>
+        <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
+        <div class="nav-item" onclick="nav('papers',null,this)"><i class="ti ti-file-text"></i>Exam Papers</div>
+        <div class="nav-item" onclick="nav('edge',null,this)"><i class="ti ti-bolt"></i>EDGE Tests</div>
+      </div>`,
+    finance:`
+      <div class="nav-section">
+        <div class="nav-label">Finance</div>
+        <div class="nav-item" onclick="nav('finance-dashboard',null,this)"><i class="ti ti-chart-bar"></i>Overview</div>
+        <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Daily Log</div>
+        <div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>
+      </div>`,
+    students:`
+      <div class="nav-section">
+        <div class="nav-label">Students</div>
+        <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
+      </div>`,
+    staff:`
+      <div class="nav-section">
+        <div class="nav-label">Staff</div>
+        <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
+      </div>`,
+    "principals-desk":`
+      <div class="nav-section">
+        <div class="nav-label">System</div>
+        <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
+        <div class="nav-item" onclick="nav('admin',null,this)"><i class="ti ti-shield-lock"></i>Admin Panel</div>
+      </div>`,
+  }[section]||"";
+
+  document.getElementById("sidebar-nav").innerHTML=`
+    <div class="nav-back" onclick="navToHub()"><i class="ti ti-arrow-left"></i> All Sections</div>
+    <div class="section-hdr">
+      <div class="section-hdr-icon" style="background:${meta.bg||"#eee"}">
+        <i class="ti ${meta.icon||"ti-circle"}" style="color:${meta.color||"#666"}"></i>
+      </div>
+      <div class="section-hdr-label">${meta.label||""}</div>
+    </div>
+    ${navHtml}`;
+}
 
 /* ── sidebar ── */
 function toggleSidebar() {
@@ -1174,7 +1346,7 @@ function renderAdmin(){
   renderAdminTab();
 }
 function switchAdminTab(tab){ _adminTab=tab; _adminClassFilter=""; renderAdmin(); }
-function lockAdmin(){ adminUnlocked=false; renderAdmin(); }
+function lockAdmin(){ adminUnlocked=false; navToHub(); }
 function setAdminClassFilter(val){ _adminClassFilter=val; renderAdminTab(); }
 
 async function submitAdminPin(){
@@ -2453,11 +2625,12 @@ function downloadEdgeTestAsWord(explicitId){
 
 /* ── boot ── */
 loadLocalStore(); updateTermDisplay();
-dbStatus="loading"; updateDbIndicator(); renderDashboard();
+dbStatus="loading"; updateDbIndicator(); renderHub();
 (async()=>{
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
   const ok=await loadFromSupabase();
-  dbStatus=ok?"connected":"error"; updateDbIndicator(); renderDashboard();
+  dbStatus=ok?"connected":"error"; updateDbIndicator();
+  if(!_curSection) renderHub();
 })();
 </script>
 </body>
