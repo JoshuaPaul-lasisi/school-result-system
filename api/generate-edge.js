@@ -326,12 +326,30 @@ function buildJSSWeeklyTestPrompt(cls, half, weekNumber, term, session, subjectG
   });
   const revisionGuideHTML = buildRevisionGuideHTML(revGuideGroups);
 
+  // Build covered topics text (shared)
+  const topicsText = subjectGroups.map(group => {
+    return group.components.map(comp => {
+      const prev = topicsFromPreviousTerms(scheme, comp, term);
+      const curr = topicsCoveredInTerm(scheme, comp, term, weekNumber);
+      let txt = `▸ ${comp}\n`;
+      if (prev.length > 0) txt += `  [Previous terms]: ${prev.join("; ")}\n`;
+      if (curr.length > 0) txt += `  [${term} up to Week ${weekNumber - 1}]: ${curr.join("; ")}`;
+      if (prev.length === 0 && curr.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
+      return txt;
+    }).join("\n\n");
+  }).join("\n\n");
+
+  const practicalRules = `• ZERO pure recall questions — no "What is the meaning/definition of...?"
+• Every question must require thinking: apply a concept to a new scenario, analyse data, solve a multi-step problem, evaluate a situation, or make a judgement
+• Ground questions in real Nigerian everyday life where possible (markets, farms, homes, roads, schools)
+• Vary cognitive demand: some questions are straightforward application; others require deeper analysis or creative thinking
+• Questions should stretch students slightly beyond what they have been directly taught — encourage thinking, not rote answers`;
+
   if (half === "A") {
-    // Half A: Mathematics, English Language, NVE (Social Studies/Civic Ed/Security Ed), BST (Basic Science/Basic Tech/ICT)
-    // Section A: 60 marks, Section B: 40 marks
+    // Half A: Mathematics (Q1–2, 32 marks), English (Q3–4, 32 marks), NVE (Q5, 18 marks), BST (Q6, 18 marks)
     return `You are generating an EDGE Weekly Test for Debbyfield Schools.
 
-EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level.
+EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level — ALL theory, NO objectives/MCQ.
 
 ━━━ TEST PARAMETERS ━━━
 Class: ${cls} | Term: ${term} ${session} | Week: ${weekNumber} | Half: A
@@ -339,100 +357,66 @@ Test Index: ${testIndex} of 24 | Duration: 2 hours | Total: 100 marks
 
 ━━━ DIFFICULTY ━━━
 ${diffDesc}
-Rules:
-• NO pure recall questions (no "What is the definition of...?")
-• Every question tests understanding, application, analysis, or evaluation
-• Use scenario-based questions, data interpretation, error-detection, or multi-step problems
-• Distractors must be plausible — not obviously wrong
-• Avoid giving away answers through option patterns
+
+━━━ QUESTION PHILOSOPHY — READ CAREFULLY ━━━
+${practicalRules}
 
 ━━━ COVERED TOPICS ━━━
-${subjectGroups.map(group => {
-  return group.components.map(comp => {
-    const prev = topicsFromPreviousTerms(scheme, comp, term);
-    const curr = topicsCoveredInTerm(scheme, comp, term, weekNumber);
-    const all = [...prev, ...curr];
-    let txt = `▸ ${comp}\n`;
-    if (prev.length > 0) txt += `  [Previous terms]: ${prev.join("; ")}\n`;
-    if (curr.length > 0) txt += `  [${term} up to Week ${weekNumber - 1}]: ${curr.join("; ")}`;
-    if (all.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
-    return txt;
-  }).join("\n\n");
-}).join("\n\n")}
+${topicsText}
 
-━━━ FORMAT — JSS Half A ━━━
+━━━ FORMAT — JSS Half A (ALL THEORY, NO MCQ) ━━━
 Generate the complete test in HTML (no <html>/<body> tags) following EXACTLY this structure:
 
 1. Header:
 <h2 style="text-align:center">DEBBYFIELD SCHOOLS — EDGE Weekly Test</h2>
-<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half A</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks</p>
+<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half A</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks &nbsp;|&nbsp; Answer ALL questions</p>
 <hr>
 
 2. Revision Guide (insert the following HTML block exactly):
 ${revisionGuideHTML}
 
-3. SECTION A — Objectives [60 marks, ~1 hour]
-<h3>SECTION A — Objectives [60 marks]</h3>
-<p><em>Choose the correct option. Each question carries 1 mark.</em></p>
+3. Questions (Answer ALL — 100 marks total):
+<h3>Questions — Answer ALL [100 marks]</h3>
+<p><em>This paper is entirely theory. Show all working where applicable. Answer ALL six questions.</em></p>
 
-Generate MCQ questions in numbered <ol> lists, grouped under subject headings:
+Generate exactly 6 theory questions with these mark allocations:
 
-<h4 style="color:#8B1A2F;margin-top:16px">Mathematics (Q1–15)</h4>
-<ol start="1">15 MCQ questions</ol>
+<p><strong>Question 1 [Mathematics — 16 marks]</strong></p>
+[A 3–4 part Mathematics question. Parts (a), (b), (c)[, (d)] with mark allocations summing to 16. Use a real-world scenario (e.g. a market transaction, a building project, a savings plan). Require calculation, interpretation, and reasoning — not just formula application.]
 
-<h4 style="color:#8B1A2F;margin-top:16px">English Language (Q16–30)</h4>
-<ol start="16">15 MCQ questions</ol>
+<p><strong>Question 2 [Mathematics — 16 marks]</strong></p>
+[A different Mathematics topic from Q1. 2–3 parts summing to 16 marks. Include data to interpret or a multi-step problem that builds from one part to the next.]
 
-<h4 style="color:#8B1A2F;margin-top:16px">NVE — National Values Education (Q31–45)</h4>
-<p style="font-size:11px;color:#555;margin:4px 0 8px"><em>Social Studies: Q31–35 &nbsp;|&nbsp; Civic Education: Q36–40 &nbsp;|&nbsp; Security Education: Q41–45</em></p>
-<ol start="31">15 MCQ questions (5 Social Studies, 5 Civic Education, 5 Security Education, in that order)</ol>
+<p><strong>Question 3 [English Language — 16 marks]</strong></p>
+[A comprehension passage (80–120 words, set in a Nigerian context) followed by 4–5 questions (inference, vocabulary in context, grammar identification, summary skill) totalling 16 marks. Questions should require students to think beyond the text.]
 
-<h4 style="color:#8B1A2F;margin-top:16px">BST — Basic Science & Technology (Q46–60)</h4>
-<p style="font-size:11px;color:#555;margin:4px 0 8px"><em>Basic Science: Q46–50 &nbsp;|&nbsp; Basic Technology: Q51–55 &nbsp;|&nbsp; ICT: Q56–60</em></p>
-<ol start="46">15 MCQ questions (5 Basic Science, 5 Basic Technology, 5 ICT, in that order)</ol>
+<p><strong>Question 4 [English Language — 16 marks]</strong></p>
+[A writing task worth 16 marks — either: a formal or informal letter, a speech, a narrative essay, or a creative piece. Give a specific, realistic prompt that requires students to think and plan, not just copy a template.]
 
-Each MCQ item format:
-<li>[Question text]<br><span style="color:#444">(A) ... &nbsp;&nbsp; (B) ... &nbsp;&nbsp; (C) ... &nbsp;&nbsp; (D) ...</span></li>
+<p><strong>Question 5 [NVE — National Values Education — 18 marks]</strong></p>
+[Three-part NVE question:
+(a) Social Studies scenario — 6 marks: present a community situation students must analyse or evaluate
+(b) Civic Education application — 6 marks: a civic scenario requiring knowledge of rights, duties, government, or anti-corruption
+(c) Security Education case — 6 marks: a safety/security scenario students must respond to practically]
 
-<hr>
-
-4. SECTION B — Theory [40 marks, ~1 hour]
-<h3>SECTION B — Theory [40 marks]</h3>
-<p><em>Answer ALL questions.</em></p>
-
-Generate exactly 6 theory questions:
-
-<p><strong>Question 1 [Mathematics — 10 marks]</strong></p>
-[3-part mathematics theory question: parts (a), (b), (c) with mark allocations summing to 10]
-
-<p><strong>Question 2 [Mathematics — 10 marks]</strong></p>
-[2-part mathematics theory question: parts (a), (b) with mark allocations summing to 10]
-
-<p><strong>Question 3 [English Language — 10 marks]</strong></p>
-[Comprehension passage or language use question with sub-parts summing to 10 marks]
-
-<p><strong>Question 4 [English Language — 10 marks]</strong></p>
-[Essay, letter writing, or creative writing question worth 10 marks]
-
-<p><strong>Question 5 [NVE — 10 marks]</strong></p>
-[Three-part NVE question: (a) Social Studies [3 marks], (b) Civic Education [3 marks], (c) Security Education [4 marks]]
-
-<p><strong>Question 6 [BST — 10 marks]</strong></p>
-[Three-part BST question: (a) Basic Science [4 marks], (b) Basic Technology [3 marks], (c) ICT [3 marks]]
+<p><strong>Question 6 [BST — Basic Science & Technology — 18 marks]</strong></p>
+[Three-part BST question:
+(a) Basic Science investigation or data-interpretation question — 6 marks
+(b) Basic Technology design or problem-solving question — 6 marks
+(c) ICT practical application question — 6 marks]
 
 <hr>
 
-5. Answers section:
-<p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> 1-X &nbsp; 2-X &nbsp; ... (all 60 answers)</p>
-<p style="color:#666;font-size:0.85em"><strong>SECTION B MARK SCHEME:</strong> Brief allocation per sub-part for each question</p>
+4. Mark Scheme:
+<p style="color:#666;font-size:0.85em"><strong>MARK SCHEME:</strong></p>
+<p style="color:#666;font-size:0.85em">[For each question, list the key points/steps expected and the mark allocation per part. Be specific enough for a teacher to mark consistently.]</p>
 
 Generate the complete test now:`;
   } else {
-    // Half B: PVS (Agricultural Science + Home Economics), CCA, CRS
-    // Section A: 60 marks (PVS 20 = 10 Agric + 10 HE, CCA 20, CRS 20), Section B: 40 marks (4 questions × 10)
+    // Half B: PVS (Agricultural Science + Home Economics, 50 marks), CCA (25 marks), CRS (25 marks)
     return `You are generating an EDGE Weekly Test for Debbyfield Schools.
 
-EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level.
+EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level — ALL theory, NO objectives/MCQ.
 
 ━━━ TEST PARAMETERS ━━━
 Class: ${cls} | Term: ${term} ${session} | Week: ${weekNumber} | Half: B
@@ -440,85 +424,55 @@ Test Index: ${testIndex} of 24 | Duration: 2 hours | Total: 100 marks
 
 ━━━ DIFFICULTY ━━━
 ${diffDesc}
-Rules:
-• NO pure recall questions
-• Every question tests understanding, application, analysis, or evaluation
-• Use scenario-based questions, data interpretation, or multi-step problems
-• Distractors must be plausible
+
+━━━ QUESTION PHILOSOPHY — READ CAREFULLY ━━━
+${practicalRules}
 
 ━━━ COVERED TOPICS ━━━
-${subjectGroups.map(group => {
-  return group.components.map(comp => {
-    const prev = topicsFromPreviousTerms(scheme, comp, term);
-    const curr = topicsCoveredInTerm(scheme, comp, term, weekNumber);
-    const all = [...prev, ...curr];
-    let txt = `▸ ${comp}\n`;
-    if (prev.length > 0) txt += `  [Previous terms]: ${prev.join("; ")}\n`;
-    if (curr.length > 0) txt += `  [${term} up to Week ${weekNumber - 1}]: ${curr.join("; ")}`;
-    if (all.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
-    return txt;
-  }).join("\n\n");
-}).join("\n\n")}
+${topicsText}
 
-━━━ FORMAT — JSS Half B ━━━
+━━━ FORMAT — JSS Half B (ALL THEORY, NO MCQ) ━━━
 Generate the complete test in HTML (no <html>/<body> tags) following EXACTLY this structure:
 
 1. Header:
 <h2 style="text-align:center">DEBBYFIELD SCHOOLS — EDGE Weekly Test</h2>
-<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half B</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks</p>
+<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half B</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks &nbsp;|&nbsp; Answer ALL questions</p>
 <hr>
 
 2. Revision Guide (insert the following HTML block exactly):
 ${revisionGuideHTML}
 
-3. SECTION A — Objectives [60 marks, ~1 hour]
-<h3>SECTION A — Objectives [60 marks]</h3>
-<p><em>Choose the correct option. Each question carries 1 mark.</em></p>
+3. Questions (Answer ALL — 100 marks total):
+<h3>Questions — Answer ALL [100 marks]</h3>
+<p><em>This paper is entirely theory. Answer ALL four questions.</em></p>
 
-<h4 style="color:#8B1A2F;margin-top:16px">PVS — Practical & Vocational Studies (Q1–20)</h4>
-<p style="font-size:11px;color:#555;margin:4px 0 8px"><em>Agricultural Science: Q1–10 &nbsp;|&nbsp; Home Economics: Q11–20</em></p>
-<ol start="1">20 MCQ questions (10 Agricultural Science, 10 Home Economics, in that order)</ol>
+Generate exactly 4 theory questions:
 
-<h4 style="color:#8B1A2F;margin-top:16px">CCA — Cultural & Creative Arts (Q21–40)</h4>
-<ol start="21">20 MCQ questions</ol>
+<p><strong>Question 1 [Agricultural Science — 25 marks]</strong></p>
+[A 3–4 part Agricultural Science question summing to 25 marks. Use a realistic farm or food-production scenario. Require students to plan, evaluate, calculate, or make decisions — e.g. plan a crop rotation, analyse why a harvest failed, calculate profit from a farm produce. At least one part should require extended writing (5+ marks).]
 
-<h4 style="color:#8B1A2F;margin-top:16px">CRS — Christian Religious Studies (Q41–60)</h4>
-<ol start="41">20 MCQ questions</ol>
+<p><strong>Question 2 [Home Economics — 25 marks]</strong></p>
+[A 3–4 part Home Economics question summing to 25 marks. Ground it in a household or community scenario — e.g. planning a balanced meal on a budget, managing a home during a health crisis, designing a safe kitchen. Require analysis, planning, and justification.]
 
-Each MCQ item format:
-<li>[Question text]<br><span style="color:#444">(A) ... &nbsp;&nbsp; (B) ... &nbsp;&nbsp; (C) ... &nbsp;&nbsp; (D) ...</span></li>
+<p><strong>Question 3 [CCA — Cultural & Creative Arts — 25 marks]</strong></p>
+[A 3–4 part CCA question summing to 25 marks. Include both practical knowledge and creative application — e.g. analyse a piece of artwork using elements of design, describe how to create a specific craft with Nigerian materials, explain the cultural significance of an art form. At least one part should require creativity or extended explanation.]
 
-<hr>
-
-4. SECTION B — Theory [40 marks, ~1 hour]
-<h3>SECTION B — Theory [40 marks]</h3>
-<p><em>Answer ALL questions.</em></p>
-
-<p><strong>Question 1 [Agricultural Science — 10 marks]</strong></p>
-[Theory question with sub-parts summing to 10 marks]
-
-<p><strong>Question 2 [Home Economics — 10 marks]</strong></p>
-[Theory question with sub-parts summing to 10 marks]
-
-<p><strong>Question 3 [CCA — 10 marks]</strong></p>
-[Theory question with sub-parts summing to 10 marks]
-
-<p><strong>Question 4 [CRS — 10 marks]</strong></p>
-[Theory question with sub-parts summing to 10 marks]
+<p><strong>Question 4 [CRS — Christian Religious Studies — 25 marks]</strong></p>
+[A 3–4 part CRS question summing to 25 marks. Link Bible passages or Christian values to real-life situations students face — e.g. apply a parable to a school conflict, discuss what a Bible story teaches about honesty in modern Nigeria, evaluate how a Christian principle should guide a specific decision. Require thinking and application, not quotation only.]
 
 <hr>
 
-5. Answers section:
-<p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> 1-X &nbsp; 2-X &nbsp; ... (all 60 answers)</p>
-<p style="color:#666;font-size:0.85em"><strong>SECTION B MARK SCHEME:</strong> Brief allocation per sub-part for each question</p>
+4. Mark Scheme:
+<p style="color:#666;font-size:0.85em"><strong>MARK SCHEME:</strong></p>
+<p style="color:#666;font-size:0.85em">[For each question (Q1–Q4), list the expected key points/steps per sub-part with mark allocation. Be specific enough for consistent teacher marking.]</p>
 
 Generate the complete test now:`;
   }
 }
 
 function buildSSWeeklyTestPrompt(cls, half, weekNumber, term, session, subjectGroups, scheme, testIndex, diffDesc, examType) {
-  // SS: 7 subjects per half, 10 MCQ each = 70 marks Section A, 7 theory Qs attempt any 5 × 6 marks = 30 marks Section B
-  const subjectLabels = subjectGroups.map(g => g.label);
+  // SS: 7 subjects per half, ALL THEORY
+  // Marks: first 2 subjects get 15 marks each, remaining 5 get 14 marks each = 15+15+14×5 = 100
 
   // Build revision guide groups (one per subject label, using component topics)
   const revGuideGroups = subjectGroups.map(group => {
@@ -530,36 +484,40 @@ function buildSSWeeklyTestPrompt(cls, half, weekNumber, term, session, subjectGr
   const revisionGuideHTML = buildRevisionGuideHTML(revGuideGroups);
 
   // Build covered topics text
-  const topicsText = subjectGroups.map((group, idx) => {
+  const topicsText = subjectGroups.map(group => {
     return group.components.map(comp => {
       const prev = topicsFromPreviousTerms(scheme, comp, term);
       const curr = topicsCoveredInTerm(scheme, comp, term, weekNumber);
-      const all = [...prev, ...curr];
       let txt = `▸ ${group.label}${comp !== group.label ? ` (${comp})` : ""}\n`;
       if (prev.length > 0) txt += `  [Previous terms]: ${prev.join("; ")}\n`;
       if (curr.length > 0) txt += `  [${term} up to Week ${weekNumber - 1}]: ${curr.join("; ")}`;
-      if (all.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
+      if (prev.length === 0 && curr.length === 0) txt += `  [Introductory knowledge of ${comp}]`;
       return txt;
     }).join("\n\n");
   }).join("\n\n");
 
-  // Build MCQ numbering: each subject gets Q numbers
-  let qStart = 1;
-  const subjectMCQSections = subjectGroups.map(group => {
-    const start = qStart;
-    const end = qStart + 9;
-    qStart += 10;
-    return `<h4 style="color:#8B1A2F;margin-top:16px">${group.label} (Q${start}–${end})</h4>\n<ol start="${start}">10 MCQ questions</ol>`;
+  // Mark allocation: first 2 = 15, rest = 14
+  const markAlloc = subjectGroups.map((_, i) => i < 2 ? 15 : 14);
+
+  // Build theory question blocks
+  const theoryQs = subjectGroups.map((group, idx) => {
+    const marks = markAlloc[idx];
+    const compNote = group.components.length > 1
+      ? ` (covers: ${group.components.join(", ")})`
+      : "";
+    return `<p><strong>Question ${idx + 1} [${group.label}${compNote} — ${marks} marks]</strong></p>
+[A ${marks}-mark ${group.label} theory question with 2–3 parts. Ground it in a real-world scenario relevant to Nigerian SS students. Require application, analysis, calculation, or evaluation — not recall. Each part should build logically on the previous one where possible. Mark allocation shown per sub-part.]`;
   }).join("\n\n");
 
-  // Theory question numbering
-  const theoryQs = subjectGroups.map((group, idx) => {
-    return `<p><strong>Question ${idx + 1} [${group.label} — 6 marks]</strong></p>\n[Theory question with sub-parts summing to 6 marks, drawn from covered topics for ${group.label}]`;
-  }).join("\n\n");
+  const practicalRules = `• ZERO pure recall questions — no "What is the meaning/definition of...?"
+• Every question must require thinking: apply a concept, analyse a scenario, calculate from given data, evaluate options, or make a reasoned judgement
+• Ground questions in real Nigerian contexts (economy, politics, science experiments, literature themes, accounting scenarios)
+• Vary cognitive demand: some parts are straightforward application; others require deeper analysis
+• Questions should stretch students slightly beyond direct classroom content — encourage reasoning, not rote answers`;
 
   return `You are generating an EDGE Weekly Test for Debbyfield Schools.
 
-EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level.
+EDGE is an accelerated programme. In ${cls}, students cover the ENTIRE ${examType} syllabus in one year. Tests challenge them ABOVE the standard ${examType} level — ALL theory, NO objectives/MCQ.
 
 ━━━ TEST PARAMETERS ━━━
 Class: ${cls} | Term: ${term} ${session} | Week: ${weekNumber} | Half: ${half}
@@ -567,50 +525,36 @@ Test Index: ${testIndex} of 24 | Duration: 2 hours | Total: 100 marks
 
 ━━━ DIFFICULTY ━━━
 ${diffDesc}
-Rules:
-• NO pure recall questions
-• Every question tests understanding, application, analysis, or evaluation
-• Use scenario-based questions, data interpretation, error-detection, or multi-step problems
-• Distractors must be plausible — not obviously wrong
+
+━━━ QUESTION PHILOSOPHY — READ CAREFULLY ━━━
+${practicalRules}
 
 ━━━ COVERED TOPICS ━━━
 ${topicsText}
 
-━━━ FORMAT — SS Half ${half} ━━━
+━━━ FORMAT — SS Half ${half} (ALL THEORY, NO MCQ) ━━━
 Generate the complete test in HTML (no <html>/<body> tags) following EXACTLY this structure:
 
 1. Header:
 <h2 style="text-align:center">DEBBYFIELD SCHOOLS — EDGE Weekly Test</h2>
-<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half ${half}</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks</p>
+<p style="text-align:center"><strong>${cls} | ${term} ${session} | Week ${weekNumber} | Half ${half}</strong><br>Duration: 2 hours &nbsp;|&nbsp; Total: 100 marks &nbsp;|&nbsp; Answer ALL questions</p>
 <hr>
 
 2. Revision Guide (insert the following HTML block exactly):
 ${revisionGuideHTML}
 
-3. SECTION A — Objectives [70 marks]
-<h3>SECTION A — Objectives [70 marks]</h3>
-<p><em>Choose the correct option. Each question carries 1 mark. Answer ALL 70 questions.</em></p>
+3. Questions (Answer ALL — 100 marks total):
+<h3>Questions — Answer ALL [100 marks]</h3>
+<p><em>This paper is entirely theory. Answer ALL SEVEN questions. Show all working where applicable.</em></p>
 
-Generate 10 MCQ questions per subject in numbered lists:
-${subjectMCQSections}
-
-Each MCQ item format:
-<li>[Question text]<br><span style="color:#444">(A) ... &nbsp;&nbsp; (B) ... &nbsp;&nbsp; (C) ... &nbsp;&nbsp; (D) ...</span></li>
-
-<hr>
-
-4. SECTION B — Theory [30 marks]
-<h3>SECTION B — Theory [30 marks]</h3>
-<p><em>Answer ANY FIVE questions. Each question carries 6 marks.</em></p>
-
-Generate exactly 7 theory questions (one per subject):
+Generate exactly 7 theory questions (one per subject), in this order:
 ${theoryQs}
 
 <hr>
 
-5. Answers section:
-<p style="color:#666;font-size:0.85em"><strong>SECTION A ANSWERS:</strong> 1-X &nbsp; 2-X &nbsp; ... (all 70 answers)</p>
-<p style="color:#666;font-size:0.85em"><strong>SECTION B MARK SCHEME:</strong> Brief mark allocation per sub-part for each question</p>
+4. Mark Scheme:
+<p style="color:#666;font-size:0.85em"><strong>MARK SCHEME:</strong></p>
+<p style="color:#666;font-size:0.85em">[For each question (Q1–Q7), list expected key points/steps per sub-part with mark allocation. Be specific enough for consistent teacher marking.]</p>
 
 Generate the complete test now:`;
 }

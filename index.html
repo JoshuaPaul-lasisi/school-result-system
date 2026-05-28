@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html-to-docx@1.8.0/dist/html-to-docx.browser.consolidated.min.js"></script>
   <style>
     :root {
       --burg:#8B1A2F; --gold:#C9A84C; --r:6px;
@@ -2407,22 +2408,32 @@ async function deleteEdgeTest(id){
 }
 
 /* ── Word document download ── */
-function downloadAsWord(content, filename){
+async function downloadAsWord(content, filename){
   if(!content){alert("No content to download");return;}
-  const preHtml=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset='utf-8'><title>${filename}</title>
-<style>
-body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm;line-height:1.6}
-h2,h3{color:#8B1A2F;text-align:center}h4{color:#185FA5;margin-top:14px}
-ol{margin-left:20px}li{margin-bottom:5px}hr{border:1px solid #ccc;margin:14px 0}
-</style>
-</head><body>`;
+  const safeName=filename.replace(/[^a-z0-9 ._-]/gi,'_').trim();
+  if(typeof HTMLtoDOCX==='function'){
+    try{
+      const blob=await HTMLtoDOCX(content,null,{
+        title:filename,
+        font:'Arial',
+        fontSize:24,
+        margins:{top:1440,right:1440,bottom:1440,left:1440}
+      });
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;a.download=safeName+'.docx';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+      return;
+    }catch(e){console.warn('html-to-docx failed, using fallback:',e);}
+  }
+  // Fallback: legacy .doc format
+  const preHtml=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${filename}</title><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm;line-height:1.6}h2,h3{color:#8B1A2F;text-align:center}h4{color:#185FA5;margin-top:14px}ol{margin-left:20px}li{margin-bottom:5px}hr{border:1px solid #ccc;margin:14px 0}</style></head><body>`;
   const postHtml=`</body></html>`;
   const blob=new Blob(['﻿',preHtml+content+postHtml],{type:'application/msword'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;
-  a.download=filename.replace(/[^a-z0-9 ._-]/gi,'_').trim()+'.doc';
+  a.href=url;a.download=safeName+'.doc';
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),2000);
 }

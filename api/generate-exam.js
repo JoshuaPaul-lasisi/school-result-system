@@ -698,11 +698,21 @@ At the end, add an ANSWERS section listing Section A answers: "1-A 2-C 3-B ..."
 Also add suggested mark allocation for Section B sub-parts.`;
   }
 
+  const practicalPhilosophy = `Question philosophy (CRITICAL — apply to EVERY question):
+• Avoid pure recall or definition questions (e.g. "What is the definition of...?" or "List three types of...")
+• Instead, present scenarios, data, or problems that require students to APPLY knowledge
+• Ground questions in realistic Nigerian everyday contexts: markets, farms, households, communities, workplaces
+• Require students to calculate, analyse, evaluate, compare, predict, or justify — not just recall
+• Difficulty should stretch students slightly beyond what they have directly been taught
+• For MCQ: make distractors plausible — common misconceptions or partial answers, not obviously wrong options
+• For theory: require extended reasoning; award marks for method/process, not just final answer`;
+
   return `You are an experienced Nigerian secondary school examiner. ${instructions}
 
 ${topicsText}
 
 Standard: Align with Nigerian National curriculum (NERDC). Language: clear, age-appropriate for ${cls} students.
+${practicalPhilosophy}
 ${sectionInstructions}
 
 Format the output as clean HTML (no <html>/<body> tags, just the paper content):
@@ -746,7 +756,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
       }),
     });
