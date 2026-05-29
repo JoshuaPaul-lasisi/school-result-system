@@ -638,11 +638,13 @@ function getTopics(cls, subject) {
   return clsData[sub] || clsData[subject] || null;
 }
 
-function buildPrompt(subject, cls, paperType, term, session) {
+function buildPrompt(subject, cls, paperType, term, session, schemeText) {
   const topics = getTopics(cls, subject);
-  const topicsText = topics
-    ? `Scheme of work topics:\n${topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
-    : `Subject: ${subject} (${cls})`;
+  const topicsText = schemeText
+    ? `OFFICIAL SCHEME OF WORK (uploaded by school — follow this exactly; base every question only on topics present in this document):\n${schemeText}`
+    : topics
+      ? `Scheme of work topics:\n${topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
+      : `Subject: ${subject} (${cls}) — use standard Nigerian NERDC curriculum for this level`;
 
   const dur = duration(cls);
   const maxCA = 40; // CA uses Section A only
@@ -731,7 +733,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { subject, cls, paperType, term, session } = req.body || {};
+  const { subject, cls, paperType, term, session, schemeText } = req.body || {};
   if (!subject || !cls || !paperType || !term || !session) {
     return res.status(400).json({ error: "Missing required fields: subject, cls, paperType, term, session" });
   }
@@ -744,7 +746,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on server" });
   }
 
-  const prompt = buildPrompt(subject, cls, paperType, term, session);
+  const prompt = buildPrompt(subject, cls, paperType, term, session, schemeText || null);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

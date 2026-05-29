@@ -285,3 +285,56 @@ CREATE INDEX IF NOT EXISTS edge_tests_term_session        ON edge_tests(term, se
 CREATE INDEX IF NOT EXISTS edge_tests_cls                 ON edge_tests(cls);
 CREATE INDEX IF NOT EXISTS edge_scores_student_id         ON edge_scores(student_id);
 CREATE INDEX IF NOT EXISTS edge_scores_test_id            ON edge_scores(edge_test_id);
+
+-- ── schemes of work ───────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS schemes (
+  id         BIGSERIAL PRIMARY KEY,
+  subject    TEXT NOT NULL,
+  cls        TEXT NOT NULL,
+  term       TEXT NOT NULL,
+  session    TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(subject, cls, term, session)
+);
+
+-- ── daily attendance ──────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS daily_attendance (
+  id           BIGSERIAL PRIMARY KEY,
+  student_id   INTEGER NOT NULL REFERENCES students(id),
+  school_date  DATE NOT NULL,
+  cls          TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'present'
+               CHECK (status IN ('present','absent','excused')),
+  term         TEXT NOT NULL,
+  session      TEXT NOT NULL,
+  UNIQUE(student_id, school_date)
+);
+
+-- ── school holidays ───────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS school_holidays (
+  id            SERIAL PRIMARY KEY,
+  holiday_date  DATE NOT NULL UNIQUE,
+  holiday_name  TEXT NOT NULL,
+  term          TEXT NOT NULL,
+  session       TEXT NOT NULL
+);
+
+ALTER TABLE schemes           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_attendance  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_holidays   ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='schemes'          AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON schemes          FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='daily_attendance' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON daily_attendance FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='school_holidays'  AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON school_holidays  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS schemes_cls              ON schemes(cls, term, session);
+CREATE INDEX IF NOT EXISTS daily_att_date           ON daily_attendance(school_date);
+CREATE INDEX IF NOT EXISTS daily_att_term_session   ON daily_attendance(term, session);
+CREATE INDEX IF NOT EXISTS daily_att_student        ON daily_attendance(student_id);
+CREATE INDEX IF NOT EXISTS holidays_term_session    ON school_holidays(term, session);

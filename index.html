@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html-to-docx@1.8.0/dist/html-to-docx.browser.consolidated.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <style>
     :root {
       --burg:#8B1A2F; --gold:#C9A84C; --r:6px;
@@ -148,6 +149,13 @@
     /* ── settings ── */
     .setup-step{display:flex;gap:10px;margin-bottom:10px;font-size:12px}
     .setup-num{width:20px;height:20px;border-radius:50%;background:var(--burg);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;margin-top:1px}
+
+    /* ── attendance register ── */
+    .att-btn{width:32px;height:32px;border-radius:50%;border:.5px solid var(--bd2);background:var(--bg2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:var(--tx3);transition:all .15s}
+    .att-btn:hover{border-color:var(--bd);background:var(--bg);color:var(--tx2)}
+    .att-p{background:var(--bg-ok)!important;border-color:var(--tx-ok)!important;color:var(--tx-ok)!important}
+    .att-a{background:var(--bg-err)!important;border-color:var(--tx-err)!important;color:var(--tx-err)!important}
+    .att-e{background:var(--bg-warn)!important;border-color:var(--tx-warn)!important;color:var(--tx-warn)!important}
 
     /* ── print ── */
     @media print{
@@ -501,6 +509,12 @@ let paymentLog = [];        // array of payment log rows for current term/sessio
 let edgeTestsStore = [];    // EDGE tests for current term/session
 let _edgeFilterCls = "", _edgeFilterType = "";
 let _edgeAdminSubTab = "weekly";
+let schemesStore = [];
+let holidaysStore = [];
+let dailyAttData = {};      // { student_id: 'present'|'absent'|'excused' } for current date
+let dailyAttDate = new Date().toISOString().split("T")[0];
+let dailyAttCls = "";
+let _schFilter = "";
 let _curSection = null;
 
 /* ── hub & section navigation ── */
@@ -623,6 +637,7 @@ function renderSidebar(section){
         <div class="nav-label">Tools</div>
         <div class="nav-item" onclick="nav('entry',null,this)"><i class="ti ti-table-plus"></i>Score Entry</div>
         <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
+        <div class="nav-item" onclick="nav('attendance',null,this)"><i class="ti ti-calendar-check"></i>Attendance</div>
         <div class="nav-item" onclick="nav('papers',null,this)"><i class="ti ti-file-text"></i>Exam Papers</div>
         <div class="nav-item" onclick="nav('edge',null,this)"><i class="ti ti-bolt"></i>EDGE Tests</div>
       </div>`,
@@ -759,6 +774,17 @@ async function loadEdgeTests() {
     .order("cls").order("created_at");
   if (!error && data) edgeTestsStore = data;
 }
+async function loadSchemes() {
+  if (!dbClient) return;
+  const {data} = await dbClient.from("schemes").select("*").order("cls").order("subject");
+  if (data) schemesStore = data;
+}
+async function loadHolidays() {
+  if (!dbClient) return;
+  const {data} = await dbClient.from("school_holidays")
+    .select("*").eq("term",currentTerm).eq("session",currentSession);
+  if (data) holidaysStore = data;
+}
 
 async function loadStudentProfiles() {
   if (!dbClient) return;
@@ -800,7 +826,7 @@ async function loadPaymentLog() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadSchemes(), loadHolidays()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -906,6 +932,7 @@ function nav(page,arg,el){
   else if(page==="settings")renderSettings();
   else if(page==="admin")renderAdmin();
   else if(page==="finance-dashboard")renderFinanceDashboard();
+  else if(page==="attendance")openAttendance();
   else if(page==="finance-log")renderFinanceLog();
   else if(page==="finance-ledger")renderFinanceLedger();
 }
@@ -1338,8 +1365,8 @@ function renderAdmin(){
     setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
     return;
   }
-  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","security"];
-  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","security":"Security"};
+  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","schemes","security"];
+  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","schemes":"Schemes","security":"Security"};
   document.getElementById("content").innerHTML=`
     <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
     <div id="admin-tab-content"></div>`;
@@ -1371,6 +1398,7 @@ function renderAdminTab(){
   else if(_adminTab==="exam-papers"){el.innerHTML=buildAdminExamPapersHtml();refreshGenSubjects();}
   else if(_adminTab==="fee-setup")el.innerHTML=buildAdminFeeHtml();
   else if(_adminTab==="edge"){el.innerHTML=buildAdminEdgeHtml();refreshEdgeSubjects();}
+  else if(_adminTab==="schemes")el.innerHTML=buildAdminSchemesHtml();
   else if(_adminTab==="security")el.innerHTML=buildAdminSecurityHtml();
 }
 
@@ -1910,10 +1938,11 @@ async function generateExamPaper(){
   if(!cls||!subject||!paperType){alert("Select class, subject, and paper type");return;}
   if(status)status.innerHTML=`<i class="ti ti-loader"></i> Generating ${subject} ${paperType} for ${cls}… this may take 15–30 seconds.`;
   try{
+    const scheme=schemesStore.find(s=>s.subject===subject&&s.cls===cls&&s.term===currentTerm&&s.session===currentSession);
     const res=await fetch("/api/generate-exam",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({subject,cls,paperType,term:currentTerm,session:currentSession}),
+      body:JSON.stringify({subject,cls,paperType,term:currentTerm,session:currentSession,schemeText:scheme?.content||null}),
     });
     if(!res.ok){
       const err=await res.json().catch(()=>({error:res.statusText}));
@@ -2577,6 +2606,305 @@ async function deleteEdgeTest(id){
   const {error}=await dbClient.from("edge_tests").delete().eq("id",id);
   if(error){alert("Error: "+error.message);return;}
   await loadEdgeTests(); renderAdminTab();
+}
+
+/* ── Attendance Register ── */
+async function openAttendance(){
+  document.getElementById("page-title").textContent="Attendance Register";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  document.getElementById("content").innerHTML=`<div class="empty"><i class="ti ti-loader"></i> Loading…</div>`;
+  await loadDailyAttForDate(dailyAttDate);
+  renderAttendance();
+}
+
+async function loadDailyAttForDate(date){
+  if(!dbClient||!date)return;
+  const{data}=await dbClient.from("daily_attendance")
+    .select("student_id,status").eq("school_date",date)
+    .eq("term",currentTerm).eq("session",currentSession);
+  dailyAttData={};
+  if(data)data.forEach(r=>dailyAttData[r.student_id]=r.status);
+}
+
+function renderAttendance(){
+  const d=new Date(dailyAttDate+"T00:00:00");
+  const dayName=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
+  const isWeekend=d.getDay()===0||d.getDay()===6;
+  const holiday=holidaysStore.find(h=>h.holiday_date===dailyAttDate);
+  const classes=Object.values(CLASSES).flat();
+  const clsOpts=classes.map(c=>`<option value="${c}"${c===dailyAttCls?" selected":""}>${c}</option>`).join("");
+  const students=dailyAttCls?[...roster.filter(s=>s.cls===dailyAttCls)].sort((a,b)=>a.name.localeCompare(b.name)):[];
+  const todayStr=new Date().toISOString().split("T")[0];
+
+  let body;
+  if(!dailyAttCls){
+    body=`<div class="empty"><i class="ti ti-users"></i>Select a class above to take attendance</div>`;
+  }else if(isWeekend){
+    body=`<div class="empty"><i class="ti ti-beach"></i>Weekend — no school</div>`;
+  }else if(holiday){
+    body=`<div style="text-align:center;padding:28px 16px;background:#fff8e1;border-radius:8px;margin-bottom:12px">
+      <i class="ti ti-star" style="font-size:32px;color:#d97706;display:block;margin-bottom:10px"></i>
+      <div style="font-size:16px;font-weight:600;color:#d97706">${holiday.holiday_name}</div>
+      <div style="font-size:12px;color:var(--tx2);margin-top:4px">Public holiday — no attendance required</div>
+      <button class="btn btn-sm" style="margin-top:14px" onclick="clearHoliday('${dailyAttDate}')"><i class="ti ti-x"></i> Remove Holiday</button>
+    </div>`;
+  }else{
+    const present=students.filter(s=>dailyAttData[s.id]==="present").length;
+    const absent=students.filter(s=>dailyAttData[s.id]==="absent").length;
+    const excused=students.filter(s=>dailyAttData[s.id]==="excused").length;
+    const unmarked=students.filter(s=>!dailyAttData[s.id]).length;
+    body=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:12px;display:flex;gap:14px">
+        <span style="color:var(--tx-ok)"><i class="ti ti-check"></i> ${present} present</span>
+        <span style="color:var(--tx-err)"><i class="ti ti-x"></i> ${absent} absent</span>
+        <span style="color:var(--tx-warn)"><i class="ti ti-clock"></i> ${excused} excused</span>
+        ${unmarked?`<span style="color:var(--tx3)">${unmarked} unmarked</span>`:""}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="attMarkAll('present')"><i class="ti ti-check-all"></i> All Present</button>
+        <button class="btn btn-sm" onclick="syncAttToReportCards()" title="Update report card totals from daily records"><i class="ti ti-refresh"></i> Sync to Reports</button>
+        <button class="btn btn-sm btn-primary" onclick="saveAttendance()"><i class="ti ti-device-floppy"></i> Save</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table>
+        <thead><tr><th>Student</th><th style="text-align:center;width:70px">Present</th><th style="text-align:center;width:70px">Absent</th><th style="text-align:center;width:70px">Excused</th></tr></thead>
+        <tbody>${students.map(s=>{
+          const st=dailyAttData[s.id]||"";
+          return`<tr>
+            <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+            <td style="text-align:center"><button class="att-btn${st==="present"?" att-p":""}" onclick="setAttStatus(${s.id},'present')"><i class="ti ti-check"></i></button></td>
+            <td style="text-align:center"><button class="att-btn${st==="absent"?" att-a":""}" onclick="setAttStatus(${s.id},'absent')"><i class="ti ti-x"></i></button></td>
+            <td style="text-align:center"><button class="att-btn${st==="excused"?" att-e":""}" onclick="setAttStatus(${s.id},'excused')"><i class="ti ti-clock"></i></button></td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>
+    <div id="att-save-status" style="margin-top:8px;font-size:12px;text-align:center;color:var(--tx2)"></div>`;
+  }
+
+  document.getElementById("content").innerHTML=`
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="btn btn-sm" onclick="shiftAttDate(-1)"><i class="ti ti-chevron-left"></i></button>
+          <input type="date" value="${dailyAttDate}" onchange="changeAttDate(this.value)" style="width:150px">
+          <button class="btn btn-sm" onclick="shiftAttDate(1)"><i class="ti ti-chevron-right"></i></button>
+          <button class="btn btn-sm" onclick="changeAttDate('${todayStr}')" style="font-size:11px">Today</button>
+        </div>
+        <select onchange="changeAttCls(this.value)" style="width:auto">
+          <option value="">— Select class —</option>${clsOpts}
+        </select>
+        ${!isWeekend&&!holiday&&dailyAttCls?`<button class="btn btn-sm" onclick="promptMarkHoliday()"><i class="ti ti-star"></i> Mark Holiday</button>`:""}
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--tx2)">
+        ${dayName}${isWeekend?" — Weekend":holiday?` — ⭐ ${holiday.holiday_name}`:" — School day"}
+      </div>
+    </div>
+    ${body}`;
+}
+
+function setAttStatus(sid,status){
+  dailyAttData[sid]=status;
+  renderAttendance();
+}
+function attMarkAll(status){
+  const students=dailyAttCls?roster.filter(s=>s.cls===dailyAttCls):[];
+  students.forEach(s=>dailyAttData[s.id]=status);
+  renderAttendance();
+}
+async function changeAttDate(d){
+  dailyAttDate=d; dailyAttData={};
+  await loadDailyAttForDate(d);
+  renderAttendance();
+}
+function changeAttCls(cls){ dailyAttCls=cls; renderAttendance(); }
+function shiftAttDate(delta){
+  const d=new Date(dailyAttDate+"T00:00:00");
+  d.setDate(d.getDate()+delta);
+  changeAttDate(d.toISOString().split("T")[0]);
+}
+async function saveAttendance(){
+  if(!dbClient||!dailyAttCls){alert("Select a class first");return;}
+  const students=roster.filter(s=>s.cls===dailyAttCls);
+  if(!students.length){alert("No students in this class");return;}
+  const statusEl=document.getElementById("att-save-status");
+  if(statusEl)statusEl.innerHTML=`<i class="ti ti-loader"></i> Saving…`;
+  const records=students.map(s=>({
+    student_id:s.id,school_date:dailyAttDate,cls:dailyAttCls,
+    status:dailyAttData[s.id]||"present",term:currentTerm,session:currentSession,
+  }));
+  const{error}=await dbClient.from("daily_attendance").upsert(records,{onConflict:"student_id,school_date"});
+  if(error){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Saved for ${students.length} students</span>`;
+}
+async function syncAttToReportCards(){
+  if(!dbClient||!dailyAttCls){alert("Select a class first");return;}
+  const students=roster.filter(s=>s.cls===dailyAttCls);
+  if(!students.length){alert("No students");return;}
+  const{data}=await dbClient.from("daily_attendance")
+    .select("school_date,student_id,status")
+    .eq("cls",dailyAttCls).eq("term",currentTerm).eq("session",currentSession);
+  if(!data||!data.length){alert("No daily attendance data found for this class/term.");return;}
+  const totalDays=new Set(data.map(r=>r.school_date)).size;
+  for(const s of students){
+    const presentCount=data.filter(r=>r.student_id===s.id&&r.status==="present").length;
+    await dbClient.from("attendance").upsert(
+      {student_id:s.id,total_days:totalDays,days_present:presentCount,term:currentTerm,session:currentSession},
+      {onConflict:"student_id,term,session"}
+    );
+    store.attendance[s.id]={total:totalDays,present:presentCount};
+  }
+  alert(`Done! Report cards updated: ${totalDays} school days · ${students.length} students`);
+}
+function promptMarkHoliday(){
+  openModal("Mark as Holiday",`
+    <p style="font-size:13px;color:var(--tx2);margin-bottom:12px">${dailyAttDate}</p>
+    <div class="field"><label>Holiday name</label><input id="holiday-name" placeholder="e.g. Eid al-Fitr, Independence Day…" onkeydown="if(event.key==='Enter')markHoliday()"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="markHoliday()"><i class="ti ti-star"></i> Mark as Holiday</button>
+  `);
+  setTimeout(()=>document.getElementById("holiday-name")?.focus(),80);
+}
+async function markHoliday(){
+  const name=document.getElementById("holiday-name")?.value?.trim();
+  if(!name){alert("Enter holiday name");return;}
+  if(!dbClient)return;
+  const{error}=await dbClient.from("school_holidays").upsert(
+    {holiday_date:dailyAttDate,holiday_name:name,term:currentTerm,session:currentSession},
+    {onConflict:"holiday_date"}
+  );
+  if(error){alert("Error: "+error.message);return;}
+  await loadHolidays();
+  closeModal();
+  renderAttendance();
+}
+async function clearHoliday(date){
+  if(!confirm("Remove this holiday?"))return;
+  await dbClient.from("school_holidays").delete().eq("holiday_date",date);
+  await loadHolidays();
+  renderAttendance();
+}
+
+/* ── Scheme of Work Admin ── */
+async function handleSchemeFile(input){
+  const file=input.files[0]; if(!file)return;
+  const statusEl=document.getElementById("sch-status");
+  if(statusEl)statusEl.textContent="Extracting text…";
+  if(file.name.endsWith(".txt")){
+    const text=await file.text();
+    const ta=document.getElementById("sch-text"); if(ta)ta.value=text;
+    if(statusEl)statusEl.textContent="";
+    return;
+  }
+  if(typeof mammoth==="undefined"){
+    if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">mammoth.js not loaded — paste text manually</span>`;
+    return;
+  }
+  try{
+    const buf=await file.arrayBuffer();
+    const res=await mammoth.extractRawText({arrayBuffer:buf});
+    const ta=document.getElementById("sch-text"); if(ta)ta.value=res.value;
+    if(statusEl)statusEl.textContent="";
+  }catch(e){
+    if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Could not read file: ${e.message}</span>`;
+  }
+}
+async function saveScheme(){
+  const cls=document.getElementById("sch-cls")?.value;
+  const subject=document.getElementById("sch-sub")?.value;
+  const term=document.getElementById("sch-term")?.value;
+  const content=document.getElementById("sch-text")?.value?.trim();
+  const statusEl=document.getElementById("sch-status");
+  if(!cls){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Select a class</span>`;return;}
+  if(!subject){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Select a subject</span>`;return;}
+  if(!content){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Enter or upload scheme content</span>`;return;}
+  if(!dbClient){alert("Not connected");return;}
+  if(statusEl)statusEl.innerHTML=`<i class="ti ti-loader"></i> Saving…`;
+  const{error}=await dbClient.from("schemes").upsert(
+    {subject,cls,term,session:currentSession,content},
+    {onConflict:"subject,cls,term,session"}
+  );
+  if(error){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+  await loadSchemes();
+  renderAdminTab();
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Saved!</span>`;
+}
+async function deleteScheme(id){
+  if(!confirm("Delete this scheme?"))return;
+  await dbClient.from("schemes").delete().eq("id",id);
+  await loadSchemes();
+  renderAdminTab();
+}
+function refreshSchemeSubjects(){
+  const cls=document.getElementById("sch-cls")?.value; if(!cls)return;
+  const sec=CLASS_SECTION[cls]||"Junior Secondary";
+  const subs=SUBJECTS[sec]||[];
+  const sel=document.getElementById("sch-sub"); if(!sel)return;
+  sel.innerHTML=subs.map(s=>`<option>${s}</option>`).join("");
+}
+function buildAdminSchemesHtml(){
+  const classes=Object.values(CLASSES).flat();
+  const terms=["First Term","Second Term","Third Term"];
+  const clsOpts=`<option value="">— Select —</option>`+classes.map(c=>`<option>${c}</option>`).join("");
+  const termOpts=terms.map(t=>`<option${t===currentTerm?" selected":""}>${t}</option>`).join("");
+  const filtered=_schFilter?schemesStore.filter(s=>s.cls===_schFilter):schemesStore;
+  return`
+  <div class="card">
+    <div class="card-head"><span class="card-title">Upload Scheme of Work</span></div>
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:14px">
+      Upload your school's scheme for each subject. When a scheme is present the AI will follow it <strong>exactly</strong> when generating papers — overriding the built-in topics.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="field" style="margin:0">
+        <label>Class</label>
+        <select id="sch-cls" onchange="refreshSchemeSubjects()">${clsOpts}</select>
+      </div>
+      <div class="field" style="margin:0">
+        <label>Subject</label>
+        <select id="sch-sub"><option>— select class first —</option></select>
+      </div>
+      <div class="field" style="margin:0">
+        <label>Term</label>
+        <select id="sch-term">${termOpts}</select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Upload .docx or .txt file</label>
+      <input type="file" id="sch-file" accept=".docx,.doc,.txt" onchange="handleSchemeFile(this)">
+      <p style="font-size:11px;color:var(--tx3);margin-top:3px">Text is extracted automatically from .docx files — or paste directly below</p>
+    </div>
+    <div class="field">
+      <label>Scheme content</label>
+      <textarea id="sch-text" rows="9" placeholder="Paste your scheme of work here, or upload a .docx file above…" style="font-size:12px;line-height:1.5"></textarea>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-primary" onclick="saveScheme()"><i class="ti ti-device-floppy"></i> Save Scheme</button>
+      <span id="sch-status" style="font-size:12px"></span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Saved Schemes</span>
+      <select onchange="_schFilter=this.value;renderAdminTab()" style="width:auto;font-size:12px">
+        <option value="">All classes</option>
+        ${classes.map(c=>`<option value="${c}"${c===_schFilter?" selected":""}>${c}</option>`).join("")}
+      </select>
+    </div>
+    ${filtered.length===0
+      ?`<div class="empty"><i class="ti ti-file-off"></i>No schemes uploaded yet for ${_schFilter||"any class"}</div>`
+      :`<table>
+          <thead><tr><th>Class</th><th>Subject</th><th>Term</th><th>Session</th><th>Saved</th><th></th></tr></thead>
+          <tbody>${filtered.map(s=>`
+          <tr>
+            <td>${s.cls}</td><td>${s.subject}</td><td>${s.term}</td><td>${s.session}</td>
+            <td style="font-size:11px;color:var(--tx2)">${new Date(s.created_at).toLocaleDateString("en-GB")}</td>
+            <td><button class="btn btn-sm" onclick="deleteScheme(${s.id})" style="color:var(--tx-err);border-color:transparent;background:none"><i class="ti ti-trash"></i></button></td>
+          </tr>`).join("")}
+          </tbody>
+        </table>`}
+  </div>`;
 }
 
 /* ── Word document download ── */
