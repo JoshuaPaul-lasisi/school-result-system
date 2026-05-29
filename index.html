@@ -11,9 +11,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html-to-docx@1.8.0/dist/html-to-docx.browser.consolidated.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+  <script>(function(){try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}})()</script>
   <style>
     :root {
-      --burg:#8B1A2F; --gold:#C9A84C; --r:6px;
+      --burg:#8B1A2F; --gold:#C9A84C; --navy:#1E3566; --cream:#F5EBD0; --r:6px;
       --font-sans:'Inter',system-ui,-apple-system,sans-serif;
       --bg:#ffffff; --bg2:#f6f6f7;
       --bg-ok:#e8f5e9; --bg-info:#e3f2fd; --bg-warn:#fff8e1; --bg-err:#ffebee;
@@ -309,10 +310,44 @@
       .hub-tiles{grid-template-columns:1fr}
       .hub-tile.tile-locked{max-width:none}
     }
+
+    /* ── tile & section icon colours (respond to dark mode) ── */
+    .tile-ic-academic  {background:#e3f2fd} .tile-ic-academic   i{color:#185FA5}
+    .tile-ic-finance   {background:#e8f5e9} .tile-ic-finance    i{color:#2e7d32}
+    .tile-ic-students  {background:#fff8e1} .tile-ic-students   i{color:#d97706}
+    .tile-ic-staff     {background:#f3e8ff} .tile-ic-staff      i{color:#6a1b9a}
+    .tile-ic-principal {background:#fdeef1} .tile-ic-principal  i{color:#8B1A2F}
+
+    /* ── dark mode ── */
+    [data-theme="dark"]{
+      --bg:#1a1f2e; --bg2:#141827;
+      --bg-ok:#0a2016; --bg-info:#0d1f3e; --bg-warn:#251c06; --bg-err:#250a12;
+      --tx:#dce4f7; --tx2:#8894b2; --tx3:#566079;
+      --tx-ok:#4ade80; --tx-info:#60a5fa; --tx-warn:#fbbf24; --tx-err:#f87171;
+      --bd:#3a4662; --bd2:#252e47; --bd3:#1c2338;
+    }
+    [data-theme="dark"] body{background:#0b0f1a}
+    [data-theme="dark"] .hub-school-name{color:#d4415a}
+    [data-theme="dark"] .hub-tile.tile-locked{border-color:#3d1525}
+    [data-theme="dark"] .hub-tile.tile-locked:hover{border-color:#c84060}
+    [data-theme="dark"] .btn-primary{background:#c04060;border-color:#c04060}
+    [data-theme="dark"] .btn-primary:hover{background:#9b2f4a}
+    [data-theme="dark"] .atab.active{color:#d4415a;border-bottom-color:#d4415a}
+    [data-theme="dark"] .tile-ic-academic  {background:#0f2445} [data-theme="dark"] .tile-ic-academic  i{color:#60a5fa}
+    [data-theme="dark"] .tile-ic-finance   {background:#0a2418} [data-theme="dark"] .tile-ic-finance   i{color:#4ade80}
+    [data-theme="dark"] .tile-ic-students  {background:#28200a} [data-theme="dark"] .tile-ic-students  i{color:#fbbf24}
+    [data-theme="dark"] .tile-ic-staff     {background:#1e1032} [data-theme="dark"] .tile-ic-staff     i{color:#c084fc}
+    [data-theme="dark"] .tile-ic-principal {background:#2a0a16} [data-theme="dark"] .tile-ic-principal i{color:#fb7185}
+
+    /* ── theme toggle FAB ── */
+    .theme-fab{position:fixed;bottom:22px;right:22px;width:42px;height:42px;border-radius:50%;background:var(--navy);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 3px 14px rgba(0,0,0,.28);z-index:150;transition:background .2s,transform .15s}
+    .theme-fab:hover{background:var(--burg);transform:scale(1.07)}
+    @media(max-width:700px){.theme-fab{bottom:14px;right:12px}}
   </style>
 </head>
 <body>
 
+<button class="theme-fab" id="theme-fab" onclick="toggleTheme()"><i class="ti ti-moon"></i></button>
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
@@ -544,14 +579,14 @@ function renderHub(){
       </div>
       <div class="hub-tiles">
         ${[
-          {id:"academic",         icon:"ti-certificate",  bg:"#e3f2fd", color:"#185FA5", label:"Academic",          desc:"Classes, scores, exam papers & EDGE tests"},
-          {id:"finance",          icon:"ti-cash",          bg:"#e8f5e9", color:"#2e7d32", label:"Finance",           desc:"Fee structure, payments & ledger"},
-          {id:"students",         icon:"ti-user-search",   bg:"#fff8e1", color:"#d97706", label:"Students",          desc:"Student records & report cards"},
-          {id:"staff",            icon:"ti-users",          bg:"#f3e8ff", color:"#6a1b9a", label:"Staff",             desc:"Staff directory & assignments"},
-          {id:"principals-desk",  icon:"ti-shield-lock",   bg:"#fdeef1", color:"#8B1A2F", label:"Principal's Desk",  desc:"Settings, enrollment & system admin", locked:true},
+          {id:"academic",        icCls:"tile-ic-academic",   icon:"ti-certificate", label:"Academic",         desc:"Classes, scores, exam papers & EDGE tests"},
+          {id:"finance",         icCls:"tile-ic-finance",    icon:"ti-cash",        label:"Finance",          desc:"Fee structure, payments & ledger"},
+          {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:"Student records & report cards"},
+          {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:"Staff directory & assignments"},
+          {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", locked:true},
         ].map(t=>`
           <div class="hub-tile${t.locked?" tile-locked":""}" onclick="enterSection('${t.id}')">
-            <div class="hub-tile-icon" style="background:${t.bg}"><i class="ti ${t.icon}" style="color:${t.color}"></i></div>
+            <div class="hub-tile-icon ${t.icCls}"><i class="ti ${t.icon}"></i></div>
             <div class="hub-tile-label">${t.label}</div>
             <div class="hub-tile-desc">${t.desc}</div>
             ${t.locked?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> PIN required</div>`:""}
@@ -566,8 +601,8 @@ function enterSection(name){
   if(name==="principals-desk"&&!adminUnlocked){
     openModal("Principal's Desk",`
       <div style="text-align:center;padding:4px 0 18px">
-        <div style="width:56px;height:56px;border-radius:16px;background:#fdeef1;margin:0 auto 12px;display:flex;align-items:center;justify-content:center">
-          <i class="ti ti-shield-lock" style="font-size:28px;color:#8B1A2F"></i>
+        <div class="tile-ic-principal" style="width:56px;height:56px;border-radius:16px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center">
+          <i class="ti ti-shield-lock" style="font-size:28px"></i>
         </div>
         <p style="font-size:13px;color:var(--tx2)">
           ${storedPinHash===null?"Create your PIN to access Principal's Desk":"Enter your PIN to continue"}
@@ -666,11 +701,12 @@ function renderSidebar(section){
       </div>`,
   }[section]||"";
 
+  const icCls={'principals-desk':'tile-ic-principal'}[section]||`tile-ic-${section}`;
   document.getElementById("sidebar-nav").innerHTML=`
     <div class="nav-back" onclick="navToHub()"><i class="ti ti-arrow-left"></i> All Sections</div>
     <div class="section-hdr">
-      <div class="section-hdr-icon" style="background:${meta.bg||"#eee"}">
-        <i class="ti ${meta.icon||"ti-circle"}" style="color:${meta.color||"#666"}"></i>
+      <div class="section-hdr-icon ${icCls}">
+        <i class="ti ${meta.icon||"ti-circle"}"></i>
       </div>
       <div class="section-hdr-label">${meta.label||""}</div>
     </div>
@@ -2950,6 +2986,25 @@ function downloadEdgeTestAsWord(explicitId){
   const label=t.test_type==="weekly"?`${t.cls} Week${t.week_number} Half${t.half}`:`${t.cls} ${t.subject||''} Mock${t.mock_number}`;
   downloadAsWord(t.content,`${label} ${currentTerm} ${currentSession}`);
 }
+
+/* ── theme ── */
+function toggleTheme(){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  if(isDark){
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('theme','light');
+    document.getElementById('theme-fab').innerHTML='<i class="ti ti-moon"></i>';
+  }else{
+    document.documentElement.setAttribute('data-theme','dark');
+    localStorage.setItem('theme','dark');
+    document.getElementById('theme-fab').innerHTML='<i class="ti ti-sun"></i>';
+  }
+}
+// Sync FAB icon with persisted theme
+(function(){
+  const fab=document.getElementById('theme-fab');
+  if(fab&&localStorage.getItem('theme')==='dark') fab.innerHTML='<i class="ti ti-sun"></i>';
+})();
 
 /* ── boot ── */
 loadLocalStore(); updateTermDisplay();
