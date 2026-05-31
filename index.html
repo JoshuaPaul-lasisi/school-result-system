@@ -14,18 +14,18 @@
   <script>(function(){try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}})()</script>
   <style>
     :root {
-      --burg:#8B1A2F; --gold:#C9A84C; --navy:#1E3566; --cream:#F5EBD0; --r:6px;
+      --burg:#8B1A2F; --gold:#C9A84C; --navy:#1E3566; --cream:#F5EBD0; --brown:#8B6340; --r:6px;
       --font-sans:'Inter',system-ui,-apple-system,sans-serif;
-      --bg:#ffffff; --bg2:#f6f6f7;
+      --bg:#fefcf8; --bg2:#f4ead8;
       --bg-ok:#e8f5e9; --bg-info:#e3f2fd; --bg-warn:#fff8e1; --bg-err:#ffebee;
       --tx:#111827; --tx2:#6b7280; --tx3:#9ca3af;
       --tx-ok:#16a34a; --tx-info:#1d4ed8; --tx-warn:#d97706; --tx-err:#dc2626;
-      --bd:#9ca3af; --bd2:#d1d5db; --bd3:#e5e7eb;
+      --bd:#a89a88; --bd2:#c9bba4; --bd3:#e0d4be;
       --rmd:6px; --rlg:10px;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%}
-    body{font-family:var(--font-sans);font-size:14px;background:#eef0f2;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    body{font-family:var(--font-sans);font-size:14px;background:#c8b59a;display:flex;align-items:center;justify-content:center;min-height:100vh}
 
     /* ── app shell ── */
     .app{display:grid;grid-template-columns:214px 1fr;width:100%;max-width:1120px;height:96vh;border:.5px solid var(--bd3);border-radius:var(--rlg);overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.09)}
@@ -33,7 +33,7 @@
 
     /* ── sidebar ── */
     .sidebar{background:var(--bg2);border-right:.5px solid var(--bd3);display:flex;flex-direction:column;overflow-y:auto}
-    .logo{padding:14px 16px 12px;border-bottom:.5px solid var(--bd3)}
+    .logo{padding:14px 16px 12px;border-bottom:.5px solid var(--bd3);border-top:3px solid var(--navy)}
     .logo-name{font-size:13px;font-weight:600;color:var(--tx)}
     .logo-term{font-size:11px;color:var(--tx2);margin-top:2px}
     .db-row{display:flex;align-items:center;gap:5px;margin-top:6px}
@@ -44,8 +44,9 @@
     .nav-label{font-size:10px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;padding:6px 8px 4px}
     .nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);cursor:pointer;font-size:13px;color:var(--tx2);transition:background .15s;user-select:none}
     .nav-item:hover{background:var(--bg)}
-    .nav-item.active{background:var(--bg);color:var(--tx);font-weight:500}
+    .nav-item.active{background:var(--bg);color:var(--navy);font-weight:500}
     .nav-item i{font-size:15px;opacity:.7}
+    .nav-item.active i{color:var(--navy);opacity:1}
 
     /* ── main ── */
     .main{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;min-width:0}
@@ -141,8 +142,8 @@
     .att-item{display:flex;flex-direction:column;gap:2px}
     .att-item span:first-child{color:var(--tx2);font-size:11px}
     .att-item span:last-child{font-weight:600}
-    .char-box{background:var(--bg2);border-left:3px solid var(--gold);border-radius:0 var(--r) var(--r) 0;padding:10px 12px;margin-bottom:14px;font-size:12px}
-    .char-label{font-size:10px;font-weight:600;color:#8A6F30;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+    .char-box{background:var(--bg2);border-left:3px solid var(--brown);border-radius:0 var(--r) var(--r) 0;padding:10px 12px;margin-bottom:14px;font-size:12px}
+    .char-label{font-size:10px;font-weight:600;color:var(--brown);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
     .comment-row{margin-bottom:10px;font-size:12px}
     .comment-label{font-size:10px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
     .sig-row{display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:.5px solid var(--bd3);font-size:11px;color:var(--tx2)}
@@ -299,8 +300,8 @@
     .nav-back:hover{color:var(--tx)}
     .nav-back i{font-size:16px}
     .section-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px 10px;border-bottom:.5px solid var(--bd3);margin-bottom:4px}
-    .section-hdr-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .section-hdr-icon i{font-size:15px}
+    .section-hdr-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 1px 5px rgba(0,0,0,.15)}
+    .section-hdr-icon i{font-size:17px}
     .section-hdr-label{font-size:13px;font-weight:600;color:var(--tx)}
     @media(max-width:700px){
       .hub-tiles{grid-template-columns:repeat(2,1fr)}
@@ -312,11 +313,11 @@
     }
 
     /* ── tile & section icon colours (respond to dark mode) ── */
-    .tile-ic-academic  {background:#e3f2fd} .tile-ic-academic   i{color:#185FA5}
-    .tile-ic-finance   {background:#e8f5e9} .tile-ic-finance    i{color:#2e7d32}
-    .tile-ic-students  {background:#fff8e1} .tile-ic-students   i{color:#d97706}
-    .tile-ic-staff     {background:#f3e8ff} .tile-ic-staff      i{color:#6a1b9a}
-    .tile-ic-principal {background:#fdeef1} .tile-ic-principal  i{color:#8B1A2F}
+    .tile-ic-academic  {background:#cfe0f5} .tile-ic-academic   i{color:#1558a0}
+    .tile-ic-finance   {background:#c6e8d0} .tile-ic-finance    i{color:#1a6634}
+    .tile-ic-students  {background:#fde8ac} .tile-ic-students   i{color:#a85208}
+    .tile-ic-staff     {background:#e4d2f7} .tile-ic-staff      i{color:#5e1890}
+    .tile-ic-principal {background:#f4ccd4} .tile-ic-principal  i{color:#8B1A2F}
 
     /* ── dark mode ── */
     [data-theme="dark"]{
@@ -328,6 +329,9 @@
     }
     [data-theme="dark"] body{background:#0b0f1a}
     [data-theme="dark"] .hub-school-name{color:#d4415a}
+    [data-theme="dark"] .logo{border-top-color:#3a4662}
+    [data-theme="dark"] .nav-item.active{color:var(--tx)}
+    [data-theme="dark"] .nav-item.active i{color:var(--tx)}
     [data-theme="dark"] .hub-tile.tile-locked{border-color:#3d1525}
     [data-theme="dark"] .hub-tile.tile-locked:hover{border-color:#c84060}
     [data-theme="dark"] .btn-primary{background:#c04060;border-color:#c04060}
