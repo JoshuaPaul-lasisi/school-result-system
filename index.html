@@ -2034,7 +2034,8 @@ function classGroupFor(cls){
 
 function feeOwedFor(cls){
   const grp=classGroupFor(cls);
-  return feeStructure.filter(f=>f.class_group===grp&&!f.is_optional)
+  return feeStructure
+    .filter(f=>(f.class_group===grp||f.class_group==='All')&&!f.is_optional)
     .reduce((s,f)=>s+parseFloat(f.amount||0),0);
 }
 
@@ -2305,14 +2306,35 @@ function buildAdminFeeHtml(){
   const byGroup={};
   feeStructure.forEach(f=>{if(!byGroup[f.class_group])byGroup[f.class_group]=[];byGroup[f.class_group].push(f);});
 
+  const schoolWide=byGroup['All']||[];
+  const schoolWideMandatory=schoolWide.filter(f=>!f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
+
+  function feeTable(items){
+    return`<table><thead><tr><th>Fee</th><th>Amount</th><th>Type</th><th></th></tr></thead>
+      <tbody>${items.map(f=>`<tr>
+        <td>${f.fee_name}</td>
+        <td>₦${parseFloat(f.amount).toLocaleString()}</td>
+        <td><span style="font-size:11px;color:var(--tx3)">${f.is_optional?"Optional":"Mandatory"}</span></td>
+        <td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteFeeItem(${f.id},'${f.fee_name}')"><i class="ti ti-trash"></i></button></td>
+      </tr>`).join("")}</tbody></table>`;
+  }
+
+  const scopeOpts=[
+    {val:'All',         label:'All classes (school-wide)'},
+    {val:'Pre-Primary', label:'Pre-Primary only'},
+    {val:'Primary',     label:'Primary only'},
+    {val:'JSS',         label:'JSS only'},
+    {val:'SS',          label:'SS only'},
+  ];
+
   return`<div class="card">
     <div class="card-head">
       <span class="card-title">Add Fee Item</span>
       <span style="font-size:11px;color:var(--tx3)">${currentTerm} · ${currentSession}</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
-      <div class="field" style="margin:0"><label>Class group</label>
-        <select id="fee-group">${groups.map(g=>`<option>${g}</option>`).join("")}</select></div>
+      <div class="field" style="margin:0"><label>Applies to</label>
+        <select id="fee-group">${scopeOpts.map(o=>`<option value="${o.val}">${o.label}</option>`).join("")}</select></div>
       <div class="field" style="margin:0"><label>Fee name</label>
         <input id="fee-name" placeholder="e.g. Tuition, PTA Levy" /></div>
       <div class="field" style="margin:0"><label>Amount (₦)</label>
@@ -2325,22 +2347,29 @@ function buildAdminFeeHtml(){
     </div>
     <div id="fee-status" style="margin-top:8px;font-size:12px"></div>
   </div>
+
+  <div class="card" style="margin-top:10px;border-color:var(--navy)">
+    <div class="card-head">
+      <span class="card-title"><i class="ti ti-building-school" style="color:var(--navy)"></i> All Classes — School-wide</span>
+      ${schoolWide.length?`<span style="font-size:12px;color:var(--tx2)">Mandatory: <strong>₦${schoolWideMandatory.toLocaleString()}</strong></span>`:""}
+    </div>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:${schoolWide.length?10:0}px">These fees apply to every student in the school regardless of class.</p>
+    ${schoolWide.length?feeTable(schoolWide):`<div class="empty" style="padding:10px 0">No school-wide fees set</div>`}
+  </div>
+
   ${groups.map(g=>{
     const items=byGroup[g]||[];
-    if(!items.length)return`<div class="card" style="margin-top:10px"><div class="card-head"><span class="card-title">${g}</span></div><div class="empty" style="padding:16px 0">No fees set</div></div>`;
-    const total=items.filter(f=>!f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
+    const grpMandatory=items.filter(f=>!f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
+    const studentTotal=grpMandatory+schoolWideMandatory;
+    const breakdown=schoolWideMandatory>0
+      ?`<span style="font-size:11px;font-weight:400;color:var(--tx3)"> = ₦${grpMandatory.toLocaleString()} class + ₦${schoolWideMandatory.toLocaleString()} school-wide</span>`
+      :"";
     return`<div class="card" style="margin-top:10px">
       <div class="card-head">
         <span class="card-title">${g}</span>
-        <span style="font-size:12px;color:var(--tx2)">Total mandatory: <strong>₦${total.toLocaleString()}</strong></span>
+        <span style="font-size:12px;color:var(--tx2)">Student total: <strong>₦${studentTotal.toLocaleString()}</strong>${breakdown}</span>
       </div>
-      <table><thead><tr><th>Fee</th><th>Amount</th><th>Type</th><th></th></tr></thead>
-      <tbody>${items.map(f=>`<tr>
-        <td>${f.fee_name}</td>
-        <td>₦${parseFloat(f.amount).toLocaleString()}</td>
-        <td><span style="font-size:11px;color:var(--tx3)">${f.is_optional?"Optional":"Mandatory"}</span></td>
-        <td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteFeeItem(${f.id},'${f.fee_name}')"><i class="ti ti-trash"></i></button></td>
-      </tr>`).join("")}</tbody></table>
+      ${items.length?feeTable(items):`<div class="empty" style="padding:10px 0">No class-specific fees — only school-wide fees apply</div>`}
     </div>`;
   }).join("")}`;
 }

@@ -186,10 +186,11 @@ CREATE TABLE IF NOT EXISTS guardians (
 );
 
 -- ── fee structure ─────────────────────────────────────────────────────────────
--- One row per fee item per class group per term/session
+-- One row per fee item per class group per term/session.
+-- class_group = 'All' means the fee applies to every student regardless of class.
 CREATE TABLE IF NOT EXISTS fee_structure (
   id           BIGSERIAL PRIMARY KEY,
-  class_group  TEXT NOT NULL CHECK (class_group IN ('Pre-Primary','Primary','JSS','SS')),
+  class_group  TEXT NOT NULL CHECK (class_group IN ('Pre-Primary','Primary','JSS','SS','All')),
   fee_name     TEXT NOT NULL,
   amount       NUMERIC(10,2) NOT NULL DEFAULT 0,
   is_optional  BOOLEAN DEFAULT false,
@@ -338,3 +339,12 @@ CREATE INDEX IF NOT EXISTS daily_att_date           ON daily_attendance(school_d
 CREATE INDEX IF NOT EXISTS daily_att_term_session   ON daily_attendance(term, session);
 CREATE INDEX IF NOT EXISTS daily_att_student        ON daily_attendance(student_id);
 CREATE INDEX IF NOT EXISTS holidays_term_session    ON school_holidays(term, session);
+
+-- ── expand fee_structure to allow school-wide fees (existing installs) ────────
+DO $$ BEGIN
+  ALTER TABLE fee_structure DROP CONSTRAINT IF EXISTS fee_structure_class_group_check;
+  ALTER TABLE fee_structure
+    ADD CONSTRAINT fee_structure_class_group_check
+    CHECK (class_group IN ('Pre-Primary','Primary','JSS','SS','All'));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
