@@ -348,3 +348,69 @@ DO $$ BEGIN
     CHECK (class_group IN ('Pre-Primary','Primary','JSS','SS','All'));
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+
+-- ── expense log ───────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS expense_log (
+  id             BIGSERIAL PRIMARY KEY,
+  description    TEXT NOT NULL,
+  category       TEXT NOT NULL CHECK (category IN ('Staff Cost','Supplies','Maintenance','Programme Cost','Other')),
+  amount         NUMERIC(10,2) NOT NULL,
+  expense_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  receipt_ref    TEXT,
+  note           TEXT,
+  term           TEXT NOT NULL,
+  session        TEXT NOT NULL,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── asset register ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS assets (
+  id              BIGSERIAL PRIMARY KEY,
+  item_name       TEXT NOT NULL,
+  location        TEXT,
+  quantity        INTEGER NOT NULL DEFAULT 1,
+  condition       TEXT NOT NULL DEFAULT 'Good'
+                  CHECK (condition IN ('Good','Fair','Poor')),
+  responsible     TEXT,
+  date_recorded   DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── incident & communication log ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS incident_log (
+  id             BIGSERIAL PRIMARY KEY,
+  incident_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+  persons        TEXT NOT NULL,
+  incident_type  TEXT NOT NULL
+                 CHECK (incident_type IN ('Parent Complaint','Staff Issue','Student Discipline','External Visit','Other')),
+  description    TEXT NOT NULL,
+  action_taken   TEXT,
+  follow_up      BOOLEAN NOT NULL DEFAULT false,
+  follow_up_note TEXT,
+  recorded_by    TEXT DEFAULT 'Joshua',
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── staff: add start_date, next_of_kin, nok_phone, notes (existing installs) ─
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='start_date')   THEN ALTER TABLE staff ADD COLUMN start_date  DATE;        END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='next_of_kin') THEN ALTER TABLE staff ADD COLUMN next_of_kin TEXT;        END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='nok_phone')   THEN ALTER TABLE staff ADD COLUMN nok_phone   TEXT;        END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='notes')       THEN ALTER TABLE staff ADD COLUMN notes       TEXT;        END IF;
+END $$;
+
+ALTER TABLE expense_log  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assets       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE incident_log ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='expense_log'  AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON expense_log  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='assets'       AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON assets       FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='incident_log' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON incident_log FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS expense_log_term_session ON expense_log(term, session);
+CREATE INDEX IF NOT EXISTS assets_condition         ON assets(condition);
+CREATE INDEX IF NOT EXISTS incident_log_date        ON incident_log(incident_date);
+CREATE INDEX IF NOT EXISTS incident_log_followup    ON incident_log(follow_up);

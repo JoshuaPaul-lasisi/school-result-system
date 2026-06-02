@@ -545,6 +545,9 @@ let studentProfiles = {};   // keyed by student_id
 let guardiansMap = {};      // keyed by student_id → array of guardians
 let feeStructure = [];      // array of fee structure rows
 let paymentLog = [];        // array of payment log rows for current term/session
+let expenseLog = [];        // array of expense log rows for current term/session
+let assetsStore = [];       // all asset register rows (no term filter)
+let incidentLog = [];       // all incident log rows (no term filter)
 let edgeTestsStore = [];    // EDGE tests for current term/session
 let _edgeFilterCls = "", _edgeFilterType = "";
 let _edgeAdminSubTab = "weekly";
@@ -684,7 +687,8 @@ function renderSidebar(section){
       <div class="nav-section">
         <div class="nav-label">Finance</div>
         <div class="nav-item" onclick="nav('finance-dashboard',null,this)"><i class="ti ti-chart-bar"></i>Overview</div>
-        <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Daily Log</div>
+        <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Fee Payments</div>
+        <div class="nav-item" onclick="nav('finance-expenses',null,this)"><i class="ti ti-cash-banknote"></i>Expenses</div>
         <div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>
       </div>`,
     students:`
@@ -698,6 +702,11 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
       </div>`,
     "principals-desk":`
+      <div class="nav-section">
+        <div class="nav-label">Records</div>
+        <div class="nav-item" onclick="nav('assets',null,this)"><i class="ti ti-package"></i>Asset Register</div>
+        <div class="nav-item" onclick="nav('incidents',null,this)"><i class="ti ti-clipboard-list"></i>Incident Log</div>
+      </div>
       <div class="nav-section">
         <div class="nav-label">System</div>
         <div class="nav-item" onclick="nav('settings',null,this)"><i class="ti ti-settings"></i>Settings</div>
@@ -779,13 +788,15 @@ async function loadStaff() {
   if (!dbClient) return;
   const {data, error} = await dbClient
     .from("staff_assignments")
-    .select("id,annex_id,status,staff:staff_id(id,name,gender,staff_type,role,phone)")
+    .select("id,annex_id,status,staff:staff_id(id,name,gender,staff_type,role,phone,start_date,next_of_kin,nok_phone,notes)")
     .eq("term",currentTerm).eq("session",currentSession).eq("status","active");
   if (!error && data) {
     staffList = data.map(r=>({
       assignment_id:r.id, staff_id:r.staff.id, name:r.staff.name,
       gender:r.staff.gender, staff_type:r.staff.staff_type,
-      role:r.staff.role||"", phone:r.staff.phone||"", annex_id:r.annex_id
+      role:r.staff.role||"", phone:r.staff.phone||"", annex_id:r.annex_id,
+      start_date:r.staff.start_date||"", next_of_kin:r.staff.next_of_kin||"",
+      nok_phone:r.staff.nok_phone||"", notes:r.staff.notes||""
     }));
   }
 }
@@ -862,11 +873,30 @@ async function loadPaymentLog() {
     .order("payment_date",{ascending:false}).order("created_at",{ascending:false});
   if (!error && data) paymentLog = data;
 }
+async function loadExpenseLog() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("expense_log")
+    .select("*").eq("term",currentTerm).eq("session",currentSession)
+    .order("expense_date",{ascending:false}).order("created_at",{ascending:false});
+  if (!error && data) expenseLog = data;
+}
+async function loadAssets() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("assets")
+    .select("*").order("condition").order("item_name");
+  if (!error && data) assetsStore = data;
+}
+async function loadIncidentLog() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("incident_log")
+    .select("*").order("incident_date",{ascending:false}).order("created_at",{ascending:false});
+  if (!error && data) incidentLog = data;
+}
 
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadSchemes(), loadHolidays()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -974,7 +1004,10 @@ function nav(page,arg,el){
   else if(page==="finance-dashboard")renderFinanceDashboard();
   else if(page==="attendance")openAttendance();
   else if(page==="finance-log")renderFinanceLog();
+  else if(page==="finance-expenses")renderExpenses();
   else if(page==="finance-ledger")renderFinanceLedger();
+  else if(page==="assets")renderAssets();
+  else if(page==="incidents")renderIncidentLog();
 }
 function setAnnexFilter(val){
   currentAnnexFilter=val;
@@ -1492,11 +1525,15 @@ function buildAdminStaffHtml(){
     .sort((a,b)=>a.name.localeCompare(b.name));
   const rows=base.map(s=>{const ax=annexList.find(a=>a.id===s.annex_id);
     return`<tr>
-      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}
+        <div><div>${s.name}</div>
+        ${s.start_date?`<div style="font-size:10px;color:var(--tx3)">Since ${s.start_date}</div>`:""}
+        </div></div></td>
       <td><span class="badge ${s.staff_type==="teaching"?"badge-teach":"badge-nonteach"}">${s.staff_type==="teaching"?"Teaching":"Non-Teaching"}</span></td>
       <td style="color:var(--tx2);font-size:12px">${s.role||"—"}</td>
       <td><span class="annex-pill">${ax?ax.name:"—"}</span></td>
-      <td class="col-id" style="color:var(--tx2)">${s.phone||"—"}</td>
+      <td class="col-id" style="color:var(--tx2)"><div>${s.phone||"—"}</div>${s.next_of_kin?`<div style="font-size:10px;color:var(--tx3)">NOK: ${s.next_of_kin}${s.nok_phone?" · "+s.nok_phone:""}</div>`:""}</td>
+      ${s.notes?`<td style="font-size:11px;color:var(--tx3);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes}</td>`:`<td></td>`}
       <td><div style="display:flex;gap:4px">
         <button class="btn btn-sm" onclick="openEditStaff(${s.staff_id})"><i class="ti ti-pencil"></i></button>
         <button class="btn btn-sm" onclick="confirmMarkStaffLeft(${s.staff_id},'${s.name.replace(/'/g,"\\'")}')"><i class="ti ti-user-minus"></i></button>
@@ -1508,7 +1545,7 @@ function buildAdminStaffHtml(){
     </div>
     <div class="filter-bar">${annexOpts}</div>
     ${base.length?`<div style="overflow-x:auto"><table>
-      <thead><tr><th>Name</th><th>Type</th><th>Role</th><th>Annex</th><th class="col-id">Phone</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Type</th><th>Role</th><th>Annex</th><th class="col-id">Phone / NOK</th><th>Notes</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`
     :`<div class="empty"><i class="ti ti-users-off"></i>No staff${currentAnnexFilter?" for this annex":""}</div>`}
   </div>`;
@@ -1709,12 +1746,24 @@ function openAddStaff(){
   const axOpts=annexList.map(a=>`<option value="${a.id}">${a.name}</option>`).join("");
   openModal("Add Staff Member",`
     <div class="field"><label>Full name</label><input id="m-name" placeholder="Surname Firstname" /></div>
-    <div class="field"><label>Gender</label><select id="m-gender"><option>Male</option><option>Female</option></select></div>
-    <div class="field"><label>Type</label>
-      <select id="m-type"><option value="teaching">Teaching</option><option value="non-teaching">Non-Teaching</option></select></div>
-    <div class="field"><label>Role / Position</label><input id="m-role" placeholder="e.g. Class Teacher, Admin Officer" /></div>
-    <div class="field"><label>Phone</label><input id="m-phone" type="tel" placeholder="08012345678" /></div>
-    <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Gender</label><select id="m-gender"><option>Male</option><option>Female</option></select></div>
+      <div class="field"><label>Type</label>
+        <select id="m-type"><option value="teaching">Teaching</option><option value="non-teaching">Non-Teaching</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Role / Position</label><input id="m-role" placeholder="e.g. Class Teacher" /></div>
+      <div class="field"><label>Start Date</label><input type="date" id="m-start" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Phone</label><input id="m-phone" type="tel" placeholder="08012345678" /></div>
+      <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Next of Kin</label><input id="m-nok" placeholder="Name" /></div>
+      <div class="field"><label>Next of Kin Phone</label><input id="m-nokph" type="tel" placeholder="08012345678" /></div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="m-notes" rows="2" placeholder="Any agreements, probation notes…"></textarea></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitAddStaff()"><i class="ti ti-check"></i> Add</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
@@ -1728,8 +1777,12 @@ async function submitAddStaff(){
   const role=document.getElementById("m-role")?.value?.trim();
   const phone=document.getElementById("m-phone")?.value?.trim();
   const annexId=parseInt(document.getElementById("m-annex")?.value);
+  const startDate=document.getElementById("m-start")?.value||null;
+  const nok=document.getElementById("m-nok")?.value?.trim()||null;
+  const nokPh=document.getElementById("m-nokph")?.value?.trim()||null;
+  const notes=document.getElementById("m-notes")?.value?.trim()||null;
   if(!name){alert("Enter staff name");return;}
-  const {data,error}=await dbClient.from("staff").insert({name,gender,staff_type:staffType,role,phone,annex_id:annexId}).select();
+  const {data,error}=await dbClient.from("staff").insert({name,gender,staff_type:staffType,role,phone,annex_id:annexId,start_date:startDate,next_of_kin:nok,nok_phone:nokPh,notes}).select();
   if(error||!data?.[0]){alert("Error: "+(error?.message||"unknown"));return;}
   await dbClient.from("staff_assignments").insert({staff_id:data[0].id,annex_id:annexId,term:currentTerm,session:currentSession,status:"active"});
   closeModal(); await loadStaff(); renderAdmin();
@@ -1738,14 +1791,24 @@ function openEditStaff(staffId){
   const s=staffList.find(x=>x.staff_id===staffId); if(!s)return;
   const axOpts=annexList.map(a=>`<option value="${a.id}" ${a.id===s.annex_id?"selected":""}>${a.name}</option>`).join("");
   openModal(`Edit: ${s.name}`,`
-    <div class="field"><label>Role / Position</label><input id="m-role" value="${s.role}" placeholder="e.g. Class Teacher" /></div>
-    <div class="field"><label>Phone</label><input id="m-phone" type="tel" value="${s.phone}" /></div>
-    <div class="field"><label>Type</label>
-      <select id="m-type">
-        <option value="teaching" ${s.staff_type==="teaching"?"selected":""}>Teaching</option>
-        <option value="non-teaching" ${s.staff_type==="non-teaching"?"selected":""}>Non-Teaching</option>
-      </select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Role / Position</label><input id="m-role" value="${s.role}" placeholder="e.g. Class Teacher" /></div>
+      <div class="field"><label>Start Date</label><input type="date" id="m-start" value="${s.start_date||""}" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Phone</label><input id="m-phone" type="tel" value="${s.phone}" /></div>
+      <div class="field"><label>Type</label>
+        <select id="m-type">
+          <option value="teaching" ${s.staff_type==="teaching"?"selected":""}>Teaching</option>
+          <option value="non-teaching" ${s.staff_type==="non-teaching"?"selected":""}>Non-Teaching</option>
+        </select></div>
+    </div>
     <div class="field"><label>Annex</label><select id="m-annex">${axOpts}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Next of Kin</label><input id="m-nok" value="${s.next_of_kin||""}" placeholder="Name" /></div>
+      <div class="field"><label>Next of Kin Phone</label><input id="m-nokph" type="tel" value="${s.nok_phone||""}" placeholder="08012345678" /></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="m-notes" rows="2">${s.notes||""}</textarea></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitEditStaff(${staffId})"><i class="ti ti-check"></i> Save</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
@@ -1756,7 +1819,11 @@ async function submitEditStaff(staffId){
   const phone=document.getElementById("m-phone")?.value?.trim();
   const staffType=document.getElementById("m-type")?.value;
   const annexId=parseInt(document.getElementById("m-annex")?.value);
-  await dbClient.from("staff").update({role,phone,staff_type:staffType}).eq("id",staffId);
+  const startDate=document.getElementById("m-start")?.value||null;
+  const nok=document.getElementById("m-nok")?.value?.trim()||null;
+  const nokPh=document.getElementById("m-nokph")?.value?.trim()||null;
+  const notes=document.getElementById("m-notes")?.value?.trim()||null;
+  await dbClient.from("staff").update({role,phone,staff_type:staffType,start_date:startDate,next_of_kin:nok,nok_phone:nokPh,notes}).eq("id",staffId);
   await dbClient.from("staff_assignments").update({annex_id:annexId}).eq("staff_id",staffId).eq("term",currentTerm).eq("session",currentSession);
   closeModal(); await loadStaff(); renderAdmin();
 }
@@ -2075,12 +2142,20 @@ function renderFinanceDashboard(){
     return{g,count:gStudents.length,expected:gExpected,collected:gCollected};
   }).filter(x=>x.count>0);
 
+  const totalExpenses=expenseLog.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const netBalance=totalCollected-totalExpenses;
+
   document.getElementById("content").innerHTML=`
-    <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-      <div class="stat"><div class="stat-label">Total Expected</div><div class="stat-val">₦${totalExpected.toLocaleString()}</div></div>
+    <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+      <div class="stat"><div class="stat-label">Expected (fees)</div><div class="stat-val">₦${totalExpected.toLocaleString()}</div></div>
       <div class="stat"><div class="stat-label">Collected</div><div class="stat-val" style="color:var(--tx-ok)">₦${totalCollected.toLocaleString()}</div></div>
-      <div class="stat"><div class="stat-label">Outstanding</div><div class="stat-val" style="color:var(--tx-err)">₦${outstanding.toLocaleString()}</div></div>
+      <div class="stat"><div class="stat-label">Fee Outstanding</div><div class="stat-val" style="color:var(--tx-err)">₦${outstanding.toLocaleString()}</div></div>
       <div class="stat"><div class="stat-label">Collection Rate</div><div class="stat-val">${pct}%</div></div>
+    </div>
+    <div class="stats-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div class="stat"><div class="stat-label">Income (this term)</div><div class="stat-val" style="color:var(--tx-ok)">₦${totalCollected.toLocaleString()}</div></div>
+      <div class="stat"><div class="stat-label">Expenses (this term)</div><div class="stat-val" style="color:var(--tx-err)">₦${totalExpenses.toLocaleString()}</div></div>
+      <div class="stat"><div class="stat-label">Net Balance</div><div class="stat-val" style="color:${netBalance>=0?"var(--tx-ok)":"var(--tx-err)"}">₦${netBalance.toLocaleString()}</div></div>
     </div>
     ${feeStructure.length===0?`<div class="card"><div class="empty"><i class="ti ti-alert-circle"></i>No fee structure set up yet. Go to Admin → Fee Setup to define fees for this term.</div></div>`:""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
@@ -2298,6 +2373,289 @@ function renderFinanceLedger(){
       <tbody>${rows}</tbody>
     </table></div></div>`
     :`<div class="card"><div class="empty"><i class="ti ti-table-off"></i>No students match</div></div>`}`;
+}
+
+/* ── finance: expenses ── */
+function renderExpenses(){
+  document.getElementById("page-title").textContent="Expenses";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  const cats=["Staff Cost","Supplies","Maintenance","Programme Cost","Other"];
+  const totalExp=expenseLog.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const byCat={};
+  cats.forEach(c=>byCat[c]=expenseLog.filter(e=>e.category===c).reduce((s,e)=>s+parseFloat(e.amount||0),0));
+  const today=new Date().toISOString().split("T")[0];
+  document.getElementById("content").innerHTML=`
+    <div class="card">
+      <div class="card-head"><span class="card-title">Add Expense</span><span style="font-size:11px;color:var(--tx3)">${currentTerm} · ${currentSession}</span></div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end">
+        <div class="field" style="margin:0"><label>Description</label><input id="exp-desc" placeholder="e.g. January staff salaries" /></div>
+        <div class="field" style="margin:0"><label>Category</label>
+          <select id="exp-cat">${cats.map(c=>`<option>${c}</option>`).join("")}</select></div>
+        <div class="field" style="margin:0"><label>Amount (₦)</label>
+          <input type="number" id="exp-amount" min="0" placeholder="0" /></div>
+        <button class="btn btn-primary" style="height:38px" onclick="submitAddExpense()"><i class="ti ti-plus"></i> Add</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div class="field" style="margin:0"><label>Date</label><input type="date" id="exp-date" value="${today}" /></div>
+        <div class="field" style="margin:0"><label>Receipt / Reference (optional)</label><input id="exp-ref" placeholder="Receipt #, transfer ref…" /></div>
+      </div>
+      <div id="exp-status" style="margin-top:6px;font-size:12px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px">
+      ${cats.map(c=>`<div class="stat"><div class="stat-label" style="font-size:10px">${c}</div><div class="stat-val" style="font-size:16px">₦${byCat[c].toLocaleString()}</div></div>`).join("")}
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">All Expenses — ${currentTerm}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--tx-err)">Total: ₦${totalExp.toLocaleString()}</span>
+      </div>
+      ${expenseLog.length
+        ?`<table>
+            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Ref</th><th></th></tr></thead>
+            <tbody>${expenseLog.map(e=>`<tr>
+              <td style="white-space:nowrap">${e.expense_date}</td>
+              <td>${e.description}</td>
+              <td><span style="font-size:11px;color:var(--tx3)">${e.category}</span></td>
+              <td style="font-weight:600">₦${parseFloat(e.amount).toLocaleString()}</td>
+              <td style="color:var(--tx3);font-size:11px">${e.receipt_ref||"—"}</td>
+              <td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteExpense(${e.id})"><i class="ti ti-trash"></i></button></td>
+            </tr>`).join("")}</tbody>
+          </table>`
+        :`<div class="empty"><i class="ti ti-cash-banknote"></i>No expenses recorded for this term</div>`}
+    </div>`;
+}
+async function submitAddExpense(){
+  const desc=document.getElementById("exp-desc")?.value?.trim();
+  const cat=document.getElementById("exp-cat")?.value;
+  const amount=parseFloat(document.getElementById("exp-amount")?.value);
+  const date=document.getElementById("exp-date")?.value;
+  const ref=document.getElementById("exp-ref")?.value?.trim()||null;
+  const st=document.getElementById("exp-status");
+  if(!desc){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a description</span>`;return;}
+  if(!amount||amount<=0){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a valid amount</span>`;return;}
+  const {error}=await dbClient.from("expense_log").insert({description:desc,category:cat,amount,expense_date:date||new Date().toISOString().split("T")[0],receipt_ref:ref,term:currentTerm,session:currentSession});
+  if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+  await loadExpenseLog(); renderExpenses();
+}
+async function deleteExpense(id){
+  if(!confirm("Delete this expense entry?"))return;
+  await dbClient.from("expense_log").delete().eq("id",id);
+  await loadExpenseLog(); renderExpenses();
+}
+
+/* ── principal's desk: asset register ── */
+function renderAssets(){
+  document.getElementById("page-title").textContent="Asset Register";
+  document.getElementById("page-meta").textContent="All school assets";
+  document.getElementById("topbar-actions").innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddAsset()"><i class="ti ti-plus"></i> Add Asset</button>`;
+  const condColor={Good:"var(--tx-ok)",Fair:"var(--tx-warn)",Poor:"var(--tx-err)"};
+  const poor=assetsStore.filter(a=>a.condition==="Poor");
+  const today=new Date().toISOString().split("T")[0];
+  document.getElementById("content").innerHTML=`
+    ${poor.length?`<div class="card" style="border-color:var(--tx-err);margin-bottom:14px">
+      <div class="card-head"><span class="card-title" style="color:var(--tx-err)"><i class="ti ti-alert-triangle"></i> Needs attention — ${poor.length} item${poor.length>1?"s":""} in Poor condition</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${poor.map(a=>`<span style="background:var(--bg-err);color:var(--tx-err);border:.5px solid;padding:4px 10px;border-radius:20px;font-size:12px">${a.item_name} <span style="opacity:.7">${a.location||""}</span></span>`).join("")}
+      </div>
+    </div>`:""}
+    <div class="card">
+      <div class="card-head"><span class="card-title">All Assets (${assetsStore.length})</span></div>
+      ${assetsStore.length
+        ?`<div style="overflow-x:auto"><table>
+            <thead><tr><th>Item</th><th>Location</th><th>Qty</th><th>Condition</th><th>Responsible</th><th>Date</th><th>Notes</th><th></th></tr></thead>
+            <tbody>${assetsStore.map(a=>`<tr>
+              <td style="font-weight:500">${a.item_name}</td>
+              <td style="color:var(--tx2)">${a.location||"—"}</td>
+              <td>${a.quantity}</td>
+              <td><span style="color:${condColor[a.condition]||"var(--tx)"};font-weight:500">${a.condition}</span></td>
+              <td style="color:var(--tx2)">${a.responsible||"—"}</td>
+              <td style="color:var(--tx3);white-space:nowrap">${a.date_recorded}</td>
+              <td style="color:var(--tx3);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.notes||""}</td>
+              <td style="white-space:nowrap">
+                <button class="btn btn-sm" onclick="openEditAsset(${a.id})" style="margin-right:4px"><i class="ti ti-edit"></i></button>
+                <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteAsset(${a.id},'${a.item_name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
+              </td>
+            </tr>`).join("")}</tbody>
+          </table></div>`
+        :`<div class="empty"><i class="ti ti-package"></i>No assets recorded yet. Click "Add Asset" to start the register.</div>`}
+    </div>`;
+}
+function assetForm(a={}){
+  const today=new Date().toISOString().split("T")[0];
+  return`
+    <div class="field"><label>Item name</label><input id="ast-name" value="${a.item_name||""}" placeholder="e.g. Plastic student chairs" /></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Location / Room</label><input id="ast-loc" value="${a.location||""}" placeholder="e.g. JSS 1A classroom" /></div>
+      <div class="field"><label>Quantity</label><input type="number" id="ast-qty" value="${a.quantity||1}" min="1" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Condition</label>
+        <select id="ast-cond">
+          <option ${(a.condition||"Good")==="Good"?"selected":""}>Good</option>
+          <option ${a.condition==="Fair"?"selected":""}>Fair</option>
+          <option ${a.condition==="Poor"?"selected":""}>Poor</option>
+        </select></div>
+      <div class="field"><label>Responsible person</label><input id="ast-resp" value="${a.responsible||""}" placeholder="Name" /></div>
+    </div>
+    <div class="field"><label>Date recorded</label><input type="date" id="ast-date" value="${a.date_recorded||today}" /></div>
+    <div class="field"><label>Notes (optional)</label><textarea id="ast-notes" rows="2">${a.notes||""}</textarea></div>`;
+}
+function openAddAsset(){
+  openModal("Add Asset",assetForm()+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddAsset()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("ast-name")?.focus(),50);
+}
+function openEditAsset(id){
+  const a=assetsStore.find(x=>x.id===id); if(!a)return;
+  openModal("Edit Asset",assetForm(a)+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitEditAsset(${id})"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+function readAssetForm(){
+  return{
+    item_name:document.getElementById("ast-name")?.value?.trim(),
+    location:document.getElementById("ast-loc")?.value?.trim()||null,
+    quantity:parseInt(document.getElementById("ast-qty")?.value)||1,
+    condition:document.getElementById("ast-cond")?.value,
+    responsible:document.getElementById("ast-resp")?.value?.trim()||null,
+    date_recorded:document.getElementById("ast-date")?.value||new Date().toISOString().split("T")[0],
+    notes:document.getElementById("ast-notes")?.value?.trim()||null,
+  };
+}
+async function submitAddAsset(){
+  const d=readAssetForm();
+  if(!d.item_name){alert("Enter item name");return;}
+  const {error}=await dbClient.from("assets").insert(d);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadAssets(); renderAssets();
+}
+async function submitEditAsset(id){
+  const d=readAssetForm();
+  if(!d.item_name){alert("Enter item name");return;}
+  await dbClient.from("assets").update(d).eq("id",id);
+  closeModal(); await loadAssets(); renderAssets();
+}
+async function deleteAsset(id,name){
+  if(!confirm(`Delete "${name}" from asset register?`))return;
+  await dbClient.from("assets").delete().eq("id",id);
+  await loadAssets(); renderAssets();
+}
+
+/* ── principal's desk: incident log ── */
+function renderIncidentLog(){
+  document.getElementById("page-title").textContent="Incident & Communication Log";
+  document.getElementById("page-meta").textContent="All terms";
+  document.getElementById("topbar-actions").innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddIncident()"><i class="ti ti-plus"></i> Log Incident</button>`;
+  const openFollowups=incidentLog.filter(i=>i.follow_up);
+  const typeColor={"Parent Complaint":"var(--tx-warn)","Staff Issue":"var(--tx-err)","Student Discipline":"var(--tx-info)","External Visit":"var(--tx-ok)","Other":"var(--tx2)"};
+  const typeBg={"Parent Complaint":"var(--bg-warn)","Staff Issue":"var(--bg-err)","Student Discipline":"var(--bg-info)","External Visit":"var(--bg-ok)","Other":"var(--bg2)"};
+  document.getElementById("content").innerHTML=`
+    ${openFollowups.length?`<div class="card" style="border-color:var(--tx-warn);margin-bottom:14px">
+      <div class="card-head"><span class="card-title" style="color:var(--tx-warn)"><i class="ti ti-clock"></i> Open follow-ups — ${openFollowups.length}</span></div>
+      ${openFollowups.map(i=>`
+        <div style="padding:8px 0;border-bottom:.5px solid var(--bd3);font-size:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <span style="font-weight:500">${i.persons}</span>
+              <span style="color:var(--tx3);margin-left:6px">${i.incident_date}</span>
+              <span style="margin-left:6px;background:${typeBg[i.incident_type]||"var(--bg2)"};color:${typeColor[i.incident_type]||"var(--tx2)"};padding:1px 7px;border-radius:10px;font-size:10px">${i.incident_type}</span>
+            </div>
+            <button class="btn btn-sm" onclick="closeFollowup(${i.id})">Mark closed</button>
+          </div>
+          ${i.follow_up_note?`<div style="color:var(--tx2);margin-top:4px">${i.follow_up_note}</div>`:""}
+        </div>`).join("")}
+    </div>`:""}
+    <div class="card">
+      <div class="card-head"><span class="card-title">All Entries (${incidentLog.length})</span></div>
+      ${incidentLog.length
+        ?incidentLog.map(i=>`
+          <div style="padding:10px 0;border-bottom:.5px solid var(--bd3)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+                  <span style="font-weight:600;font-size:13px">${i.persons}</span>
+                  <span style="background:${typeBg[i.incident_type]||"var(--bg2)"};color:${typeColor[i.incident_type]||"var(--tx2)"};padding:2px 8px;border-radius:10px;font-size:11px">${i.incident_type}</span>
+                  <span style="font-size:11px;color:var(--tx3)">${i.incident_date}</span>
+                  ${i.follow_up?`<span style="background:var(--bg-warn);color:var(--tx-warn);padding:2px 7px;border-radius:10px;font-size:10px"><i class="ti ti-clock" style="font-size:9px"></i> Follow-up open</span>`:""}
+                </div>
+                <div style="font-size:12px;color:var(--tx);margin-bottom:3px">${i.description}</div>
+                ${i.action_taken?`<div style="font-size:12px;color:var(--tx2)"><strong>Action:</strong> ${i.action_taken}</div>`:""}
+                ${i.follow_up_note?`<div style="font-size:12px;color:var(--tx-warn);margin-top:2px"><strong>Follow-up:</strong> ${i.follow_up_note}</div>`:""}
+              </div>
+              <div style="display:flex;gap:4px;flex-shrink:0">
+                ${i.follow_up?`<button class="btn btn-sm" onclick="closeFollowup(${i.id})" style="font-size:11px">Close</button>`:""}
+                <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteIncident(${i.id})"><i class="ti ti-trash"></i></button>
+              </div>
+            </div>
+          </div>`).join("")
+        :`<div class="empty"><i class="ti ti-clipboard-list"></i>No incidents logged yet</div>`}
+    </div>`;
+}
+function incidentForm(i={}){
+  const today=new Date().toISOString().split("T")[0];
+  const types=["Parent Complaint","Staff Issue","Student Discipline","External Visit","Other"];
+  return`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Date</label><input type="date" id="inc-date" value="${i.incident_date||today}" /></div>
+      <div class="field"><label>Type</label>
+        <select id="inc-type">${types.map(t=>`<option ${i.incident_type===t?"selected":""}>${t}</option>`).join("")}</select></div>
+    </div>
+    <div class="field"><label>Person(s) involved</label><input id="inc-persons" value="${i.persons||""}" placeholder="e.g. Mrs. Okafor (parent), JSS 2A student" /></div>
+    <div class="field"><label>What happened</label><textarea id="inc-desc" rows="3" placeholder="Brief factual description…">${i.description||""}</textarea></div>
+    <div class="field"><label>Action taken</label><textarea id="inc-action" rows="2" placeholder="What was decided or done…">${i.action_taken||""}</textarea></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <input type="checkbox" id="inc-followup" style="width:auto" ${i.follow_up?"checked":""} />
+      <label for="inc-followup" style="margin:0;font-size:13px;cursor:pointer">Follow-up required</label>
+    </div>
+    <div class="field" id="inc-followup-field" style="${i.follow_up?"":"display:none"}"><label>Follow-up note</label>
+      <input id="inc-followup-note" value="${i.follow_up_note||""}" placeholder="What needs to happen…" /></div>`;
+}
+function openAddIncident(){
+  openModal("Log Incident",incidentForm()+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddIncident()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>{
+    document.getElementById("inc-followup")?.addEventListener("change",e=>{
+      document.getElementById("inc-followup-field").style.display=e.target.checked?"":"none";
+    });
+    document.getElementById("inc-persons")?.focus();
+  },50);
+}
+function readIncidentForm(){
+  return{
+    incident_date:document.getElementById("inc-date")?.value||new Date().toISOString().split("T")[0],
+    incident_type:document.getElementById("inc-type")?.value,
+    persons:document.getElementById("inc-persons")?.value?.trim(),
+    description:document.getElementById("inc-desc")?.value?.trim(),
+    action_taken:document.getElementById("inc-action")?.value?.trim()||null,
+    follow_up:document.getElementById("inc-followup")?.checked||false,
+    follow_up_note:document.getElementById("inc-followup-note")?.value?.trim()||null,
+  };
+}
+async function submitAddIncident(){
+  const d=readIncidentForm();
+  if(!d.persons){alert("Enter persons involved");return;}
+  if(!d.description){alert("Enter a description");return;}
+  const {error}=await dbClient.from("incident_log").insert(d);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadIncidentLog(); renderIncidentLog();
+}
+async function closeFollowup(id){
+  await dbClient.from("incident_log").update({follow_up:false}).eq("id",id);
+  await loadIncidentLog(); renderIncidentLog();
+}
+async function deleteIncident(id){
+  if(!confirm("Delete this incident log entry?"))return;
+  await dbClient.from("incident_log").delete().eq("id",id);
+  await loadIncidentLog(); renderIncidentLog();
 }
 
 /* ── admin: fee setup tab ── */
