@@ -2925,7 +2925,7 @@ async function saveAdminPin(){
   if(!pin){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a PIN</span>`;return;}
   if(pin!==pin2){if(st)st.innerHTML=`<span style="color:var(--tx-err)">PINs do not match</span>`;return;}
   const hash=await sha256(pin);
-  const{error}=await dbClient.from("admin_config").upsert({id:1,admin_pin_hash:hash},{onConflict:"id"});
+  const{error}=await dbClient.from("admin_config").update({admin_pin_hash:hash}).eq("id",1);
   if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
   storedAdminPinHash=hash;
   if(st)st.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Admin PIN saved</span>`;
