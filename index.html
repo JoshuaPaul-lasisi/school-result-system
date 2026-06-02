@@ -723,7 +723,7 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Fee Payments</div>
         <div class="nav-item" onclick="nav('finance-expenses',null,this)"><i class="ti ti-cash-banknote"></i>Expenses</div>
         <div class="nav-item" onclick="nav('stock',null,this)"><i class="ti ti-shopping-bag"></i>Stock & Sales</div>
-        <div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>
+        ${canDo('principal')?`<div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>`:""}
       </div>`,
     students:`
       <div class="nav-section">
@@ -2163,23 +2163,57 @@ function renderFinanceDashboard(){
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
   document.getElementById("topbar-actions").innerHTML="";
 
+  const today=new Date().toISOString().split("T")[0];
+
+  // ── admin: today-only view ──────────────────────────────────────────────────
+  if(_role==='admin'){
+    const todayPayments=paymentLog.filter(p=>p.payment_date===today);
+    const todayFees=todayPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const todayExpenses=expenseLog.filter(e=>e.expense_date===today).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    const todaySales=inventoryTxns.filter(t=>t.transaction_type==='sale'&&t.transaction_date===today).reduce((s,t)=>s+parseFloat(t.total_value||0),0);
+    const todayNet=todayFees+todaySales-todayExpenses;
+    document.getElementById("content").innerHTML=`
+      <div style="background:var(--bg2);border:.5px solid var(--bd3);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--tx2);margin-bottom:14px;display:flex;align-items:center;gap:8px">
+        <i class="ti ti-calendar" style="color:var(--navy)"></i>
+        Today — <strong>${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</strong>
+      </div>
+      <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+        <div class="stat"><div class="stat-label">Fees collected today</div><div class="stat-val" style="color:var(--tx-ok)">₦${todayFees.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Stock sales today</div><div class="stat-val" style="color:var(--tx-ok)">₦${todaySales.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Expenses today</div><div class="stat-val" style="color:var(--tx-err)">₦${todayExpenses.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Today's net</div><div class="stat-val" style="color:${todayNet>=0?"var(--tx-ok)":"var(--tx-err)"}">₦${todayNet.toLocaleString()}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Fee payments today</span>
+          <span style="font-weight:600;color:var(--tx-ok)">₦${todayFees.toLocaleString()}</span>
+        </div>
+        ${todayPayments.length?`<div style="display:flex;flex-direction:column;gap:4px">
+          ${todayPayments.map(p=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg2);border-radius:var(--r);font-size:12px">
+              <div>
+                <div style="font-weight:500">${p.student_name||"—"}</div>
+                <div style="color:var(--tx3)">${p.fee_name||"Payment"} · ${p.payment_method}</div>
+              </div>
+              <span style="font-weight:600;color:var(--tx-ok)">₦${parseFloat(p.amount).toLocaleString()}</span>
+            </div>`).join("")}
+        </div>`:`<div class="empty"><i class="ti ti-receipt-off"></i>No fee payments today</div>`}
+      </div>`;
+    return;
+  }
+
+  // ── principal: full view ───────────────────────────────────────────────────
   const totalExpected=roster.reduce((s,st)=>s+feeOwedFor(st.cls),0);
   const totalCollected=paymentLog.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const outstanding=Math.max(0,totalExpected-totalCollected);
   const pct=totalExpected>0?Math.round(totalCollected/totalExpected*100):0;
 
-  // defaulters: students who have paid 0
   const defaulters=roster.filter(s=>amountPaidFor(s.id)===0&&feeOwedFor(s.cls)>0)
     .sort((a,b)=>a.name.localeCompare(b.name));
-
-  // partial payers
   const partial=roster.filter(s=>{const paid=amountPaidFor(s.id);const owed=feeOwedFor(s.cls);return paid>0&&paid<owed;})
     .sort((a,b)=>a.name.localeCompare(b.name));
-
-  // recent payments (last 10)
   const recent=paymentLog.slice(0,10);
 
-  // by class group
   const groups=["Pre-Primary","Primary","JSS","SS"];
   const groupStats=groups.map(g=>{
     const gStudents=roster.filter(s=>classGroupFor(s.cls)===g);
@@ -2380,6 +2414,13 @@ function renderFinanceLedger(){
   document.getElementById("page-title").textContent="Payment Ledger";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
   document.getElementById("topbar-actions").innerHTML="";
+  if(!canDo('principal')){
+    document.getElementById("content").innerHTML=`<div class="card" style="max-width:420px">
+      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> Principal access required</span></div>
+      <p style="font-size:13px;color:var(--tx2)">The full payment ledger is only visible to the principal.</p>
+    </div>`;
+    return;
+  }
 
   const annexOpts=`<select onchange="setAnnexFilter(this.value)" style="min-width:120px">
     <option value="">All annexes</option>
@@ -2431,12 +2472,10 @@ function renderExpenses(){
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
   document.getElementById("topbar-actions").innerHTML="";
   const cats=["Staff Cost","Supplies","Maintenance","Programme Cost","Other"];
-  const totalExp=expenseLog.reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const byCat={};
-  cats.forEach(c=>byCat[c]=expenseLog.filter(e=>e.category===c).reduce((s,e)=>s+parseFloat(e.amount||0),0));
   const today=new Date().toISOString().split("T")[0];
-  document.getElementById("content").innerHTML=`
-    ${!canDo('admin')?signInNotice('log expenses'):""}
+
+  // shared: add-expense form
+  const addForm=`
     <div class="card">
       <div class="card-head"><span class="card-title">Add Expense</span><span style="font-size:11px;color:var(--tx3)">${currentTerm} · ${currentSession}</span></div>
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end">
@@ -2452,7 +2491,39 @@ function renderExpenses(){
         <div class="field" style="margin:0"><label>Receipt / Reference (optional)</label><input id="exp-ref" placeholder="Receipt #, transfer ref…" /></div>
       </div>
       <div id="exp-status" style="margin-top:6px;font-size:12px"></div>
-    </div>
+    </div>`;
+
+  // ── admin: today-only view ──────────────────────────────────────────────────
+  if(_role==='admin'){
+    const todayExps=expenseLog.filter(e=>e.expense_date===today);
+    const todayTotal=todayExps.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    document.getElementById("content").innerHTML=`
+      ${!canDo('admin')?signInNotice('log expenses'):""}
+      ${addForm}
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Today's expenses</span>
+          <span style="font-weight:600;color:var(--tx-err)">₦${todayTotal.toLocaleString()}</span>
+        </div>
+        ${todayExps.length
+          ?`<table><thead><tr><th>Description</th><th>Category</th><th>Amount</th><th>Ref</th></tr></thead>
+              <tbody>${todayExps.map(e=>`<tr>
+                <td>${e.description}</td>
+                <td><span style="font-size:11px;color:var(--tx3)">${e.category}</span></td>
+                <td style="font-weight:600">₦${parseFloat(e.amount).toLocaleString()}</td>
+                <td style="color:var(--tx3);font-size:11px">${e.receipt_ref||"—"}</td>
+              </tr>`).join("")}</tbody></table>`
+          :`<div class="empty"><i class="ti ti-cash-banknote"></i>No expenses logged today</div>`}
+      </div>`;
+    return;
+  }
+
+  // ── principal: full term view ──────────────────────────────────────────────
+  const totalExp=expenseLog.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const byCat={};
+  cats.forEach(c=>byCat[c]=expenseLog.filter(e=>e.category===c).reduce((s,e)=>s+parseFloat(e.amount||0),0));
+  document.getElementById("content").innerHTML=`
+    ${addForm}
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px">
       ${cats.map(c=>`<div class="stat"><div class="stat-label" style="font-size:10px">${c}</div><div class="stat-val" style="font-size:16px">₦${byCat[c].toLocaleString()}</div></div>`).join("")}
     </div>
