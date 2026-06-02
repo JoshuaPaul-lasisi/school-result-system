@@ -130,10 +130,17 @@ CREATE TABLE IF NOT EXISTS exam_papers (
 -- ── admin ─────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS admin_config (
-  id         INTEGER PRIMARY KEY DEFAULT 1,
-  pin_hash   TEXT NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id               INTEGER PRIMARY KEY DEFAULT 1,
+  pin_hash         TEXT NOT NULL,
+  admin_pin_hash   TEXT,           -- separate PIN for office admin role
+  updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add admin_pin_hash to existing installs
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_config' AND column_name='admin_pin_hash')
+  THEN ALTER TABLE admin_config ADD COLUMN admin_pin_hash TEXT; END IF;
+END $$;
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
@@ -414,3 +421,45 @@ CREATE INDEX IF NOT EXISTS expense_log_term_session ON expense_log(term, session
 CREATE INDEX IF NOT EXISTS assets_condition         ON assets(condition);
 CREATE INDEX IF NOT EXISTS incident_log_date        ON incident_log(incident_date);
 CREATE INDEX IF NOT EXISTS incident_log_followup    ON incident_log(follow_up);
+
+-- ── inventory / stock management ──────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS inventory_items (
+  id                  BIGSERIAL PRIMARY KEY,
+  item_name           TEXT NOT NULL,
+  category            TEXT NOT NULL
+                      CHECK (category IN ('Uniform','Sportswear','Tuesday Wear','Textbooks','Stationery','Other')),
+  unit_price          NUMERIC(10,2) NOT NULL DEFAULT 0,
+  low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+  notes               TEXT,
+  created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Every stock movement: positive qty = in, negative qty = out
+CREATE TABLE IF NOT EXISTS inventory_transactions (
+  id               BIGSERIAL PRIMARY KEY,
+  item_id          BIGINT NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+  transaction_type TEXT NOT NULL
+                   CHECK (transaction_type IN ('stock_in','sale','adjustment')),
+  quantity         INTEGER NOT NULL,       -- signed: +in, -out
+  unit_price       NUMERIC(10,2) DEFAULT 0,
+  total_value      NUMERIC(10,2) DEFAULT 0, -- always positive (revenue for sales, cost for stock_in)
+  student_name     TEXT,                   -- optional, for sales
+  note             TEXT,
+  transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  term             TEXT NOT NULL,
+  session          TEXT NOT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE inventory_items        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_transactions ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='inventory_items'        AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON inventory_items        FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='inventory_transactions' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON inventory_transactions FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS inv_txns_item_id      ON inventory_transactions(item_id);
+CREATE INDEX IF NOT EXISTS inv_txns_term_session ON inventory_transactions(term, session);
+CREATE INDEX IF NOT EXISTS inv_txns_date         ON inventory_transactions(transaction_date);
