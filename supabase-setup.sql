@@ -463,3 +463,61 @@ END $$;
 CREATE INDEX IF NOT EXISTS inv_txns_item_id      ON inventory_transactions(item_id);
 CREATE INDEX IF NOT EXISTS inv_txns_term_session ON inventory_transactions(term, session);
 CREATE INDEX IF NOT EXISTS inv_txns_date         ON inventory_transactions(transaction_date);
+
+-- ── entrance & transfer exam system ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS feeder_schools (
+  id              BIGSERIAL PRIMARY KEY,
+  name            TEXT NOT NULL,
+  address         TEXT,
+  contact_person  TEXT,
+  email           TEXT,
+  phone           TEXT,
+  discount_note   TEXT,   -- e.g. "5% off for 10+ students referred"
+  notes           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS external_candidates (
+  id                BIGSERIAL PRIMARY KEY,
+  name              TEXT NOT NULL,
+  gender            TEXT CHECK (gender IN ('Male','Female')),
+  dob               DATE,
+  phone             TEXT,
+  parent_name       TEXT,
+  parent_phone      TEXT,
+  parent_email      TEXT,
+  feeder_school_id  BIGINT REFERENCES feeder_schools(id),
+  exam_date         DATE NOT NULL DEFAULT CURRENT_DATE,
+  exam_session      TEXT NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'wrote'
+                    CHECK (status IN ('wrote','admitted','enrolled','declined')),
+  notes             TEXT,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Fixed subjects: Mathematics, English, Verbal Reasoning, Quantitative Aptitude, General Reasoning
+CREATE TABLE IF NOT EXISTS candidate_scores (
+  id            BIGSERIAL PRIMARY KEY,
+  candidate_id  BIGINT NOT NULL REFERENCES external_candidates(id) ON DELETE CASCADE,
+  subject       TEXT NOT NULL,
+  score         NUMERIC(5,1),
+  max_score     NUMERIC(5,1) NOT NULL DEFAULT 100,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(candidate_id, subject)
+);
+
+ALTER TABLE feeder_schools      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE external_candidates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE candidate_scores    ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='feeder_schools'      AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON feeder_schools      FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='external_candidates' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON external_candidates FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='candidate_scores'    AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON candidate_scores    FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS ext_cand_school        ON external_candidates(feeder_school_id);
+CREATE INDEX IF NOT EXISTS ext_cand_session       ON external_candidates(exam_session);
+CREATE INDEX IF NOT EXISTS ext_cand_date          ON external_candidates(exam_date);
+CREATE INDEX IF NOT EXISTS cand_scores_candidate  ON candidate_scores(candidate_id);

@@ -318,6 +318,7 @@
     .tile-ic-students  {background:#fde8ac} .tile-ic-students   i{color:#a85208}
     .tile-ic-staff     {background:#e4d2f7} .tile-ic-staff      i{color:#5e1890}
     .tile-ic-principal {background:#f4ccd4} .tile-ic-principal  i{color:#8B1A2F}
+    .tile-ic-entrance  {background:#cdf0ea} .tile-ic-entrance   i{color:#0d6b52}
 
     /* ── dark mode ── */
     [data-theme="dark"]{
@@ -342,6 +343,7 @@
     [data-theme="dark"] .tile-ic-students  {background:#28200a} [data-theme="dark"] .tile-ic-students  i{color:#fbbf24}
     [data-theme="dark"] .tile-ic-staff     {background:#1e1032} [data-theme="dark"] .tile-ic-staff     i{color:#c084fc}
     [data-theme="dark"] .tile-ic-principal {background:#2a0a16} [data-theme="dark"] .tile-ic-principal i{color:#fb7185}
+    [data-theme="dark"] .tile-ic-entrance  {background:#062820} [data-theme="dark"] .tile-ic-entrance  i{color:#34d399}
 
     /* ── theme toggle FAB ── */
     .theme-fab{position:fixed;bottom:22px;right:22px;width:42px;height:42px;border-radius:50%;background:var(--navy);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 3px 14px rgba(0,0,0,.28);z-index:150;transition:background .2s,transform .15s}
@@ -580,6 +582,11 @@ let dailyAttDate = new Date().toISOString().split("T")[0];
 let dailyAttCls = "";
 let _schFilter = "";
 let _curSection = null;
+let feederSchools = [];
+let externalCandidates = [];
+let candidateScoresMap = {};  // candidateScoresMap[candidate_id][subject] = {id,score,max_score}
+let _candFilter = { school:"", status:"", session:"" };
+let _candScoreTarget = null;  // candidate id currently selected for score entry
 
 /* ── hub & section navigation ── */
 const SECTION_META = {
@@ -587,8 +594,10 @@ const SECTION_META = {
   finance:          { icon:"ti-cash",          bg:"#e8f5e9", color:"#2e7d32", label:"Finance" },
   students:         { icon:"ti-user-search",   bg:"#fff8e1", color:"#d97706", label:"Students" },
   staff:            { icon:"ti-users",          bg:"#f3e8ff", color:"#6a1b9a", label:"Staff" },
+  entrance:         { icon:"ti-id-badge",       bg:"#e0faf4", color:"#0d6b52", label:"Entrance & Transfer" },
   "principals-desk":{ icon:"ti-shield-lock",   bg:"#fdeef1", color:"#8B1A2F", label:"Principal's Desk" },
 };
+const ENTRANCE_SUBJECTS = ["Mathematics","English","Verbal Reasoning","Quantitative Aptitude","General Reasoning"];
 
 function renderHub(){
   _curSection=null;
@@ -623,6 +632,7 @@ function renderHub(){
           {id:"finance",         icCls:"tile-ic-finance",    icon:"ti-cash",        label:"Finance",          desc:"Fee structure, payments & ledger"},
           {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:"Student records & report cards"},
           {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:"Staff directory & assignments"},
+          {id:"entrance",        icCls:"tile-ic-entrance",   icon:"ti-id-badge",    label:"Entrance & Transfer", desc:"External candidates, feeder schools & results"},
           {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", locked:true},
         ].map(t=>`
           <div class="hub-tile${t.locked?" tile-locked":""}" onclick="enterSection('${t.id}')">
@@ -666,6 +676,7 @@ function enterSection(name){
     finance:         ()=>{ _curPage="finance-dashboard"; renderFinanceDashboard(); },
     students:        ()=>{ _curPage="search"; renderSearch(); },
     staff:           ()=>{ _curPage="staff"; renderStaffDirectory(); },
+    entrance:        ()=>{ _curPage="candidates"; renderCandidates(); },
     "principals-desk":()=>{ _curPage="settings"; renderSettings(); },
   };
   (defaults[name]||defaults.academic)();
@@ -735,6 +746,20 @@ function renderSidebar(section){
         <div class="nav-label">Staff</div>
         <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
       </div>`,
+    entrance:`
+      <div class="nav-section">
+        <div class="nav-label">Candidates</div>
+        <div class="nav-item" onclick="nav('candidates',null,this)"><i class="ti ti-users"></i>All Candidates</div>
+        <div class="nav-item" onclick="nav('entrance-scores',null,this)"><i class="ti ti-clipboard-list"></i>Enter Scores</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Schools</div>
+        <div class="nav-item" onclick="nav('feeder-schools',null,this)"><i class="ti ti-building-school"></i>Feeder Schools</div>
+      </div>
+      ${canDo('principal')?`<div class="nav-section">
+        <div class="nav-label">Results</div>
+        <div class="nav-item" onclick="nav('email-results',null,this)"><i class="ti ti-mail"></i>Email Results</div>
+      </div>`:""}`,
     "principals-desk":`
       <div class="nav-section">
         <div class="nav-label">Records</div>
@@ -748,7 +773,7 @@ function renderSidebar(section){
       </div>`,
   }[section]||"";
 
-  const icCls={'principals-desk':'tile-ic-principal'}[section]||`tile-ic-${section}`;
+  const icCls={'principals-desk':'tile-ic-principal','entrance':'tile-ic-entrance'}[section]||`tile-ic-${section}`;
   document.getElementById("sidebar-nav").innerHTML=`
     <div class="nav-back" onclick="navToHub()"><i class="ti ti-arrow-left"></i> All Sections</div>
     <div class="section-hdr">
@@ -926,6 +951,28 @@ async function loadIncidentLog() {
     .select("*").order("incident_date",{ascending:false}).order("created_at",{ascending:false});
   if (!error && data) incidentLog = data;
 }
+async function loadFeederSchools() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("feeder_schools").select("*").order("name");
+  if (!error && data) feederSchools = data;
+}
+async function loadExternalCandidates() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("external_candidates")
+    .select("*").order("exam_date",{ascending:false}).order("name");
+  if (!error && data) externalCandidates = data;
+}
+async function loadCandidateScores() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("candidate_scores").select("*");
+  if (!error && data) {
+    candidateScoresMap = {};
+    data.forEach(r=>{
+      if(!candidateScoresMap[r.candidate_id]) candidateScoresMap[r.candidate_id]={};
+      candidateScoresMap[r.candidate_id][r.subject]={id:r.id,score:r.score,max_score:r.max_score};
+    });
+  }
+}
 async function loadInventoryItems() {
   if (!dbClient) return;
   const {data,error} = await dbClient.from("inventory_items").select("*").order("category").order("item_name");
@@ -941,7 +988,7 @@ async function loadInventoryTxns() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1054,6 +1101,10 @@ function nav(page,arg,el){
   else if(page==="assets")renderAssets();
   else if(page==="incidents")renderIncidentLog();
   else if(page==="stock")renderInventory();
+  else if(page==="candidates")renderCandidates();
+  else if(page==="entrance-scores")renderEntranceScores();
+  else if(page==="feeder-schools")renderFeederSchools();
+  else if(page==="email-results")renderEmailResults();
 }
 function setAnnexFilter(val){
   currentAnnexFilter=val;
@@ -3546,6 +3597,491 @@ function toggleTheme(){
   const fab=document.getElementById('theme-fab');
   if(fab&&localStorage.getItem('theme')==='dark') fab.innerHTML='<i class="ti ti-sun"></i>';
 })();
+
+/* ── entrance & transfer system ── */
+
+function candidateTotalScore(cid){
+  const s=candidateScoresMap[cid]||{};
+  return ENTRANCE_SUBJECTS.reduce((t,sub)=>t+(parseFloat(s[sub]?.score)||0),0);
+}
+function candidateMaxScore(){ return ENTRANCE_SUBJECTS.length*100; }
+function entranceGrade(total,max){
+  const p=max>0?total/max*100:0;
+  if(p>=80)return'A';if(p>=70)return'B';if(p>=60)return'C';if(p>=50)return'Pass';return'Fail';
+}
+function gradeColor(g){ return{A:'var(--tx-ok)',B:'var(--tx-ok)',C:'var(--tx-info)',Pass:'var(--tx-warn)',Fail:'var(--tx-err)'}[g]||'var(--tx)'; }
+function hasScores(cid){ return ENTRANCE_SUBJECTS.some(s=>candidateScoresMap[cid]?.[s]?.score!=null); }
+
+const CAND_STATUS_LABELS={wrote:'Wrote Exam',admitted:'Admitted',enrolled:'Enrolled',declined:'Declined'};
+const CAND_STATUS_COLORS={wrote:'var(--tx-info)',admitted:'var(--tx-ok)',enrolled:'#0d6b52',declined:'var(--tx3)'};
+
+function renderCandidates(){
+  document.getElementById("page-title").textContent="Candidates";
+  document.getElementById("page-meta").textContent="External exam candidates";
+  document.getElementById("topbar-actions").innerHTML=canDo('admin')
+    ?`<button class="btn btn-primary btn-sm" onclick="openAddCandidate()"><i class="ti ti-plus"></i> Register Candidate</button>`:"";
+
+  const sessions=[...new Set(externalCandidates.map(c=>c.exam_session))].sort().reverse();
+  const schools=[...new Set(externalCandidates.map(c=>c.feeder_school_id).filter(Boolean))];
+
+  let list=externalCandidates;
+  if(_candFilter.session) list=list.filter(c=>c.exam_session===_candFilter.session);
+  if(_candFilter.school)  list=list.filter(c=>String(c.feeder_school_id)===_candFilter.school);
+  if(_candFilter.status)  list=list.filter(c=>c.status===_candFilter.status);
+
+  const total=list.length;
+  const scored=list.filter(c=>hasScores(c.id)).length;
+  const avgScore=scored>0?Math.round(list.filter(c=>hasScores(c.id))
+    .reduce((s,c)=>s+candidateTotalScore(c.id),0)/scored):0;
+  const maxS=candidateMaxScore();
+  const passed=list.filter(c=>hasScores(c.id)&&candidateTotalScore(c.id)/maxS*100>=50).length;
+
+  document.getElementById("content").innerHTML=`
+    <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <div class="stat"><div class="stat-label">Total candidates</div><div class="stat-val">${total}</div></div>
+      <div class="stat"><div class="stat-label">Scored</div><div class="stat-val">${scored}</div></div>
+      <div class="stat"><div class="stat-label">Avg score</div><div class="stat-val">${scored?avgScore+'/'+maxS:'—'}</div></div>
+      <div class="stat"><div class="stat-label">Pass rate</div><div class="stat-val" style="color:var(--tx-ok)">${scored?Math.round(passed/scored*100)+'%':'—'}</div></div>
+    </div>
+    <div class="filter-bar" style="margin-bottom:12px">
+      <select onchange="_candFilter.session=this.value;renderCandidates()" style="min-width:130px">
+        <option value="">All sessions</option>
+        ${sessions.map(s=>`<option ${s===_candFilter.session?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select onchange="_candFilter.school=this.value;renderCandidates()" style="min-width:140px">
+        <option value="">All schools</option>
+        ${feederSchools.map(s=>`<option value="${s.id}" ${String(s.id)===_candFilter.school?'selected':''}>${s.name}</option>`).join('')}
+        <option value="0" ${'0'===_candFilter.school?'selected':''}>Private / no school</option>
+      </select>
+      <select onchange="_candFilter.status=this.value;renderCandidates()" style="min-width:120px">
+        <option value="">All statuses</option>
+        ${Object.entries(CAND_STATUS_LABELS).map(([v,l])=>`<option value="${v}" ${v===_candFilter.status?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>
+    ${list.length===0
+      ?`<div class="card"><div class="empty"><i class="ti ti-users-off"></i>No candidates match${canDo('admin')?" — click Register Candidate to add one":""}</div></div>`
+      :`<div class="card"><div style="overflow-x:auto"><table>
+        <thead><tr><th>Name</th><th>School</th><th>Session</th><th>Exam date</th><th>Total</th><th>Grade</th><th>Status</th><th></th></tr></thead>
+        <tbody>${list.map(c=>{
+          const school=feederSchools.find(s=>s.id===c.feeder_school_id);
+          const tot=hasScores(c.id)?candidateTotalScore(c.id):null;
+          const grade=tot!=null?entranceGrade(tot,maxS):null;
+          return`<tr>
+            <td style="font-weight:500">${c.name}</td>
+            <td style="font-size:12px;color:var(--tx2)">${school?school.name:'—'}</td>
+            <td style="font-size:12px;color:var(--tx3)">${c.exam_session||'—'}</td>
+            <td style="font-size:12px;color:var(--tx3);white-space:nowrap">${c.exam_date||'—'}</td>
+            <td style="font-weight:600">${tot!=null?tot+'/'+maxS:'—'}</td>
+            <td>${grade?`<span style="font-size:12px;font-weight:700;color:${gradeColor(grade)}">${grade}</span>`:'—'}</td>
+            <td><span style="font-size:11px;font-weight:500;color:${CAND_STATUS_COLORS[c.status]}">${CAND_STATUS_LABELS[c.status]||c.status}</span></td>
+            <td style="white-space:nowrap">
+              ${canDo('admin')?`<button class="btn btn-sm" style="padding:3px 8px;margin-right:3px" onclick="openEditCandidate(${c.id})"><i class="ti ti-pencil"></i></button>`:''}
+              ${canDo('principal')?`<button class="btn btn-sm" style="padding:3px 8px;color:var(--tx-err)" onclick="deleteCandidate(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>`:''}
+            </td>
+          </tr>`;}).join('')}
+        </tbody></table></div></div>`}`;
+}
+
+function candidateForm(c={}){
+  const today=new Date().toISOString().split("T")[0];
+  return`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field" style="grid-column:1/-1"><label>Full name</label>
+        <input id="cnd-name" value="${c.name||''}" placeholder="Candidate's full name" /></div>
+      <div class="field"><label>Gender</label>
+        <select id="cnd-gender">
+          <option value="">— select —</option>
+          <option ${c.gender==='Male'?'selected':''}>Male</option>
+          <option ${c.gender==='Female'?'selected':''}>Female</option>
+        </select></div>
+      <div class="field"><label>Date of birth (optional)</label>
+        <input type="date" id="cnd-dob" value="${c.dob||''}" /></div>
+      <div class="field"><label>Feeder school</label>
+        <select id="cnd-school">
+          <option value="">Private / no school</option>
+          ${feederSchools.map(s=>`<option value="${s.id}" ${c.feeder_school_id===s.id?'selected':''}>${s.name}</option>`).join('')}
+        </select></div>
+      <div class="field"><label>Exam session (e.g. 2025/2026)</label>
+        <input id="cnd-session" value="${c.exam_session||currentSession}" placeholder="2025/2026" /></div>
+      <div class="field"><label>Exam date</label>
+        <input type="date" id="cnd-date" value="${c.exam_date||today}" /></div>
+      <div class="field"><label>Status</label>
+        <select id="cnd-status">
+          ${Object.entries(CAND_STATUS_LABELS).map(([v,l])=>`<option value="${v}" ${(c.status||'wrote')===v?'selected':''}>${l}</option>`).join('')}
+        </select></div>
+    </div>
+    <div style="border-top:.5px solid var(--bd3);margin:10px 0;padding-top:10px">
+      <div style="font-size:12px;font-weight:500;color:var(--tx2);margin-bottom:8px">Parent / Guardian</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Name</label>
+          <input id="cnd-pname" value="${c.parent_name||''}" placeholder="Parent/guardian name" /></div>
+        <div class="field"><label>Phone</label>
+          <input id="cnd-pphone" value="${c.parent_phone||''}" placeholder="Phone number" /></div>
+        <div class="field" style="grid-column:1/-1"><label>Email (optional)</label>
+          <input type="email" id="cnd-pemail" value="${c.parent_email||''}" placeholder="Parent email…" /></div>
+      </div>
+    </div>
+    <div class="field"><label>Notes (optional)</label>
+      <input id="cnd-notes" value="${c.notes||''}" placeholder="Any additional notes…" /></div>`;
+}
+function readCandidateForm(){
+  return{
+    name:document.getElementById("cnd-name")?.value?.trim(),
+    gender:document.getElementById("cnd-gender")?.value||null,
+    dob:document.getElementById("cnd-dob")?.value||null,
+    feeder_school_id:parseInt(document.getElementById("cnd-school")?.value)||null,
+    exam_session:document.getElementById("cnd-session")?.value?.trim()||currentSession,
+    exam_date:document.getElementById("cnd-date")?.value||new Date().toISOString().split("T")[0],
+    status:document.getElementById("cnd-status")?.value||'wrote',
+    parent_name:document.getElementById("cnd-pname")?.value?.trim()||null,
+    parent_phone:document.getElementById("cnd-pphone")?.value?.trim()||null,
+    parent_email:document.getElementById("cnd-pemail")?.value?.trim()||null,
+    notes:document.getElementById("cnd-notes")?.value?.trim()||null,
+  };
+}
+function openAddCandidate(){
+  if(!canDo('admin')){alert("Sign in first");return;}
+  openModal("Register Candidate",candidateForm()+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddCandidate()"><i class="ti ti-check"></i> Register</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("cnd-name")?.focus(),50);
+}
+function openEditCandidate(id){
+  if(!canDo('admin')){alert("Sign in first");return;}
+  const c=externalCandidates.find(x=>x.id===id);if(!c)return;
+  openModal("Edit Candidate",candidateForm(c)+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitEditCandidate(${id})"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("cnd-name")?.focus(),50);
+}
+async function submitAddCandidate(){
+  const d=readCandidateForm();
+  if(!d.name){alert("Enter candidate name");return;}
+  const{error}=await dbClient.from("external_candidates").insert(d);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadExternalCandidates(); renderCandidates();
+}
+async function submitEditCandidate(id){
+  const d=readCandidateForm();
+  if(!d.name){alert("Enter candidate name");return;}
+  const{error}=await dbClient.from("external_candidates").update(d).eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadExternalCandidates(); renderCandidates();
+}
+async function deleteCandidate(id,name){
+  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!confirm(`Delete "${name}" and all their scores?`))return;
+  await dbClient.from("external_candidates").delete().eq("id",id);
+  await Promise.all([loadExternalCandidates(),loadCandidateScores()]); renderCandidates();
+}
+
+function renderEntranceScores(){
+  document.getElementById("page-title").textContent="Enter Scores";
+  document.getElementById("page-meta").textContent="Entrance exam scores";
+  document.getElementById("topbar-actions").innerHTML="";
+
+  const sessions=[...new Set(externalCandidates.map(c=>c.exam_session))].sort().reverse();
+  const selSession=_candScoreTarget?
+    (externalCandidates.find(c=>c.id===_candScoreTarget)?.exam_session||sessions[0]||currentSession)
+    :(sessions[0]||currentSession);
+  const list=externalCandidates.filter(c=>c.exam_session===selSession)
+    .sort((a,b)=>a.name.localeCompare(b.name));
+
+  if(!canDo('admin')){
+    document.getElementById("content").innerHTML=signInNotice('enter scores');return;
+  }
+
+  document.getElementById("content").innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <select onchange="renderEntranceScoresForSession(this.value)" style="width:auto">
+        ${sessions.map(s=>`<option ${s===selSession?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <span style="font-size:12px;color:var(--tx3)">${list.length} candidates</span>
+    </div>
+    ${list.length===0
+      ?`<div class="card"><div class="empty"><i class="ti ti-clipboard-x"></i>No candidates for this session</div></div>`
+      :`<div class="card"><div style="overflow-x:auto"><table id="score-tbl">
+        <thead>
+          <tr>
+            <th>Candidate</th>
+            ${ENTRANCE_SUBJECTS.map(s=>`<th style="min-width:90px">${s}</th>`).join('')}
+            <th>Total</th>
+            <th>Grade</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${list.map(c=>{
+          const sc=candidateScoresMap[c.id]||{};
+          const tot=hasScores(c.id)?candidateTotalScore(c.id):null;
+          const grade=tot!=null?entranceGrade(tot,candidateMaxScore()):null;
+          return`<tr id="scrow-${c.id}">
+            <td style="font-weight:500;white-space:nowrap">${c.name}</td>
+            ${ENTRANCE_SUBJECTS.map(sub=>`
+              <td><input type="number" min="0" max="100" step="0.5"
+                value="${sc[sub]?.score??''}"
+                style="width:76px;padding:5px 8px;border:.5px solid var(--bd2);border-radius:var(--r);background:var(--bg);color:var(--tx);font-size:12px"
+                placeholder="—"
+                onchange="updateScoreRowTotal(${c.id})"
+                data-cid="${c.id}" data-sub="${sub.replace(/"/g,'&quot;')}" /></td>`).join('')}
+            <td id="tot-${c.id}" style="font-weight:600">${tot!=null?tot+'/'+candidateMaxScore():'—'}</td>
+            <td id="grd-${c.id}">${grade?`<span style="font-weight:700;font-size:12px;color:${gradeColor(grade)}">${grade}</span>`:'—'}</td>
+            <td><button class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 10px" onclick="saveScoreRow(${c.id})"><i class="ti ti-device-floppy"></i> Save</button></td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table></div></div>`}`;
+}
+function renderEntranceScoresForSession(session){
+  const c=externalCandidates.find(x=>x.exam_session===session);
+  if(c) _candScoreTarget=c.id;
+  renderEntranceScores();
+}
+function updateScoreRowTotal(cid){
+  let tot=0; let allFilled=true;
+  ENTRANCE_SUBJECTS.forEach(sub=>{
+    const inp=document.querySelector(`[data-cid="${cid}"][data-sub="${sub}"]`);
+    if(inp&&inp.value!=='') tot+=parseFloat(inp.value)||0;
+    else allFilled=false;
+  });
+  const totEl=document.getElementById(`tot-${cid}`);
+  const grdEl=document.getElementById(`grd-${cid}`);
+  if(totEl) totEl.textContent=allFilled?tot+'/'+candidateMaxScore():'—';
+  if(grdEl){
+    if(allFilled){const g=entranceGrade(tot,candidateMaxScore());grdEl.innerHTML=`<span style="font-weight:700;font-size:12px;color:${gradeColor(g)}">${g}</span>`;}
+    else grdEl.textContent='—';
+  }
+}
+async function saveScoreRow(cid){
+  if(!canDo('admin')){alert("Sign in first");return;}
+  const rows=[];
+  for(const sub of ENTRANCE_SUBJECTS){
+    const inp=document.querySelector(`[data-cid="${cid}"][data-sub="${sub}"]`);
+    if(!inp||inp.value==='') continue;
+    rows.push({candidate_id:cid,subject:sub,score:parseFloat(inp.value),max_score:100});
+  }
+  if(!rows.length){alert("Enter at least one score");return;}
+  const {error}=await dbClient.from("candidate_scores")
+    .upsert(rows,{onConflict:"candidate_id,subject"});
+  if(error){alert("Error: "+error.message);return;}
+  await loadCandidateScores();
+  // refresh just this row's total/grade display
+  const sc=candidateScoresMap[cid]||{};
+  const tot=hasScores(cid)?candidateTotalScore(cid):null;
+  const grade=tot!=null?entranceGrade(tot,candidateMaxScore()):null;
+  const totEl=document.getElementById(`tot-${cid}`);
+  const grdEl=document.getElementById(`grd-${cid}`);
+  if(totEl) totEl.textContent=tot!=null?tot+'/'+candidateMaxScore():'—';
+  if(grdEl) grdEl.innerHTML=grade?`<span style="font-weight:700;font-size:12px;color:${gradeColor(grade)}">${grade}</span>`:'—';
+}
+
+function renderFeederSchools(){
+  document.getElementById("page-title").textContent="Feeder Schools";
+  document.getElementById("page-meta").textContent="Schools that send us candidates";
+  document.getElementById("topbar-actions").innerHTML=canDo('principal')
+    ?`<button class="btn btn-primary btn-sm" onclick="openAddFeederSchool()"><i class="ti ti-plus"></i> Add School</button>`:"";
+
+  document.getElementById("content").innerHTML=`
+    ${!canDo('admin')?signInNotice('view feeder schools'):""}
+    ${feederSchools.length===0
+      ?`<div class="card"><div class="empty"><i class="ti ti-building-off"></i>No feeder schools yet${canDo('principal')?" — click Add School":""}</div></div>`
+      :feederSchools.map(school=>{
+        const count=externalCandidates.filter(c=>c.feeder_school_id===school.id).length;
+        const sessions=[...new Set(externalCandidates.filter(c=>c.feeder_school_id===school.id).map(c=>c.exam_session))];
+        return`<div class="card" style="margin-bottom:10px">
+          <div class="card-head">
+            <div>
+              <div style="font-weight:600;font-size:14px">${school.name}</div>
+              ${school.address?`<div style="font-size:11px;color:var(--tx3);margin-top:2px">${school.address}</div>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="badge badge-neutral">${count} candidate${count!==1?'s':''}</span>
+              ${canDo('principal')?`
+              <button class="btn btn-sm" onclick="openEditFeederSchool(${school.id})"><i class="ti ti-pencil"></i></button>
+              <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteFeederSchool(${school.id},'${school.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>`:''}
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;font-size:12px">
+            ${school.contact_person?`<div><span style="color:var(--tx3)">Contact: </span>${school.contact_person}</div>`:''}
+            ${school.phone?`<div><span style="color:var(--tx3)">Phone: </span>${school.phone}</div>`:''}
+            ${school.email?`<div><span style="color:var(--tx3)">Email: </span>${school.email}</div>`:''}
+            ${sessions.length?`<div><span style="color:var(--tx3)">Sessions: </span>${sessions.join(', ')}</div>`:''}
+          </div>
+          ${school.discount_note?`<div style="margin-top:8px;padding:6px 10px;background:var(--bg-ok);border-radius:var(--r);font-size:11px;color:var(--tx-ok)"><i class="ti ti-tag"></i> ${school.discount_note}</div>`:''}
+          ${canDo('principal')&&school.email?`<button class="btn btn-sm" style="margin-top:10px;color:#0d6b52;border-color:#0d6b52" onclick="_emailTargetSchool=${school.id};nav('email-results',null,document.querySelector('#sidebar-nav .nav-item:last-of-type'))"><i class="ti ti-mail"></i> Email results</button>`:''}
+        </div>`;}).join('')}`;
+}
+function feederSchoolForm(s={}){
+  return`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field" style="grid-column:1/-1"><label>School name</label>
+        <input id="fs-name" value="${s.name||''}" placeholder="e.g. Bright Future Academy" /></div>
+      <div class="field" style="grid-column:1/-1"><label>Address</label>
+        <input id="fs-addr" value="${s.address||''}" placeholder="School address" /></div>
+      <div class="field"><label>Contact person</label>
+        <input id="fs-contact" value="${s.contact_person||''}" placeholder="Principal's name" /></div>
+      <div class="field"><label>Phone</label>
+        <input id="fs-phone" value="${s.phone||''}" placeholder="Phone number" /></div>
+      <div class="field" style="grid-column:1/-1"><label>Email address (for sending results)</label>
+        <input type="email" id="fs-email" value="${s.email||''}" placeholder="school@example.com" /></div>
+      <div class="field" style="grid-column:1/-1"><label>Discount / agreement note (optional)</label>
+        <input id="fs-discount" value="${s.discount_note||''}" placeholder="e.g. 5% off fees for 10+ students referred" /></div>
+      <div class="field" style="grid-column:1/-1"><label>Notes</label>
+        <textarea id="fs-notes" rows="2" placeholder="Any other details…">${s.notes||''}</textarea></div>
+    </div>`;
+}
+function openAddFeederSchool(){
+  if(!canDo('principal')){alert("Principal access required");return;}
+  openModal("Add Feeder School",feederSchoolForm()+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddFeederSchool()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("fs-name")?.focus(),50);
+}
+function openEditFeederSchool(id){
+  if(!canDo('principal')){alert("Principal access required");return;}
+  const s=feederSchools.find(x=>x.id===id);if(!s)return;
+  openModal("Edit School",feederSchoolForm(s)+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitEditFeederSchool(${id})"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("fs-name")?.focus(),50);
+}
+function readFeederSchoolForm(){
+  return{
+    name:document.getElementById("fs-name")?.value?.trim(),
+    address:document.getElementById("fs-addr")?.value?.trim()||null,
+    contact_person:document.getElementById("fs-contact")?.value?.trim()||null,
+    phone:document.getElementById("fs-phone")?.value?.trim()||null,
+    email:document.getElementById("fs-email")?.value?.trim()||null,
+    discount_note:document.getElementById("fs-discount")?.value?.trim()||null,
+    notes:document.getElementById("fs-notes")?.value?.trim()||null,
+  };
+}
+async function submitAddFeederSchool(){
+  const d=readFeederSchoolForm();
+  if(!d.name){alert("Enter school name");return;}
+  const{error}=await dbClient.from("feeder_schools").insert(d);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadFeederSchools(); renderFeederSchools();
+}
+async function submitEditFeederSchool(id){
+  const d=readFeederSchoolForm();
+  if(!d.name){alert("Enter school name");return;}
+  const{error}=await dbClient.from("feeder_schools").update(d).eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadFeederSchools(); renderFeederSchools();
+}
+async function deleteFeederSchool(id,name){
+  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!confirm(`Delete "${name}"? This will not delete their candidates.`))return;
+  await dbClient.from("feeder_schools").delete().eq("id",id);
+  await loadFeederSchools(); renderFeederSchools();
+}
+
+let _emailTargetSchool=null;
+let _emailTargetSession="";
+function renderEmailResults(){
+  document.getElementById("page-title").textContent="Email Results";
+  document.getElementById("page-meta").textContent="Send results to feeder schools";
+  document.getElementById("topbar-actions").innerHTML="";
+  if(!canDo('principal')){
+    document.getElementById("content").innerHTML=`<div class="card" style="max-width:420px">
+      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> Principal access required</span></div>
+      <p style="font-size:13px;color:var(--tx2)">Only the principal can send results emails.</p>
+    </div>`;return;
+  }
+  const sessions=[...new Set(externalCandidates.map(c=>c.exam_session))].sort().reverse();
+  if(!_emailTargetSession&&sessions.length) _emailTargetSession=sessions[0];
+
+  const schoolsWithCandidates=feederSchools.filter(s=>
+    externalCandidates.some(c=>c.feeder_school_id===s.id&&(!_emailTargetSession||c.exam_session===_emailTargetSession)));
+
+  const selSchool=_emailTargetSchool?feederSchools.find(s=>s.id===_emailTargetSchool):schoolsWithCandidates[0];
+  const candidates=selSchool
+    ? externalCandidates.filter(c=>c.feeder_school_id===selSchool.id&&(!_emailTargetSession||c.exam_session===_emailTargetSession))
+    : [];
+
+  const maxS=candidateMaxScore();
+  document.getElementById("content").innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head"><span class="card-title">Select school & session</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
+        <div class="field" style="margin:0"><label>Session</label>
+          <select id="er-session" onchange="_emailTargetSession=this.value;_emailTargetSchool=null;renderEmailResults()">
+            ${sessions.map(s=>`<option ${s===_emailTargetSession?'selected':''}>${s}</option>`).join('')}
+          </select></div>
+        <div class="field" style="margin:0"><label>Feeder school</label>
+          <select id="er-school" onchange="_emailTargetSchool=parseInt(this.value)||null;renderEmailResults()">
+            ${schoolsWithCandidates.map(s=>`<option value="${s.id}" ${selSchool?.id===s.id?'selected':''}>${s.name}</option>`).join('')}
+          </select></div>
+      </div>
+    </div>
+    ${selSchool?`
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head">
+        <div>
+          <span class="card-title">${selSchool.name}</span>
+          <div style="font-size:11px;color:var(--tx3);margin-top:3px">
+            ${selSchool.email
+              ?`Sending to: <strong>${selSchool.email}</strong>`
+              :`<span style="color:var(--tx-err)"><i class="ti ti-alert-triangle"></i> No email set — add it in Feeder Schools</span>`}
+          </div>
+        </div>
+        ${selSchool.email?`<button class="btn btn-primary" onclick="sendResultsEmail()"><i class="ti ti-send"></i> Send Results Email</button>`:''}
+      </div>
+      <div id="email-send-status" style="font-size:12px;margin-bottom:8px"></div>
+      ${candidates.length===0
+        ?`<div class="empty"><i class="ti ti-users-off"></i>No candidates from this school for this session</div>`
+        :`<div style="overflow-x:auto"><table>
+          <thead><tr><th>Name</th>${ENTRANCE_SUBJECTS.map(s=>`<th style="font-size:11px">${s}</th>`).join('')}<th>Total</th><th>Grade</th></tr></thead>
+          <tbody>${candidates.map(c=>{
+            const sc=candidateScoresMap[c.id]||{};
+            const scored=hasScores(c.id);
+            const tot=scored?candidateTotalScore(c.id):null;
+            const grade=tot!=null?entranceGrade(tot,maxS):null;
+            return`<tr>
+              <td style="font-weight:500">${c.name}</td>
+              ${ENTRANCE_SUBJECTS.map(sub=>`<td style="text-align:center">${sc[sub]?.score??'—'}</td>`).join('')}
+              <td style="font-weight:600;text-align:center">${tot!=null?tot+'/'+maxS:'—'}</td>
+              <td style="text-align:center">${grade?`<span style="font-weight:700;font-size:12px;color:${gradeColor(grade)}">${grade}</span>`:'—'}</td>
+            </tr>`;}).join('')}
+          </tbody></table></div>`}
+    </div>`:`<div class="card"><div class="empty">No schools have candidates for this session</div></div>`}`;
+}
+async function sendResultsEmail(){
+  if(!canDo('principal')){alert("Principal access required");return;}
+  const selSchool=_emailTargetSchool?feederSchools.find(s=>s.id===_emailTargetSchool):null;
+  if(!selSchool?.email){alert("No email address for this school");return;}
+  const candidates=externalCandidates.filter(c=>c.feeder_school_id===selSchool.id&&(!_emailTargetSession||c.exam_session===_emailTargetSession));
+  if(!candidates.length){alert("No candidates to send");return;}
+  const st=document.getElementById("email-send-status");
+  if(st) st.innerHTML=`<span style="color:var(--tx-warn)"><i class="ti ti-loader"></i> Sending…</span>`;
+  const payload={
+    school_name:selSchool.name,
+    school_email:selSchool.email,
+    contact_person:selSchool.contact_person||null,
+    exam_session:_emailTargetSession,
+    candidates:candidates.map(c=>{
+      const sc=candidateScoresMap[c.id]||{};
+      const scores={};
+      ENTRANCE_SUBJECTS.forEach(sub=>{ scores[sub]=sc[sub]?.score??null; });
+      return{name:c.name,scores};
+    }),
+  };
+  try{
+    const res=await fetch('/api/send-results',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Send failed');
+    if(st) st.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Email sent successfully to ${selSchool.email}</span>`;
+  }catch(e){
+    if(st) st.innerHTML=`<span style="color:var(--tx-err)"><i class="ti ti-alert-triangle"></i> ${e.message}</span>`;
+  }
+}
 
 /* ── role management ── */
 function canDo(level){
