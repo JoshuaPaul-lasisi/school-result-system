@@ -521,3 +521,79 @@ CREATE INDEX IF NOT EXISTS ext_cand_school        ON external_candidates(feeder_
 CREATE INDEX IF NOT EXISTS ext_cand_session       ON external_candidates(exam_session);
 CREATE INDEX IF NOT EXISTS ext_cand_date          ON external_candidates(exam_date);
 CREATE INDEX IF NOT EXISTS cand_scores_candidate  ON candidate_scores(candidate_id);
+
+-- ── EDGE extracurricular activities ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS activity_memberships (
+  id           BIGSERIAL PRIMARY KEY,
+  student_id   INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  track        TEXT NOT NULL CHECK (track IN ('Voice','Mind','Create','Lead & Build')),
+  role         TEXT NOT NULL DEFAULT 'member'
+               CHECK (role IN ('member','captain','deputy','champion')),
+  term         TEXT NOT NULL,
+  session      TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(student_id, track, term, session)
+);
+
+CREATE TABLE IF NOT EXISTS activity_sessions (
+  id               BIGSERIAL PRIMARY KEY,
+  track            TEXT NOT NULL CHECK (track IN ('Voice','Mind','Create','Lead & Build')),
+  session_date     DATE NOT NULL,
+  topic            TEXT,
+  notes            TEXT,
+  attendance_count INTEGER DEFAULT 0,
+  term             TEXT NOT NULL,
+  session          TEXT NOT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS activity_competitions (
+  id               BIGSERIAL PRIMARY KEY,
+  title            TEXT NOT NULL,
+  competition_date DATE,
+  track            TEXT CHECK (track IN ('Voice','Mind','Create','Lead & Build','General')),
+  level            TEXT NOT NULL DEFAULT 'internal'
+                   CHECK (level IN ('internal','inter-school','regional','national')),
+  position         TEXT,
+  participants     TEXT,
+  notes            TEXT,
+  term             TEXT NOT NULL,
+  session          TEXT NOT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── school calendar ───────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS school_events (
+  id           BIGSERIAL PRIMARY KEY,
+  title        TEXT NOT NULL,
+  event_date   DATE NOT NULL,
+  end_date     DATE,
+  event_type   TEXT NOT NULL DEFAULT 'other'
+               CHECK (event_type IN ('academic','activities','holiday','meeting','other')),
+  description  TEXT,
+  term         TEXT NOT NULL,
+  session      TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE activity_memberships  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_sessions     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_competitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_events         ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='activity_memberships'  AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON activity_memberships  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='activity_sessions'     AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON activity_sessions     FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='activity_competitions' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON activity_competitions FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='school_events'         AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON school_events         FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS activity_memberships_term   ON activity_memberships(term, session);
+CREATE INDEX IF NOT EXISTS activity_memberships_student ON activity_memberships(student_id);
+CREATE INDEX IF NOT EXISTS activity_sessions_term      ON activity_sessions(term, session);
+CREATE INDEX IF NOT EXISTS activity_sessions_track     ON activity_sessions(track);
+CREATE INDEX IF NOT EXISTS activity_competitions_term  ON activity_competitions(term, session);
+CREATE INDEX IF NOT EXISTS school_events_term          ON school_events(term, session);
+CREATE INDEX IF NOT EXISTS school_events_date          ON school_events(event_date);

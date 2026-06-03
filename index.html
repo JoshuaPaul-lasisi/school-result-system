@@ -344,6 +344,12 @@
     [data-theme="dark"] .tile-ic-staff     {background:#1e1032} [data-theme="dark"] .tile-ic-staff     i{color:#c084fc}
     [data-theme="dark"] .tile-ic-principal {background:#2a0a16} [data-theme="dark"] .tile-ic-principal i{color:#fb7185}
     [data-theme="dark"] .tile-ic-entrance  {background:#062820} [data-theme="dark"] .tile-ic-entrance  i{color:#34d399}
+    .tile-ic-attendance {background:#dbeafe} .tile-ic-attendance i{color:#1d4ed8}
+    .tile-ic-activities {background:#fef3c7} .tile-ic-activities i{color:#92400e}
+    .tile-ic-calendar   {background:#e0e7ff} .tile-ic-calendar   i{color:#3730a3}
+    [data-theme="dark"] .tile-ic-attendance {background:#0f1f3e} [data-theme="dark"] .tile-ic-attendance i{color:#93c5fd}
+    [data-theme="dark"] .tile-ic-activities {background:#2a1800} [data-theme="dark"] .tile-ic-activities i{color:#fcd34d}
+    [data-theme="dark"] .tile-ic-calendar   {background:#1a1640} [data-theme="dark"] .tile-ic-calendar   i{color:#a5b4fc}
 
     /* ── theme toggle FAB ── */
     .theme-fab{position:fixed;bottom:22px;right:22px;width:42px;height:42px;border-radius:50%;background:var(--navy);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 3px 14px rgba(0,0,0,.28);z-index:150;transition:background .2s,transform .15s}
@@ -367,6 +373,25 @@
     .stock-qty-ok{background:var(--bg-ok);color:var(--tx-ok);padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
     .stock-qty-low{background:var(--bg-warn);color:var(--tx-warn);padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
     .stock-qty-out{background:var(--bg-err);color:var(--tx-err);padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+    /* ── activity track badges ── */
+    .track-pill{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+    .track-voice{background:#dbeafe;color:#1d4ed8}
+    .track-mind{background:#d1fae5;color:#065f46}
+    .track-create{background:#fef3c7;color:#92400e}
+    .track-lead{background:#ede9fe;color:#5b21b6}
+    [data-theme="dark"] .track-voice{background:#0f1f3e;color:#93c5fd}
+    [data-theme="dark"] .track-mind{background:#022c22;color:#6ee7b7}
+    [data-theme="dark"] .track-create{background:#2a1800;color:#fcd34d}
+    [data-theme="dark"] .track-lead{background:#1e1040;color:#c4b5fd}
+    .track-overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+    .track-overview-card{background:var(--bg);border:.5px solid var(--bd3);border-radius:var(--rlg);padding:16px;display:flex;flex-direction:column;gap:6px}
+    .cal-event-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:.5px solid var(--bd3)}
+    .cal-event-row:last-child{border-bottom:none}
+    .cal-event-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:4px}
+    .cal-month-hdr{font-size:12px;font-weight:600;color:var(--tx2);padding:10px 0 4px;text-transform:uppercase;letter-spacing:.7px}
+    .evt-academic{background:#1d4ed8}   .evt-activities{background:#92400e}
+    .evt-holiday{background:#dc2626}    .evt-meeting{background:#7e22ce}
+    .evt-other{background:#6b7280}
   </style>
 </head>
 <body>
@@ -587,6 +612,10 @@ let externalCandidates = [];
 let candidateScoresMap = {};  // candidateScoresMap[candidate_id][subject] = {id,score,max_score}
 let _candFilter = { school:"", status:"", session:"" };
 let _candScoreTarget = null;  // candidate id currently selected for score entry
+let activityMemberships = [];
+let activitySessions = [];
+let activityCompetitions = [];
+let schoolEvents = [];
 
 /* ── hub & section navigation ── */
 const SECTION_META = {
@@ -595,6 +624,9 @@ const SECTION_META = {
   students:         { icon:"ti-user-search",   bg:"#fff8e1", color:"#d97706", label:"Students" },
   staff:            { icon:"ti-users",          bg:"#f3e8ff", color:"#6a1b9a", label:"Staff" },
   entrance:         { icon:"ti-id-badge",       bg:"#e0faf4", color:"#0d6b52", label:"Entrance & Transfer" },
+  attendance:        { icon:"ti-calendar-check", bg:"#dbeafe",  color:"#1d4ed8", label:"Attendance" },
+  activities:        { icon:"ti-trophy",          bg:"#fef3c7",  color:"#92400e", label:"Activities" },
+  calendar:          { icon:"ti-calendar-event",  bg:"#e0e7ff",  color:"#3730a3", label:"Calendar" },
   "principals-desk":{ icon:"ti-shield-lock",   bg:"#fdeef1", color:"#8B1A2F", label:"Principal's Desk" },
 };
 const ENTRANCE_SUBJECTS = ["Mathematics","English","Verbal Reasoning","Quantitative Aptitude","General Reasoning"];
@@ -633,6 +665,9 @@ function renderHub(){
           {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:"Student records & report cards"},
           {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:"Staff directory & assignments"},
           {id:"entrance",        icCls:"tile-ic-entrance",   icon:"ti-id-badge",    label:"Entrance & Transfer", desc:"External candidates, feeder schools & results"},
+          {id:"attendance",  icCls:"tile-ic-attendance", icon:"ti-calendar-check", label:"Attendance",        desc:"Daily register & term attendance records"},
+          {id:"activities",  icCls:"tile-ic-activities", icon:"ti-trophy",          label:"Activities (EDGE)", desc:"Tracks, memberships, sessions & competitions"},
+          {id:"calendar",    icCls:"tile-ic-calendar",   icon:"ti-calendar-event",  label:"School Calendar",   desc:"Events, competition dates & term schedule"},
           {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", locked:true},
         ].map(t=>`
           <div class="hub-tile${t.locked?" tile-locked":""}" onclick="enterSection('${t.id}')">
@@ -677,6 +712,9 @@ function enterSection(name){
     students:        ()=>{ _curPage="search"; renderSearch(); },
     staff:           ()=>{ _curPage="staff"; renderStaffDirectory(); },
     entrance:        ()=>{ _curPage="candidates"; renderCandidates(); },
+    attendance:        ()=>{ _curPage="att-register"; openAttendance(); },
+    activities:        ()=>{ _curPage="act-overview"; renderActivitiesOverview(); },
+    calendar:          ()=>{ _curPage="cal-events"; renderCalendar(); },
     "principals-desk":()=>{ _curPage="settings"; renderSettings(); },
   };
   (defaults[name]||defaults.academic)();
@@ -740,6 +778,7 @@ function renderSidebar(section){
       <div class="nav-section">
         <div class="nav-label">Students</div>
         <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
+        <div class="nav-item" onclick="nav('report-cards',null,this)"><i class="ti ti-file-certificate"></i>Report Cards</div>
       </div>`,
     staff:`
       <div class="nav-section">
@@ -760,6 +799,28 @@ function renderSidebar(section){
         <div class="nav-label">Results</div>
         <div class="nav-item" onclick="nav('email-results',null,this)"><i class="ti ti-mail"></i>Email Results</div>
       </div>`:""}`,
+    attendance:`
+      <div class="nav-section">
+        <div class="nav-label">Register</div>
+        <div class="nav-item" onclick="nav('att-register',null,this)"><i class="ti ti-pencil"></i>Daily Register</div>
+        <div class="nav-item" onclick="nav('att-summary',null,this)"><i class="ti ti-chart-bar"></i>Class Summary</div>
+      </div>`,
+    activities:`
+      <div class="nav-section">
+        <div class="nav-label">Tracks</div>
+        <div class="nav-item" onclick="nav('act-overview',null,this)"><i class="ti ti-layout-grid"></i>Overview</div>
+        <div class="nav-item" onclick="nav('act-members',null,this)"><i class="ti ti-users"></i>Memberships</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Records</div>
+        <div class="nav-item" onclick="nav('act-sessions',null,this)"><i class="ti ti-clipboard-list"></i>Session Logs</div>
+        <div class="nav-item" onclick="nav('act-competitions',null,this)"><i class="ti ti-award"></i>Competitions</div>
+      </div>`,
+    calendar:`
+      <div class="nav-section">
+        <div class="nav-label">Calendar</div>
+        <div class="nav-item" onclick="nav('cal-events',null,this)"><i class="ti ti-calendar-event"></i>All Events</div>
+      </div>`,
     "principals-desk":`
       <div class="nav-section">
         <div class="nav-label">Records</div>
@@ -773,7 +834,7 @@ function renderSidebar(section){
       </div>`,
   }[section]||"";
 
-  const icCls={'principals-desk':'tile-ic-principal','entrance':'tile-ic-entrance'}[section]||`tile-ic-${section}`;
+  const icCls={'principals-desk':'tile-ic-principal','entrance':'tile-ic-entrance','attendance':'tile-ic-attendance','activities':'tile-ic-activities','calendar':'tile-ic-calendar'}[section]||`tile-ic-${section}`;
   document.getElementById("sidebar-nav").innerHTML=`
     <div class="nav-back" onclick="navToHub()"><i class="ti ti-arrow-left"></i> All Sections</div>
     <div class="section-hdr">
@@ -988,7 +1049,7 @@ async function loadInventoryTxns() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1105,6 +1166,14 @@ function nav(page,arg,el){
   else if(page==="entrance-scores")renderEntranceScores();
   else if(page==="feeder-schools")renderFeederSchools();
   else if(page==="email-results")renderEmailResults();
+  else if(page==="report-cards")renderReportCardsView();
+  else if(page==="att-register")openAttendance();
+  else if(page==="att-summary")renderAttendanceSummary();
+  else if(page==="act-overview")renderActivitiesOverview();
+  else if(page==="act-members")renderActivityMemberships();
+  else if(page==="act-sessions")renderActivitySessions();
+  else if(page==="act-competitions")renderActivityCompetitions();
+  else if(page==="cal-events")renderCalendar();
 }
 function setAnnexFilter(val){
   currentAnnexFilter=val;
@@ -4439,6 +4508,497 @@ async function submitAdjustStock(itemId){
   });
   if(error){alert("Error: "+error.message);return;}
   closeModal(); await loadInventoryTxns(); renderInventory();
+}
+
+/* ── load: activities & calendar ── */
+async function loadActivityMemberships(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("activity_memberships").select("*")
+    .eq("term",currentTerm).eq("session",currentSession);
+  if(data)activityMemberships=data;
+}
+async function loadActivitySessions(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("activity_sessions").select("*")
+    .eq("term",currentTerm).eq("session",currentSession)
+    .order("session_date",{ascending:false});
+  if(data)activitySessions=data;
+}
+async function loadActivityCompetitions(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("activity_competitions").select("*")
+    .eq("term",currentTerm).eq("session",currentSession)
+    .order("competition_date",{ascending:false});
+  if(data)activityCompetitions=data;
+}
+async function loadSchoolEvents(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("school_events").select("*")
+    .eq("term",currentTerm).eq("session",currentSession)
+    .order("event_date");
+  if(data)schoolEvents=data;
+}
+
+const ACTIVITY_TRACKS=["Voice","Mind","Create","Lead & Build"];
+const TRACK_ROLES=["member","captain","deputy","champion"];
+function trackCss(t){return{Voice:"track-voice",Mind:"track-mind",Create:"track-create","Lead & Build":"track-lead"}[t]||"badge-neutral";}
+
+/* ── attendance summary ── */
+function renderAttendanceSummary(){
+  document.getElementById("page-title").textContent="Attendance Summary";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  if(!dbClient){
+    document.getElementById("content").innerHTML=`<div class="empty"><i class="ti ti-plug-off"></i>Connect Supabase to view attendance data</div>`;return;
+  }
+  const classes=Object.values(CLASSES).flat();
+  const clsGroups=classes.map(cls=>{
+    const students=roster.filter(s=>s.cls===cls);
+    if(!students.length)return null;
+    const rows=students.sort((a,b)=>a.name.localeCompare(b.name)).map(s=>{
+      const a=getAtt(s.id);
+      const pct=a.present&&a.total?Math.round(parseInt(a.present)/parseInt(a.total)*100):null;
+      const color=pct===null?"var(--tx3)":pct>=80?"var(--tx-ok)":pct>=60?"var(--tx-warn)":"var(--tx-err)";
+      return`<tr>
+        <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+        <td style="text-align:center">${a.total||57}</td>
+        <td style="text-align:center">${a.present||"—"}</td>
+        <td style="text-align:center;font-weight:600;color:${color}">${pct!==null?pct+"%":"—"}</td>
+      </tr>`;
+    }).join("");
+    return{cls,rows,count:students.length};
+  }).filter(Boolean);
+
+  const clsFilter=document.getElementById("att-sum-cls-filter")?.value||"";
+  const toShow=clsFilter?clsGroups.filter(g=>g.cls===clsFilter):clsGroups;
+
+  document.getElementById("content").innerHTML=`
+    <div class="filter-bar" style="margin-bottom:14px">
+      <select id="att-sum-cls-filter" onchange="renderAttendanceSummary()" style="width:auto">
+        <option value="">All classes</option>
+        ${classes.map(c=>`<option value="${c}"${c===clsFilter?" selected":""}>${c}</option>`).join("")}
+      </select>
+    </div>
+    ${toShow.length?toShow.map(g=>`
+      <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">
+        <div style="padding:10px 14px;border-bottom:.5px solid var(--bd3);background:var(--bg2);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-weight:600;font-size:13px">${g.cls}</span>
+          <span style="font-size:11px;color:var(--tx2)">${g.count} student${g.count!==1?"s":""}</span>
+        </div>
+        <table><thead><tr><th>Name</th><th style="text-align:center">Total Days</th><th style="text-align:center">Present</th><th style="text-align:center">%</th></tr></thead>
+        <tbody>${g.rows}</tbody></table>
+      </div>`).join("")
+    :`<div class="empty"><i class="ti ti-users"></i>No students enrolled this term</div>`}`;
+}
+
+/* ── report cards view ── */
+function renderReportCardsView(){
+  document.getElementById("page-title").textContent="Report Cards";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  const classes=Object.values(CLASSES).flat();
+  const selCls=document.getElementById("rc-cls-pick")?.value||"";
+  const students=selCls?roster.filter(s=>s.cls===selCls).sort((a,b)=>a.name.localeCompare(b.name)):[];
+
+  document.getElementById("content").innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head"><span class="card-title">Select Class</span></div>
+      <select id="rc-cls-pick" onchange="renderReportCardsView()" style="max-width:240px">
+        <option value="">— Choose a class —</option>
+        ${classes.map(c=>`<option value="${c}"${c===selCls?" selected":""}>${c}</option>`).join("")}
+      </select>
+    </div>
+    ${selCls&&students.length?`
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:10px 14px;border-bottom:.5px solid var(--bd3);background:var(--bg2);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-weight:600;font-size:13px">${selCls} — ${students.length} students</span>
+        <span style="font-size:11px;color:var(--tx2)">Click a student to view their report card</span>
+      </div>
+      <table>
+        <thead><tr><th>Name</th><th>Gender</th><th></th></tr></thead>
+        <tbody>${students.map(s=>`
+          <tr class="trow-click" onclick="showReportCard(${s.id})">
+            <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+            <td style="color:var(--tx2);font-size:12px">${s.gender||"—"}</td>
+            <td><button class="btn btn-sm" onclick="event.stopPropagation();showReportCard(${s.id})"><i class="ti ti-file-certificate"></i> View Card</button></td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`
+    :selCls?`<div class="empty"><i class="ti ti-users-off"></i>No students enrolled in ${selCls} this term</div>`
+    :`<div class="empty"><i class="ti ti-file-certificate"></i>Choose a class to view report cards</div>`}`;
+}
+
+/* ── activities: overview ── */
+function renderActivitiesOverview(){
+  document.getElementById("page-title").textContent="Activities Overview";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  const trackStats=ACTIVITY_TRACKS.map(t=>{
+    const members=activityMemberships.filter(m=>m.track===t);
+    const captain=members.find(m=>m.role==="captain");
+    const capName=captain?roster.find(s=>s.id===captain.student_id)?.name||"—":"—";
+    const sessionCount=activitySessions.filter(s=>s.track===t).length;
+    const compCount=activityCompetitions.filter(c=>c.track===t||c.track==="General").length;
+    return{track:t,memberCount:members.length,captain:capName,sessionCount,compCount};
+  });
+  document.getElementById("content").innerHTML=`
+    <div class="track-overview-grid">
+      ${trackStats.map(ts=>`
+        <div class="track-overview-card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span class="track-pill ${trackCss(ts.track)}">${ts.track}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx2)">
+            <div><span style="font-weight:600;font-size:20px;color:var(--tx)">${ts.memberCount}</span> members</div>
+            <div>Captain: <span style="color:var(--tx)">${ts.captain}</span></div>
+            <div>${ts.sessionCount} session${ts.sessionCount!==1?"s":""} logged &nbsp;·&nbsp; ${ts.compCount} competition${ts.compCount!==1?"s":""}</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn btn-sm" onclick="nav('act-members',null,document.querySelector('.nav-item:nth-child(2)'))">Members</button>
+          </div>
+        </div>`).join("")}
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val">${activityMemberships.length}</div><div class="stat-lbl">Total memberships</div></div>
+      <div class="stat"><div class="stat-val">${activitySessions.length}</div><div class="stat-lbl">Sessions logged</div></div>
+      <div class="stat"><div class="stat-val">${activityCompetitions.length}</div><div class="stat-lbl">Competitions</div></div>
+      <div class="stat"><div class="stat-val">${[...new Set(activityMemberships.map(m=>m.student_id))].length}</div><div class="stat-lbl">Students enrolled</div></div>
+    </div>`;
+}
+
+/* ── activities: memberships ── */
+function renderActivityMemberships(){
+  document.getElementById("page-title").textContent="Track Memberships";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  const canEdit=canDo('admin');
+  document.getElementById("topbar-actions").innerHTML=canEdit
+    ?`<button class="btn btn-primary" onclick="openAddMembership()"><i class="ti ti-plus"></i> Assign Student</button>`:""  ;
+  const trackFilter=document.getElementById("mem-track-filter")?.value||"";
+  const shown=trackFilter?activityMemberships.filter(m=>m.track===trackFilter):activityMemberships;
+  const rows=shown.map(m=>{
+    const s=roster.find(x=>x.id===m.student_id)||{name:`ID ${m.student_id}`,cls:"—"};
+    return`<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+      <td style="color:var(--tx2);font-size:12px">${s.cls||"—"}</td>
+      <td><span class="track-pill ${trackCss(m.track)}">${m.track}</span></td>
+      <td><span class="badge badge-neutral" style="text-transform:capitalize">${m.role}</span></td>
+      ${canEdit?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteMembership(${m.id},'${s.name}')"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
+    </tr>`;
+  }).join("");
+  document.getElementById("content").innerHTML=`
+    ${!canEdit?signInNotice("manage memberships"):""}
+    <div class="filter-bar">
+      <select id="mem-track-filter" onchange="renderActivityMemberships()" style="width:auto">
+        <option value="">All tracks</option>
+        ${ACTIVITY_TRACKS.map(t=>`<option value="${t}"${t===trackFilter?" selected":""}>${t}</option>`).join("")}
+      </select>
+    </div>
+    ${shown.length?`<div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Student</th><th>Class</th><th>Track</th><th>Role</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+    :`<div class="empty"><i class="ti ti-users"></i>No memberships yet${trackFilter?" for this track":""}</div>`}`;
+}
+
+function openAddMembership(){
+  if(!canDo('admin')){alert("Sign in first");return;}
+  const studentOpts=roster.sort((a,b)=>a.name.localeCompare(b.name))
+    .map(s=>`<option value="${s.id}">${s.name} (${s.cls})</option>`).join("");
+  openModal("Assign Student to Track",`
+    <div class="field"><label>Student</label>
+      <select id="mem-sid"><option value="">— Select student —</option>${studentOpts}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Track</label>
+        <select id="mem-track">
+          ${ACTIVITY_TRACKS.map(t=>`<option value="${t}">${t}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>Role</label>
+        <select id="mem-role">
+          ${TRACK_ROLES.map(r=>`<option value="${r}" style="text-transform:capitalize">${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join("")}
+        </select></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddMembership()"><i class="ti ti-check"></i> Assign</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+async function submitAddMembership(){
+  const sid=parseInt(document.getElementById("mem-sid")?.value);
+  const track=document.getElementById("mem-track")?.value;
+  const role=document.getElementById("mem-role")?.value;
+  if(!sid){alert("Select a student");return;}
+  const{error}=await dbClient.from("activity_memberships").upsert(
+    {student_id:sid,track,role,term:currentTerm,session:currentSession},
+    {onConflict:"student_id,track,term,session"});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadActivityMemberships(); renderActivityMemberships();
+}
+
+async function deleteMembership(id,name){
+  if(!confirm(`Remove ${name} from this track?`))return;
+  const{error}=await dbClient.from("activity_memberships").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  await loadActivityMemberships(); renderActivityMemberships();
+}
+
+/* ── activities: sessions ── */
+function renderActivitySessions(){
+  document.getElementById("page-title").textContent="Session Logs";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  const canEdit=canDo('admin');
+  document.getElementById("topbar-actions").innerHTML=canEdit
+    ?`<button class="btn btn-primary" onclick="openLogSession()"><i class="ti ti-plus"></i> Log Session</button>`:"";
+  const rows=activitySessions.map(s=>`
+    <tr>
+      <td>${s.session_date}</td>
+      <td><span class="track-pill ${trackCss(s.track)}">${s.track}</span></td>
+      <td>${s.topic||"—"}</td>
+      <td style="text-align:center">${s.attendance_count||"—"}</td>
+      <td style="color:var(--tx2);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes||""}</td>
+      ${canEdit?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteActivitySession(${s.id})"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
+    </tr>`).join("");
+  document.getElementById("content").innerHTML=`
+    ${!canEdit?signInNotice("log sessions"):""}
+    ${activitySessions.length
+      ?`<div class="card" style="padding:0;overflow:hidden">
+          <table><thead><tr><th>Date</th><th>Track</th><th>Topic</th><th style="text-align:center">Attendance</th><th>Notes</th><th></th></tr></thead>
+          <tbody>${rows}</tbody></table></div>`
+      :`<div class="empty"><i class="ti ti-clipboard-list"></i>No sessions logged yet</div>`}`;
+}
+
+function openLogSession(){
+  if(!canDo('admin')){alert("Sign in first");return;}
+  const today=new Date().toISOString().split("T")[0];
+  openModal("Log Session",`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Track</label>
+        <select id="ses-track">${ACTIVITY_TRACKS.map(t=>`<option value="${t}">${t}</option>`).join("")}</select></div>
+      <div class="field"><label>Date</label>
+        <input type="date" id="ses-date" value="${today}"></div>
+    </div>
+    <div class="field"><label>Topic / Activity</label>
+      <input id="ses-topic" placeholder="e.g. Debate prep, Science quiz drill…"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Students attended</label>
+        <input type="number" id="ses-count" min="0" placeholder="0"></div>
+      <div class="field" style="grid-column:1/-1"><label>Notes</label>
+        <input id="ses-notes" placeholder="Any observations…"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitLogSession()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("ses-topic")?.focus(),50);
+}
+
+async function submitLogSession(){
+  const track=document.getElementById("ses-track")?.value;
+  const session_date=document.getElementById("ses-date")?.value;
+  const topic=document.getElementById("ses-topic")?.value?.trim()||null;
+  const attendance_count=parseInt(document.getElementById("ses-count")?.value)||0;
+  const notes=document.getElementById("ses-notes")?.value?.trim()||null;
+  if(!session_date){alert("Select a date");return;}
+  const{error}=await dbClient.from("activity_sessions").insert(
+    {track,session_date,topic,attendance_count,notes,term:currentTerm,session:currentSession});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadActivitySessions(); renderActivitySessions();
+}
+
+async function deleteActivitySession(id){
+  if(!confirm("Delete this session log?"))return;
+  const{error}=await dbClient.from("activity_sessions").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  await loadActivitySessions(); renderActivitySessions();
+}
+
+/* ── activities: competitions ── */
+function renderActivityCompetitions(){
+  document.getElementById("page-title").textContent="Competitions";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  const canEdit=canDo('admin');
+  document.getElementById("topbar-actions").innerHTML=canEdit
+    ?`<button class="btn btn-primary" onclick="openLogCompetition()"><i class="ti ti-plus"></i> Log Result</button>`:"";
+  const levelBadge={internal:"badge-neutral",
+    "inter-school":"badge-b","regional":"badge-c","national":"badge-ok"};
+  const rows=activityCompetitions.map(c=>`
+    <tr>
+      <td>${c.competition_date||"—"}</td>
+      <td style="font-weight:500">${c.title}</td>
+      <td>${c.track?`<span class="track-pill ${trackCss(c.track)}">${c.track}</span>`:"—"}</td>
+      <td><span class="badge ${levelBadge[c.level]||"badge-neutral"}" style="text-transform:capitalize">${c.level}</span></td>
+      <td style="font-weight:600;color:${c.position==="1st"||c.position==="1"?"var(--tx-ok)":"var(--tx)"}">${c.position||"—"}</td>
+      <td style="color:var(--tx2);font-size:12px">${c.participants||""}</td>
+      ${canEdit?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteCompetition(${c.id})"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
+    </tr>`).join("");
+  document.getElementById("content").innerHTML=`
+    ${!canEdit?signInNotice("log competitions"):""}
+    ${activityCompetitions.length
+      ?`<div class="card" style="padding:0;overflow:hidden">
+          <table><thead><tr><th>Date</th><th>Event</th><th>Track</th><th>Level</th><th>Position</th><th>Participants</th><th></th></tr></thead>
+          <tbody>${rows}</tbody></table></div>`
+      :`<div class="empty"><i class="ti ti-award"></i>No competitions logged yet</div>`}`;
+}
+
+function openLogCompetition(){
+  if(!canDo('admin')){alert("Sign in first");return;}
+  const today=new Date().toISOString().split("T")[0];
+  openModal("Log Competition Result",`
+    <div class="field"><label>Event Title</label>
+      <input id="comp-title" placeholder="e.g. Inter-school Debate 2025…"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Track</label>
+        <select id="comp-track">
+          <option value="General">General / School</option>
+          ${ACTIVITY_TRACKS.map(t=>`<option value="${t}">${t}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>Date</label>
+        <input type="date" id="comp-date" value="${today}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Level</label>
+        <select id="comp-level">
+          <option value="internal">Internal</option>
+          <option value="inter-school">Inter-school</option>
+          <option value="regional">Regional</option>
+          <option value="national">National</option>
+        </select></div>
+      <div class="field"><label>Position / Result</label>
+        <input id="comp-pos" placeholder="e.g. 1st, Runner-up, Finalist…"></div>
+    </div>
+    <div class="field"><label>Participants (names)</label>
+      <input id="comp-participants" placeholder="Student names or count…"></div>
+    <div class="field"><label>Notes</label>
+      <input id="comp-notes" placeholder="Any other details…"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitLogCompetition()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("comp-title")?.focus(),50);
+}
+
+async function submitLogCompetition(){
+  const title=document.getElementById("comp-title")?.value?.trim();
+  const track=document.getElementById("comp-track")?.value;
+  const competition_date=document.getElementById("comp-date")?.value||null;
+  const level=document.getElementById("comp-level")?.value;
+  const position=document.getElementById("comp-pos")?.value?.trim()||null;
+  const participants=document.getElementById("comp-participants")?.value?.trim()||null;
+  const notes=document.getElementById("comp-notes")?.value?.trim()||null;
+  if(!title){alert("Enter an event title");return;}
+  const{error}=await dbClient.from("activity_competitions").insert(
+    {title,track,competition_date,level,position,participants,notes,term:currentTerm,session:currentSession});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadActivityCompetitions(); renderActivityCompetitions();
+}
+
+async function deleteCompetition(id){
+  if(!confirm("Delete this competition record?"))return;
+  const{error}=await dbClient.from("activity_competitions").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  await loadActivityCompetitions(); renderActivityCompetitions();
+}
+
+/* ── school calendar ── */
+function renderCalendar(){
+  document.getElementById("page-title").textContent="School Calendar";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  const canEdit=canDo('admin');
+  document.getElementById("topbar-actions").innerHTML=canEdit
+    ?`<button class="btn btn-primary" onclick="openAddEvent()"><i class="ti ti-plus"></i> Add Event</button>`:"";
+
+  if(!schoolEvents.length){
+    document.getElementById("content").innerHTML=`
+      ${!canEdit?signInNotice("add events"):""}
+      <div class="empty"><i class="ti ti-calendar-event"></i>No events for this term yet${canEdit?" — click Add Event to start":""}</div>`;
+    return;
+  }
+
+  const typeColor={academic:"evt-academic",activities:"evt-activities",holiday:"evt-holiday",meeting:"evt-meeting",other:"evt-other"};
+  const typeLabel={academic:"Academic",activities:"Activities",holiday:"Holiday",meeting:"Meeting",other:"Other"};
+
+  // group by month
+  const byMonth={};
+  schoolEvents.forEach(e=>{
+    const m=e.event_date?e.event_date.slice(0,7):"unknown";
+    if(!byMonth[m])byMonth[m]=[];
+    byMonth[m].push(e);
+  });
+
+  const monthName=m=>{
+    try{const[y,mo]=m.split("-");return new Date(parseInt(y),parseInt(mo)-1,1).toLocaleString("default",{month:"long",year:"numeric"});}
+    catch{return m;}
+  };
+
+  document.getElementById("content").innerHTML=`
+    ${!canEdit?signInNotice("add events"):""}
+    <div class="card">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:11px">
+        ${Object.entries(typeLabel).map(([k,v])=>`<span><span class="cal-event-dot ${typeColor[k]||"evt-other"}" style="display:inline-block"></span>${v}</span>`).join("")}
+      </div>
+      ${Object.entries(byMonth).map(([m,events])=>`
+        <div class="cal-month-hdr">${monthName(m)}</div>
+        ${events.map(e=>`
+          <div class="cal-event-row">
+            <div class="cal-event-dot ${typeColor[e.event_type]||"evt-other"}" style="margin-top:5px"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:500;font-size:13px">${e.title}</div>
+              <div style="font-size:11px;color:var(--tx2)">${e.event_date}${e.end_date&&e.end_date!==e.event_date?" – "+e.end_date:""}${e.description?" · "+e.description:""}</div>
+            </div>
+            <span class="badge badge-neutral" style="font-size:10px;text-transform:capitalize;flex-shrink:0">${typeLabel[e.event_type]||e.event_type}</span>
+            ${canEdit?`<button class="btn btn-sm" style="color:var(--tx-err);padding:4px 8px" onclick="deleteEvent(${e.id})"><i class="ti ti-trash"></i></button>`:""}
+          </div>`).join("")}`).join("")}
+    </div>`;
+}
+
+function openAddEvent(){
+  if(!canDo('admin')){alert("Sign in first");return;}
+  const today=new Date().toISOString().split("T")[0];
+  openModal("Add Event",`
+    <div class="field"><label>Title</label>
+      <input id="ev-title" placeholder="e.g. Mid-term break, Debate Day…"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Start Date</label>
+        <input type="date" id="ev-start" value="${today}"></div>
+      <div class="field"><label>End Date (if multi-day)</label>
+        <input type="date" id="ev-end"></div>
+    </div>
+    <div class="field"><label>Type</label>
+      <select id="ev-type">
+        <option value="academic">Academic</option>
+        <option value="activities">Activities / EDGE</option>
+        <option value="holiday">Holiday</option>
+        <option value="meeting">Meeting</option>
+        <option value="other">Other</option>
+      </select></div>
+    <div class="field"><label>Description (optional)</label>
+      <input id="ev-desc" placeholder="Brief note…"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddEvent()"><i class="ti ti-check"></i> Add</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("ev-title")?.focus(),50);
+}
+
+async function submitAddEvent(){
+  const title=document.getElementById("ev-title")?.value?.trim();
+  const event_date=document.getElementById("ev-start")?.value;
+  const end_date=document.getElementById("ev-end")?.value||null;
+  const event_type=document.getElementById("ev-type")?.value;
+  const description=document.getElementById("ev-desc")?.value?.trim()||null;
+  if(!title){alert("Enter a title");return;}
+  if(!event_date){alert("Select a date");return;}
+  const{error}=await dbClient.from("school_events").insert(
+    {title,event_date,end_date,event_type,description,term:currentTerm,session:currentSession});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadSchoolEvents(); renderCalendar();
+}
+
+async function deleteEvent(id){
+  if(!confirm("Delete this event?"))return;
+  const{error}=await dbClient.from("school_events").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  await loadSchoolEvents(); renderCalendar();
 }
 
 /* ── boot ── */
