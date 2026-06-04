@@ -661,20 +661,21 @@ function renderHub(){
       <div class="hub-tiles">
         ${[
           {id:"academic",        icCls:"tile-ic-academic",   icon:"ti-certificate", label:"Academic",         desc:"Classes, scores, exam papers & EDGE tests"},
-          {id:"finance",         icCls:"tile-ic-finance",    icon:"ti-cash",        label:"Finance",          desc:"Fee structure, payments & ledger"},
+          {id:"finance",         icCls:"tile-ic-finance",    icon:"ti-cash",        label:"Finance",          desc:"Fee structure, payments & ledger",            needsAuth:true},
           {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:"Student records & report cards"},
           {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:"Staff directory & assignments"},
-          {id:"entrance",        icCls:"tile-ic-entrance",   icon:"ti-id-badge",    label:"Entrance & Transfer", desc:"External candidates, feeder schools & results"},
+          {id:"entrance",        icCls:"tile-ic-entrance",   icon:"ti-id-badge",    label:"Entrance & Transfer", desc:"External candidates, feeder schools & results", needsAuth:true},
           {id:"attendance",  icCls:"tile-ic-attendance", icon:"ti-calendar-check", label:"Attendance",        desc:"Daily register & term attendance records"},
           {id:"activities",  icCls:"tile-ic-activities", icon:"ti-trophy",          label:"Activities (EDGE)", desc:"Tracks, memberships, sessions & competitions"},
           {id:"calendar",    icCls:"tile-ic-calendar",   icon:"ti-calendar-event",  label:"School Calendar",   desc:"Events, competition dates & term schedule"},
           {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", locked:true},
         ].map(t=>`
-          <div class="hub-tile${t.locked?" tile-locked":""}" onclick="enterSection('${t.id}')">
+          <div class="hub-tile${t.locked||(!canDo('admin')&&t.needsAuth)?" tile-locked":""}" onclick="enterSection('${t.id}')">
             <div class="hub-tile-icon ${t.icCls}"><i class="ti ${t.icon}"></i></div>
             <div class="hub-tile-label">${t.label}</div>
             <div class="hub-tile-desc">${t.desc}</div>
             ${t.locked?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> PIN required</div>`:""}
+            ${!t.locked&&t.needsAuth&&!canDo('admin')?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> Sign in required</div>`:""}
           </div>`).join("")}
       </div>
     </div>`;
@@ -683,6 +684,10 @@ function renderHub(){
 function navToHub(){ renderHub(); closeSidebar(); }
 
 function enterSection(name){
+  if((name==="finance"||name==="entrance")&&!canDo('admin')){
+    openLoginModal();
+    return;
+  }
   if(name==="principals-desk"&&!adminUnlocked){
     openModal("Principal's Desk",`
       <div style="text-align:center;padding:4px 0 18px">
@@ -1341,7 +1346,10 @@ function openStudent(sid){
       <div class="field"><label>Teacher's comment</label>
         <textarea rows="2" placeholder="Teacher's observation…" oninput="setTComment(${sid},this.value)">${getTComment(sid)}</textarea></div>
       <div class="field"><label>Principal's comment</label>
-        <textarea rows="2" placeholder="Principal's comment…" oninput="setPComment(${sid},this.value)">${getPComment(sid)}</textarea></div>
+        ${canDo('principal')
+          ?`<textarea rows="2" placeholder="Principal's comment…" oninput="setPComment(${sid},this.value)">${getPComment(sid)}</textarea>`
+          :`<div style="min-height:36px;border:.5px solid var(--bd3);border-radius:var(--r);padding:7px 10px;font-size:12px;color:${getPComment(sid)?'var(--tx)':'var(--tx3)'}">${getPComment(sid)||'Principal access required'}</div>`}
+      </div>
     </div>`;
 }
 function updateDetailRow(sid,sub){
@@ -1700,14 +1708,14 @@ function buildAdminStaffHtml(){
       <td><span class="annex-pill">${ax?ax.name:"—"}</span></td>
       <td class="col-id" style="color:var(--tx2)"><div>${s.phone||"—"}</div>${s.next_of_kin?`<div style="font-size:10px;color:var(--tx3)">NOK: ${s.next_of_kin}${s.nok_phone?" · "+s.nok_phone:""}</div>`:""}</td>
       ${s.notes?`<td style="font-size:11px;color:var(--tx3);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes}</td>`:`<td></td>`}
-      <td><div style="display:flex;gap:4px">
+      ${canDo('admin')?`<td><div style="display:flex;gap:4px">
         <button class="btn btn-sm" onclick="openEditStaff(${s.staff_id})"><i class="ti ti-pencil"></i></button>
         <button class="btn btn-sm" onclick="confirmMarkStaffLeft(${s.staff_id},'${s.name.replace(/'/g,"\\'")}')"><i class="ti ti-user-minus"></i></button>
-      </div></td></tr>`;}).join("");
+      </div></td>`:"<td></td>"}</tr>`;}).join("");
   return`<div class="card">
     <div class="card-head">
       <span class="card-title">Staff — ${currentTerm} ${currentSession}</span>
-      <button class="btn btn-sm btn-primary" onclick="openAddStaff()"><i class="ti ti-user-plus"></i> Add staff</button>
+      ${canDo('admin')?`<button class="btn btn-sm btn-primary" onclick="openAddStaff()"><i class="ti ti-user-plus"></i> Add staff</button>`:""}
     </div>
     <div class="filter-bar">${annexOpts}</div>
     ${base.length?`<div style="overflow-x:auto"><table>
@@ -1909,6 +1917,7 @@ async function migrateLocalStudents(){
 
 /* ── admin: staff actions ── */
 function openAddStaff(){
+  if(!canDo('admin')){alert("Sign in as Admin or Principal to manage staff");return;}
   const axOpts=annexList.map(a=>`<option value="${a.id}">${a.name}</option>`).join("");
   openModal("Add Staff Member",`
     <div class="field"><label>Full name</label><input id="m-name" placeholder="Surname Firstname" /></div>
@@ -1954,6 +1963,7 @@ async function submitAddStaff(){
   closeModal(); await loadStaff(); renderAdmin();
 }
 function openEditStaff(staffId){
+  if(!canDo('admin')){alert("Sign in as Admin or Principal to manage staff");return;}
   const s=staffList.find(x=>x.staff_id===staffId); if(!s)return;
   const axOpts=annexList.map(a=>`<option value="${a.id}" ${a.id===s.annex_id?"selected":""}>${a.name}</option>`).join("");
   openModal(`Edit: ${s.name}`,`
@@ -1994,6 +2004,7 @@ async function submitEditStaff(staffId){
   closeModal(); await loadStaff(); renderAdmin();
 }
 async function confirmMarkStaffLeft(staffId,name){
+  if(!canDo('admin')){alert("Sign in as Admin or Principal to manage staff");return;}
   if(!confirm(`Mark ${name} as "left" for ${currentTerm} ${currentSession}?`))return;
   await dbClient.from("staff_assignments").update({status:"left"}).eq("staff_id",staffId).eq("term",currentTerm).eq("session",currentSession);
   await loadStaff(); renderAdmin();
