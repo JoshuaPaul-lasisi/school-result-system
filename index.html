@@ -5083,13 +5083,25 @@ async function loadTimetableSlots(){
 function renderTimetableGrid(){
   const cls=document.getElementById("tt-cls-pick")?.value||TT_CLASSES[0];
   const content=document.getElementById("content");
+  const totalSlots=Object.values(ttSlots[cls]||{}).reduce((n,day)=>n+Object.keys(day).length,0);
   content.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <select id="tt-cls-pick" onchange="renderTimetableGrid()" style="width:auto">
         ${TT_CLASSES.map(c=>`<option${c===cls?" selected":""}>${c}</option>`).join("")}
       </select>
-      <span style="font-size:12px;color:var(--tx2)">Click any cell to ${canDo('admin')?'edit':'view'}</span>
+      <span style="font-size:12px;color:var(--tx2);flex:1">Click any cell to ${canDo('admin')?'edit':'view'}</span>
+      ${canDo('admin')?`
+        <button class="btn btn-sm btn-primary" onclick="generateTimetable()" title="Auto-fill all classes based on teacher constraints">
+          <i class="ti ti-wand"></i> Generate sample
+        </button>
+        ${totalSlots>0?`<button class="btn btn-sm" onclick="clearAllSlots()" style="color:var(--tx-err)">
+          <i class="ti ti-trash"></i> Clear all
+        </button>`:""}
+      `:""}
     </div>
+    ${!ttTeachers.length&&canDo('admin')?`<div style="background:var(--bg-warn);border-radius:var(--r);padding:9px 12px;font-size:12px;color:var(--tx-warn);margin-bottom:12px">
+      <i class="ti ti-alert-triangle"></i> No teachers configured yet — go to <b>Teacher Config</b> to add teachers before generating.
+    </div>`:""}
     <div class="tt-wrap">
       <table class="tt-table">
         <thead>
@@ -5305,6 +5317,142 @@ async function deleteTeacher(id){
   const{error}=await dbClient.from("timetable_teachers").delete().eq("id",id);
   if(error){alert("Error: "+error.message);return;}
   await loadTimetableTeachers(); renderTimetableTeachers();
+}
+
+/* ── timetable generator ── */
+
+function _ttShuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a; }
+
+function _ttTeaches(teacherSubjects, currSubject){
+  // Normalised matching: handles abbreviations JSS uses (BST, PVS, NVE, CCA, CRS)
+  const n=s=>s.toLowerCase().trim();
+  const cs=n(currSubject);
+  const expansions={
+    "bst":  ["business studies","basic science","basic tech","basic technology"],
+    "pvs":  ["prevocational","home economics","phe","physical","agricultural","agric"],
+    "nve":  ["nve","nigerian values","national values"],
+    "cca":  ["cca","cultural","creative arts"],
+    "crs":  ["crs","christian","religious studies"],
+    "literature":["literature"],
+    "account":   ["account","accounting"],
+    "civic education":["civic","government"],
+  };
+  const targets=[cs,...(expansions[cs]||[])];
+  return teacherSubjects.some(ts=>{
+    const t=n(ts);
+    return targets.some(e=>t.includes(e)||e.includes(t));
+  });
+}
+
+async function generateTimetable(){
+  if(!canDo('admin')){return;}
+  if(!ttTeachers.length){
+    alert("Add teachers in Teacher Config first, then generate.");
+    return;
+  }
+  if(!confirm("Generate a sample timetable for ALL classes (Mon–Thu)?\nThis will replace any existing slots for this term."))return;
+
+  // Build normalised teacher objects
+  const teachers=ttTeachers.map(t=>({
+    name: t.name,
+    subjects: (t.subjects||"").split(",").map(s=>s.trim()).filter(Boolean),
+    classes: t.classes ? t.classes.split(",").map(s=>s.trim()) : [...TT_CLASSES],
+    days: (t.availability||"Mon,Tue,Wed,Thu").split(",").map(s=>s.trim()),
+  }));
+
+  const workingDays=["Mon","Tue","Wed","Thu"];
+  const periods=TT_PERIODS.map((p,i)=>({...p,index:i})).filter(p=>!p.isBreak);
+
+  // Per-slot teacher-usage tracker: usedAt[day][periodIndex] = Set<teacherName>
+  const usedAt={};
+  workingDays.forEach(d=>{usedAt[d]={};periods.forEach(p=>{usedAt[d][p.index]=new Set();});});
+
+  const newSlots=[];
+
+  // Track how many periods each subject is scheduled per class (for balancing)
+  // subCount[cls][subject] = n
+  const subCount={};
+  TT_CLASSES.forEach(c=>{subCount[c]={};});
+
+  // Target: spread subjects evenly across the week
+  // Iterate (day, period) then all classes — so teacher conflicts are resolved globally
+  for(const day of workingDays){
+    for(const period of periods){
+      const pi=period.index;
+      const classOrder=_ttShuffle([...TT_CLASSES]); // randomise class priority each slot
+      for(const cls of classOrder){
+        const sec=TT_CLASSES.indexOf(cls)<3?"Junior Secondary":"Senior Secondary";
+        const subs=SUBJECTS[sec]||[];
+
+        // Sort subjects by least-scheduled first (ties broken randomly)
+        const sorted=[..._ttShuffle([...subs])].sort((a,b)=>
+          (subCount[cls][a]||0)-(subCount[cls][b]||0));
+
+        let placed=false;
+        for(const subject of sorted){
+          // Don't schedule a subject more than ~4× per week (JSS 7 subs) or ~3× (SS 14 subs)
+          const max=subs.length<=8?4:3;
+          if((subCount[cls][subject]||0)>=max)continue;
+
+          // Find eligible teachers: available today, teaches this subject, free this slot
+          const eligible=teachers.filter(t=>
+            t.days.includes(day) &&
+            t.classes.includes(cls) &&
+            _ttTeaches(t.subjects,subject) &&
+            !usedAt[day][pi].has(t.name)
+          );
+
+          const teacher=eligible.length
+            ? eligible[Math.floor(Math.random()*eligible.length)]
+            : null;
+
+          newSlots.push({cls,day,period_index:pi,subject,
+            teacher_name:teacher?teacher.name:null,
+            term:currentTerm,session:currentSession});
+          subCount[cls][subject]=(subCount[cls][subject]||0)+1;
+          if(teacher)usedAt[day][pi].add(teacher.name);
+          placed=true;
+          break;
+        }
+
+        // Fallback: pick ANY subject that still has headroom (no teacher)
+        if(!placed){
+          const fallback=subs.find(s=>(subCount[cls][s]||0)<5);
+          if(fallback){
+            newSlots.push({cls,day,period_index:pi,subject:fallback,
+              teacher_name:null,term:currentTerm,session:currentSession});
+            subCount[cls][fallback]=(subCount[cls][fallback]||0)+1;
+          }
+        }
+      }
+    }
+  }
+
+  if(!dbClient){alert("Database not connected");return;}
+  // Delete existing slots for this term
+  const{error:delErr}=await dbClient.from("timetable_slots")
+    .delete().eq("term",currentTerm).eq("session",currentSession);
+  if(delErr){alert("Error clearing old timetable: "+delErr.message);return;}
+
+  // Insert in chunks of 100 to avoid payload limits
+  for(let i=0;i<newSlots.length;i+=100){
+    const{error}=await dbClient.from("timetable_slots").insert(newSlots.slice(i,i+100));
+    if(error){alert("Error saving timetable: "+error.message);return;}
+  }
+
+  await loadTimetableSlots();
+  renderTimetableGrid();
+}
+
+async function clearAllSlots(){
+  if(!canDo('admin'))return;
+  if(!confirm("Clear the entire timetable for this term?"))return;
+  if(!dbClient){alert("Database not connected");return;}
+  const{error}=await dbClient.from("timetable_slots")
+    .delete().eq("term",currentTerm).eq("session",currentSession);
+  if(error){alert("Error: "+error.message);return;}
+  ttSlots={};
+  renderTimetableGrid();
 }
 
 /* ── boot ── */
