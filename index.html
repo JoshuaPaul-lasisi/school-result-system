@@ -4682,9 +4682,9 @@ function renderActivitiesOverview(){
 function renderActivityMemberships(){
   document.getElementById("page-title").textContent="Track Memberships";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
-  const canEdit=canDo('admin');
-  document.getElementById("topbar-actions").innerHTML=canEdit
-    ?`<button class="btn btn-primary" onclick="openAddMembership()"><i class="ti ti-plus"></i> Assign Student</button>`:""  ;
+  const canDelete=canDo('admin');
+  document.getElementById("topbar-actions").innerHTML=
+    `<button class="btn btn-primary" onclick="openAddMembership()"><i class="ti ti-plus"></i> Assign Student</button>`;
   const trackFilter=document.getElementById("mem-track-filter")?.value||"";
   const shown=trackFilter?activityMemberships.filter(m=>m.track===trackFilter):activityMemberships;
   const rows=shown.map(m=>{
@@ -4694,11 +4694,10 @@ function renderActivityMemberships(){
       <td style="color:var(--tx2);font-size:12px">${s.cls||"—"}</td>
       <td><span class="track-pill ${trackCss(m.track)}">${m.track}</span></td>
       <td><span class="badge badge-neutral" style="text-transform:capitalize">${m.role}</span></td>
-      ${canEdit?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteMembership(${m.id},'${s.name}')"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
+      ${canDelete?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteMembership(${m.id},'${s.name}')"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
     </tr>`;
   }).join("");
   document.getElementById("content").innerHTML=`
-    ${!canEdit?signInNotice("manage memberships"):""}
     <div class="filter-bar">
       <select id="mem-track-filter" onchange="renderActivityMemberships()" style="width:auto">
         <option value="">All tracks</option>
@@ -4712,7 +4711,6 @@ function renderActivityMemberships(){
 }
 
 function openAddMembership(){
-  if(!canDo('admin')){alert("Sign in first");return;}
   const studentOpts=roster.sort((a,b)=>a.name.localeCompare(b.name))
     .map(s=>`<option value="${s.id}">${s.name} (${s.cls})</option>`).join("");
   openModal("Assign Student to Track",`
@@ -4757,9 +4755,9 @@ async function deleteMembership(id,name){
 function renderActivitySessions(){
   document.getElementById("page-title").textContent="Session Logs";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
-  const canEdit=canDo('admin');
-  document.getElementById("topbar-actions").innerHTML=canEdit
-    ?`<button class="btn btn-primary" onclick="openLogSession()"><i class="ti ti-plus"></i> Log Session</button>`:"";
+  const canDelete=canDo('admin');
+  document.getElementById("topbar-actions").innerHTML=
+    `<button class="btn btn-primary" onclick="openLogSession()"><i class="ti ti-plus"></i> Log Session</button>`;
   const rows=activitySessions.map(s=>`
     <tr>
       <td>${s.session_date}</td>
@@ -4767,10 +4765,9 @@ function renderActivitySessions(){
       <td>${s.topic||"—"}</td>
       <td style="text-align:center">${s.attendance_count||"—"}</td>
       <td style="color:var(--tx2);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes||""}</td>
-      ${canEdit?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteActivitySession(${s.id})"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
+      ${canDelete?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteActivitySession(${s.id})"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
     </tr>`).join("");
   document.getElementById("content").innerHTML=`
-    ${!canEdit?signInNotice("log sessions"):""}
     ${activitySessions.length
       ?`<div class="card" style="padding:0;overflow:hidden">
           <table><thead><tr><th>Date</th><th>Track</th><th>Topic</th><th style="text-align:center">Attendance</th><th>Notes</th><th></th></tr></thead>
@@ -4779,7 +4776,6 @@ function renderActivitySessions(){
 }
 
 function openLogSession(){
-  if(!canDo('admin')){alert("Sign in first");return;}
   const today=new Date().toISOString().split("T")[0];
   openModal("Log Session",`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -4827,9 +4823,9 @@ async function deleteActivitySession(id){
 function renderActivityCompetitions(){
   document.getElementById("page-title").textContent="Competitions";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
-  const canEdit=canDo('admin');
-  document.getElementById("topbar-actions").innerHTML=canEdit
-    ?`<button class="btn btn-primary" onclick="openLogCompetition()"><i class="ti ti-plus"></i> Log Result</button>`:"";
+  const canDelete=canDo('admin');
+  document.getElementById("topbar-actions").innerHTML=
+    `<button class="btn btn-primary" onclick="openLogCompetition()"><i class="ti ti-plus"></i> Log Result</button>`;
   const levelBadge={internal:"badge-neutral",
     "inter-school":"badge-b","regional":"badge-c","national":"badge-ok"};
   const rows=activityCompetitions.map(c=>`
@@ -4840,10 +4836,9 @@ function renderActivityCompetitions(){
       <td><span class="badge ${levelBadge[c.level]||"badge-neutral"}" style="text-transform:capitalize">${c.level}</span></td>
       <td style="font-weight:600;color:${c.position==="1st"||c.position==="1"?"var(--tx-ok)":"var(--tx)"}">${c.position||"—"}</td>
       <td style="color:var(--tx2);font-size:12px">${c.participants||""}</td>
-      ${canEdit?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteCompetition(${c.id})"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
+      ${canDelete?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteCompetition(${c.id})"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
     </tr>`).join("");
   document.getElementById("content").innerHTML=`
-    ${!canEdit?signInNotice("log competitions"):""}
     ${activityCompetitions.length
       ?`<div class="card" style="padding:0;overflow:hidden">
           <table><thead><tr><th>Date</th><th>Event</th><th>Track</th><th>Level</th><th>Position</th><th>Participants</th><th></th></tr></thead>
@@ -4852,7 +4847,6 @@ function renderActivityCompetitions(){
 }
 
 function openLogCompetition(){
-  if(!canDo('admin')){alert("Sign in first");return;}
   const today=new Date().toISOString().split("T")[0];
   openModal("Log Competition Result",`
     <div class="field"><label>Event Title</label>
