@@ -414,7 +414,8 @@
     .tt-class-hdr{font-size:11px;font-weight:600;color:var(--tx2);padding:6px 0 4px;text-transform:uppercase;letter-spacing:.6px}
     .tt-period-lbl{text-align:right;font-size:10px;color:var(--tx3);white-space:nowrap;padding:5px 8px;background:var(--bg2)}
     .tt-day-cls{display:flex;align-items:center;gap:6px;padding:8px 0 4px}
-    .teacher-avail-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;background:var(--bg2);color:var(--tx2);margin:2px}
+    .tt-cell.tt-noteacher{background:#fffbeb}
+    [data-theme="dark"] .tt-cell.tt-noteacher{background:#291800}
   </style>
 </head>
 <body>
@@ -5126,9 +5127,10 @@ function renderTimetableGrid(){
                 }
                 const slot=ttSlots[cls]?.[day]?.[pi];
                 if(slot&&slot.subject){
-                  return`<td onclick="openEditSlot('${cls}','${day}',${pi})"><div class="tt-cell">
+                  const noT=!slot.teacher_name;
+                  return`<td onclick="openEditSlot('${cls}','${day}',${pi})"><div class="tt-cell${noT?' tt-noteacher':''}">
                     <div class="tt-subject">${slot.subject}</div>
-                    <div class="tt-teacher">${slot.teacher_name||''}</div>
+                    <div class="tt-teacher">${noT?'<span style="color:var(--tx-warn);font-size:10px"><i class="ti ti-alert-triangle" style="font-size:9px"></i> No teacher</span>':slot.teacher_name}</div>
                   </div></td>`;
                 }
                 return`<td onclick="openEditSlot('${cls}','${day}',${pi})"><div class="tt-cell tt-empty">
@@ -5323,19 +5325,78 @@ async function deleteTeacher(id){
 
 function _ttShuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a; }
 
+// ── subject priority config ──────────────────────────────────────────────────
+// max: target periods per week
+// calc: true = calculation/heavy → prefer morning periods (P1–P5)
+// light: true = lighter/reflective → prefer afternoon periods (P6–Optional)
+const SUBJECT_CONFIG = {
+  // JSS
+  "Mathematics":         {max:3, calc:true},
+  "English Language":    {max:3},
+  "BST":                 {max:3, calc:true},
+  "NVE":                 {max:2, light:true},
+  "PVS":                 {max:2},
+  "CCA":                 {max:2, light:true},
+  "CRS":                 {max:2, light:true},
+  // SS
+  "Biology":             {max:3},
+  "Chemistry":           {max:3, calc:true},
+  "Physics":             {max:3, calc:true},
+  "Economics":           {max:3, calc:true},
+  "Further Mathematics": {max:3, calc:true},
+  "Account":             {max:3, calc:true},
+  "ICT":                 {max:2},
+  "Civic Education":     {max:2, light:true},
+  "Literature":          {max:2},
+  "Government":          {max:2},
+  "Commerce":            {max:2},
+};
+function _ttSubMax(sub){ return (SUBJECT_CONFIG[sub]||{}).max||2; }
+function _ttIsCalc(sub){ return !!(SUBJECT_CONFIG[sub]||{}).calc; }
+function _ttIsLight(sub){ return !!(SUBJECT_CONFIG[sub]||{}).light; }
+
+// How well does this period index suit this subject? (0–10)
+// Periods: 0-2 = morning (pre-break), 4-5 = post-break, 6-8 = afternoon, 9 = optional
+function _ttPeriodFit(pi, sub){
+  const morning   = pi<=2;
+  const postBreak = pi>=4&&pi<=5;
+  const afternoon = pi>=6;
+  if(_ttIsCalc(sub)){
+    if(morning)return 10;
+    if(postBreak)return 7;
+    if(pi===6)return 4;
+    return 1;  // late afternoon — avoid unless nothing else fits
+  }
+  if(_ttIsLight(sub)){
+    if(pi===9)return 10;
+    if(afternoon)return 9;
+    if(postBreak)return 6;
+    return 3;
+  }
+  // neutral: slight preference for mid-day
+  if(postBreak||pi===2)return 8;
+  if(morning)return 7;
+  return 5;
+}
+
+// Previous schedulable period index, skipping break (-1 if none)
+function _ttPrevPi(pi){
+  for(let i=pi-1;i>=0;i--){ if(!TT_PERIODS[i]?.isBreak)return i; }
+  return -1;
+}
+
 function _ttTeaches(teacherSubjects, currSubject){
-  // Normalised matching: handles abbreviations JSS uses (BST, PVS, NVE, CCA, CRS)
   const n=s=>s.toLowerCase().trim();
   const cs=n(currSubject);
   const expansions={
-    "bst":  ["business studies","basic science","basic tech","basic technology"],
-    "pvs":  ["prevocational","home economics","phe","physical","agricultural","agric"],
-    "nve":  ["nve","nigerian values","national values"],
-    "cca":  ["cca","cultural","creative arts"],
-    "crs":  ["crs","christian","religious studies"],
-    "literature":["literature"],
-    "account":   ["account","accounting"],
-    "civic education":["civic","government"],
+    "bst":              ["business studies","basic science","basic tech","basic technology"],
+    "pvs":              ["prevocational","home economics","phe","physical","agricultural","agric"],
+    "nve":              ["nve","nigerian values","national values"],
+    "cca":              ["cca","cultural","creative arts"],
+    "crs":              ["crs","christian","religious studies"],
+    "literature":       ["literature"],
+    "account":          ["account","accounting"],
+    "civic education":  ["civic","government"],
   };
   const targets=[cs,...(expansions[cs]||[])];
   return teacherSubjects.some(ts=>{
@@ -5345,67 +5406,74 @@ function _ttTeaches(teacherSubjects, currSubject){
 }
 
 async function generateTimetable(){
-  if(!canDo('admin')){return;}
+  if(!canDo('admin'))return;
   if(!ttTeachers.length){
     alert("Add teachers in Teacher Config first, then generate.");
     return;
   }
   if(!confirm("Generate a sample timetable for ALL classes (Mon–Thu)?\nThis will replace any existing slots for this term."))return;
 
-  // Build normalised teacher objects
   const teachers=ttTeachers.map(t=>({
-    name: t.name,
-    subjects: (t.subjects||"").split(",").map(s=>s.trim()).filter(Boolean),
-    classes: t.classes ? t.classes.split(",").map(s=>s.trim()) : [...TT_CLASSES],
-    days: (t.availability||"Mon,Tue,Wed,Thu").split(",").map(s=>s.trim()),
+    name:t.name,
+    subjects:(t.subjects||"").split(",").map(s=>s.trim()).filter(Boolean),
+    classes:t.classes?t.classes.split(",").map(s=>s.trim()):[...TT_CLASSES],
+    days:(t.availability||"Mon,Tue,Wed,Thu").split(",").map(s=>s.trim()),
   }));
 
   const workingDays=["Mon","Tue","Wed","Thu"];
   const periods=TT_PERIODS.map((p,i)=>({...p,index:i})).filter(p=>!p.isBreak);
 
-  // Per-slot teacher-usage tracker: usedAt[day][periodIndex] = Set<teacherName>
+  // usedAt[day][periodIndex] = Set of teacher names already assigned that slot
   const usedAt={};
   workingDays.forEach(d=>{usedAt[d]={};periods.forEach(p=>{usedAt[d][p.index]=new Set();});});
 
   const newSlots=[];
-
-  // Track how many periods each subject is scheduled per class (for balancing)
-  // subCount[cls][subject] = n
+  // subCount[cls][subject] = how many times placed so far this week
   const subCount={};
   TT_CLASSES.forEach(c=>{subCount[c]={};});
 
-  // Target: spread subjects evenly across the week
-  // Iterate (day, period) then all classes — so teacher conflicts are resolved globally
-  for(const day of workingDays){
-    for(const period of periods){
-      const pi=period.index;
-      const classOrder=_ttShuffle([...TT_CLASSES]); // randomise class priority each slot
+  // ── Iterate PERIOD-FIRST so early slots are filled across all days before
+  //    moving to later periods. Calc subjects naturally win early slots because
+  //    their _ttPeriodFit() score is highest in the morning.
+  for(const period of periods){
+    const pi=period.index;
+    const dayOrder=_ttShuffle([...workingDays]);
+    for(const day of dayOrder){
+      const classOrder=_ttShuffle([...TT_CLASSES]);
       for(const cls of classOrder){
         const sec=TT_CLASSES.indexOf(cls)<3?"Junior Secondary":"Senior Secondary";
         const subs=SUBJECTS[sec]||[];
+        const prevPi=_ttPrevPi(pi);
+        const prevSub=prevPi>=0
+          ?newSlots.find(s=>s.cls===cls&&s.day===day&&s.period_index===prevPi)?.subject
+          :null;
 
-        // Sort subjects by least-scheduled first (ties broken randomly)
-        const sorted=[..._ttShuffle([...subs])].sort((a,b)=>
-          (subCount[cls][a]||0)-(subCount[cls][b]||0));
+        // Score every candidate subject for this (cls, day, period) combination
+        const candidates=subs
+          .filter(s=>(subCount[cls][s]||0)<_ttSubMax(s))
+          .map(s=>{
+            const deficit=_ttSubMax(s)-(subCount[cls][s]||0);         // how many more needed
+            const fit=_ttPeriodFit(pi,s);                             // period suitability
+            const todayCount=newSlots.filter(n=>n.cls===cls&&n.day===day&&n.subject===s).length;
+            const backToBack=prevSub===s?1:0;
+            // Composite score: higher = more preferred
+            const score=deficit*8 + fit - todayCount*22 - backToBack*18 + Math.random()*2;
+            return{subject:s,score};
+          })
+          .sort((a,b)=>b.score-a.score);
 
         let placed=false;
-        for(const subject of sorted){
-          // Don't schedule a subject more than ~4× per week (JSS 7 subs) or ~3× (SS 14 subs)
-          const max=subs.length<=8?4:3;
-          if((subCount[cls][subject]||0)>=max)continue;
-
-          // Find eligible teachers: available today, teaches this subject, free this slot
+        for(const{subject} of candidates){
           const eligible=teachers.filter(t=>
-            t.days.includes(day) &&
-            t.classes.includes(cls) &&
-            _ttTeaches(t.subjects,subject) &&
+            t.days.includes(day)&&
+            t.classes.includes(cls)&&
+            _ttTeaches(t.subjects,subject)&&
             !usedAt[day][pi].has(t.name)
           );
-
+          // Pick a random eligible teacher; if none, still place subject (no teacher = amber)
           const teacher=eligible.length
-            ? eligible[Math.floor(Math.random()*eligible.length)]
-            : null;
-
+            ?eligible[Math.floor(Math.random()*eligible.length)]
+            :null;
           newSlots.push({cls,day,period_index:pi,subject,
             teacher_name:teacher?teacher.name:null,
             term:currentTerm,session:currentSession});
@@ -5414,14 +5482,14 @@ async function generateTimetable(){
           placed=true;
           break;
         }
-
-        // Fallback: pick ANY subject that still has headroom (no teacher)
         if(!placed){
-          const fallback=subs.find(s=>(subCount[cls][s]||0)<5);
-          if(fallback){
-            newSlots.push({cls,day,period_index:pi,subject:fallback,
+          // Hard fallback: exceed quota by 1 to avoid empty cells
+          const fb=subs.reduce((best,s)=>
+            (subCount[cls][s]||0)<(subCount[cls][best]||0)?s:best, subs[0]);
+          if(fb){
+            newSlots.push({cls,day,period_index:pi,subject:fb,
               teacher_name:null,term:currentTerm,session:currentSession});
-            subCount[cls][fallback]=(subCount[cls][fallback]||0)+1;
+            subCount[cls][fb]=(subCount[cls][fb]||0)+1;
           }
         }
       }
@@ -5429,17 +5497,13 @@ async function generateTimetable(){
   }
 
   if(!dbClient){alert("Database not connected");return;}
-  // Delete existing slots for this term
   const{error:delErr}=await dbClient.from("timetable_slots")
     .delete().eq("term",currentTerm).eq("session",currentSession);
   if(delErr){alert("Error clearing old timetable: "+delErr.message);return;}
-
-  // Insert in chunks of 100 to avoid payload limits
   for(let i=0;i<newSlots.length;i+=100){
     const{error}=await dbClient.from("timetable_slots").insert(newSlots.slice(i,i+100));
     if(error){alert("Error saving timetable: "+error.message);return;}
   }
-
   await loadTimetableSlots();
   renderTimetableGrid();
 }
