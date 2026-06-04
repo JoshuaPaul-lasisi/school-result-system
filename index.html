@@ -392,6 +392,29 @@
     .evt-academic{background:#1d4ed8}   .evt-activities{background:#92400e}
     .evt-holiday{background:#dc2626}    .evt-meeting{background:#7e22ce}
     .evt-other{background:#6b7280}
+
+    /* ── timetable tile colour ── */
+    .tile-ic-timetable {background:#fce7f3} .tile-ic-timetable i{color:#9d174d}
+    [data-theme="dark"] .tile-ic-timetable {background:#2d0a1e} [data-theme="dark"] .tile-ic-timetable i{color:#f9a8d4}
+
+    /* ── timetable grid ── */
+    .tt-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .tt-table{border-collapse:collapse;min-width:700px;width:100%;font-size:12px}
+    .tt-table th{padding:7px 6px;text-align:center;background:var(--bg2);border:.5px solid var(--bd3);font-size:11px;font-weight:600;color:var(--tx2);white-space:nowrap}
+    .tt-table td{padding:0;border:.5px solid var(--bd3);min-width:90px;vertical-align:top}
+    .tt-cell{min-height:44px;padding:5px 6px;cursor:pointer;transition:background .12s;display:flex;flex-direction:column;justify-content:center}
+    .tt-cell:hover{background:var(--bg-info)}
+    .tt-cell.tt-break{background:var(--bg2);cursor:default;align-items:center;font-size:11px;color:var(--tx3);font-style:italic}
+    .tt-cell.tt-break:hover{background:var(--bg2)}
+    .tt-cell.tt-friday{background:#fff8e1;cursor:default}
+    .tt-cell.tt-friday:hover{background:#fff8e1}
+    .tt-cell.tt-empty{background:var(--bg)}
+    .tt-subject{font-size:12px;font-weight:600;color:var(--tx);line-height:1.2}
+    .tt-teacher{font-size:10px;color:var(--tx2);margin-top:1px}
+    .tt-class-hdr{font-size:11px;font-weight:600;color:var(--tx2);padding:6px 0 4px;text-transform:uppercase;letter-spacing:.6px}
+    .tt-period-lbl{text-align:right;font-size:10px;color:var(--tx3);white-space:nowrap;padding:5px 8px;background:var(--bg2)}
+    .tt-day-cls{display:flex;align-items:center;gap:6px;padding:8px 0 4px}
+    .teacher-avail-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;background:var(--bg2);color:var(--tx2);margin:2px}
   </style>
 </head>
 <body>
@@ -616,6 +639,8 @@ let activityMemberships = [];
 let activitySessions = [];
 let activityCompetitions = [];
 let schoolEvents = [];
+let ttTeachers = [];   // timetable teacher records
+let ttSlots = {};      // ttSlots[cls][day][periodIdx] = {subject,teacher_name}
 
 /* ── hub & section navigation ── */
 const SECTION_META = {
@@ -627,6 +652,7 @@ const SECTION_META = {
   attendance:        { icon:"ti-calendar-check", bg:"#dbeafe",  color:"#1d4ed8", label:"Attendance" },
   activities:        { icon:"ti-trophy",          bg:"#fef3c7",  color:"#92400e", label:"Activities" },
   calendar:          { icon:"ti-calendar-event",  bg:"#e0e7ff",  color:"#3730a3", label:"Calendar" },
+  timetable:          { icon:"ti-calendar-time", bg:"#fce7f3", color:"#9d174d", label:"Timetable" },
   "principals-desk":{ icon:"ti-shield-lock",   bg:"#fdeef1", color:"#8B1A2F", label:"Principal's Desk" },
 };
 const ENTRANCE_SUBJECTS = ["Mathematics","English","Verbal Reasoning","Quantitative Aptitude","General Reasoning"];
@@ -668,6 +694,7 @@ function renderHub(){
           {id:"attendance",  icCls:"tile-ic-attendance", icon:"ti-calendar-check", label:"Attendance",        desc:"Daily register & term attendance records"},
           {id:"activities",  icCls:"tile-ic-activities", icon:"ti-trophy",          label:"Activities (EDGE)", desc:"Tracks, memberships, sessions & competitions"},
           {id:"calendar",    icCls:"tile-ic-calendar",   icon:"ti-calendar-event",  label:"School Calendar",   desc:"Events, competition dates & term schedule"},
+          {id:"timetable",   icCls:"tile-ic-timetable",  icon:"ti-calendar-time",   label:"Timetable",         desc:"JSS–SS class schedules & teacher assignments"},
           {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", locked:true},
         ].map(t=>`
           <div class="hub-tile${t.locked||(!canDo('admin')&&t.needsAuth)?" tile-locked":""}" onclick="enterSection('${t.id}')">
@@ -720,6 +747,7 @@ function enterSection(name){
     attendance:        ()=>{ _curPage="att-register"; openAttendance(); },
     activities:        ()=>{ _curPage="act-overview"; renderActivitiesOverview(); },
     calendar:          ()=>{ _curPage="cal-events"; renderCalendar(); },
+    timetable:         ()=>{ _curPage="tt-grid"; renderTimetableGrid(); },
     "principals-desk":()=>{ _curPage="settings"; renderSettings(); },
   };
   (defaults[name]||defaults.academic)();
@@ -826,6 +854,12 @@ function renderSidebar(section){
         <div class="nav-label">Calendar</div>
         <div class="nav-item" onclick="nav('cal-events',null,this)"><i class="ti ti-calendar-event"></i>All Events</div>
       </div>`,
+    timetable:`
+      <div class="nav-section">
+        <div class="nav-label">Timetable</div>
+        <div class="nav-item" onclick="nav('tt-grid',null,this)"><i class="ti ti-layout-grid"></i>Class Schedules</div>
+        ${canDo('admin')?`<div class="nav-item" onclick="nav('tt-teachers',null,this)"><i class="ti ti-users"></i>Teacher Config</div>`:''}
+      </div>`,
     "principals-desk":`
       <div class="nav-section">
         <div class="nav-label">Records</div>
@@ -839,7 +873,7 @@ function renderSidebar(section){
       </div>`,
   }[section]||"";
 
-  const icCls={'principals-desk':'tile-ic-principal','entrance':'tile-ic-entrance','attendance':'tile-ic-attendance','activities':'tile-ic-activities','calendar':'tile-ic-calendar'}[section]||`tile-ic-${section}`;
+  const icCls={'principals-desk':'tile-ic-principal','entrance':'tile-ic-entrance','attendance':'tile-ic-attendance','activities':'tile-ic-activities','calendar':'tile-ic-calendar','timetable':'tile-ic-timetable'}[section]||`tile-ic-${section}`;
   document.getElementById("sidebar-nav").innerHTML=`
     <div class="nav-back" onclick="navToHub()"><i class="ti ti-arrow-left"></i> All Sections</div>
     <div class="section-hdr">
@@ -1054,7 +1088,7 @@ async function loadInventoryTxns() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1179,6 +1213,8 @@ function nav(page,arg,el){
   else if(page==="act-sessions")renderActivitySessions();
   else if(page==="act-competitions")renderActivityCompetitions();
   else if(page==="cal-events")renderCalendar();
+  else if(page==="tt-grid")renderTimetableGrid();
+  else if(page==="tt-teachers")renderTimetableTeachers();
 }
 function setAnnexFilter(val){
   currentAnnexFilter=val;
@@ -5004,6 +5040,271 @@ async function deleteEvent(id){
   const{error}=await dbClient.from("school_events").delete().eq("id",id);
   if(error){alert("Error: "+error.message);return;}
   await loadSchoolEvents(); renderCalendar();
+}
+
+/* ══════════════════════════════════════════════════════════
+   TIMETABLE
+══════════════════════════════════════════════════════════ */
+
+const TT_DAYS = ["Mon","Tue","Wed","Thu","Fri"];
+const TT_CLASSES = ["JSS 1","JSS 2","JSS 3","SS 1","SS 2","SS 3"];
+const TT_PERIODS = [
+  {label:"Period 1",  time:"8:30 – 9:10"},
+  {label:"Period 2",  time:"9:10 – 9:50"},
+  {label:"Period 3",  time:"9:50 – 10:30"},
+  {label:"Break",     time:"10:30 – 11:00", isBreak:true},
+  {label:"Period 4",  time:"11:00 – 11:40"},
+  {label:"Period 5",  time:"11:40 – 12:20"},
+  {label:"Period 6",  time:"12:20 – 1:00"},
+  {label:"Period 7",  time:"1:00 – 1:40"},
+  {label:"Period 8",  time:"1:40 – 2:20"},
+  {label:"Optional",  time:"2:20 – 3:00",  isOptional:true},
+];
+
+async function loadTimetableTeachers(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("timetable_teachers").select("*").order("name");
+  if(data)ttTeachers=data;
+}
+
+async function loadTimetableSlots(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("timetable_slots").select("*");
+  if(data){
+    ttSlots={};
+    for(const r of data){
+      if(!ttSlots[r.cls])ttSlots[r.cls]={};
+      if(!ttSlots[r.cls][r.day])ttSlots[r.cls][r.day]={};
+      ttSlots[r.cls][r.day][r.period_index]={id:r.id,subject:r.subject,teacher_name:r.teacher_name};
+    }
+  }
+}
+
+function renderTimetableGrid(){
+  const cls=document.getElementById("tt-cls-pick")?.value||TT_CLASSES[0];
+  const content=document.getElementById("content");
+  content.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <select id="tt-cls-pick" onchange="renderTimetableGrid()" style="width:auto">
+        ${TT_CLASSES.map(c=>`<option${c===cls?" selected":""}>${c}</option>`).join("")}
+      </select>
+      <span style="font-size:12px;color:var(--tx2)">Click any cell to ${canDo('admin')?'edit':'view'}</span>
+    </div>
+    <div class="tt-wrap">
+      <table class="tt-table">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:100px">Period</th>
+            ${TT_DAYS.map(d=>`<th>${d}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${TT_PERIODS.map((p,pi)=>{
+            if(p.isBreak){
+              return`<tr>
+                <td class="tt-period-lbl">${p.label}<br><span style="font-size:9px">${p.time}</span></td>
+                ${TT_DAYS.map(()=>`<td><div class="tt-cell tt-break">Break</div></td>`).join("")}
+              </tr>`;
+            }
+            return`<tr>
+              <td class="tt-period-lbl">${p.label}<br><span style="font-size:9px">${p.time}</span></td>
+              ${TT_DAYS.map(day=>{
+                if(day==="Fri"){
+                  return`<td><div class="tt-cell tt-friday"><div class="tt-subject" style="color:#a16207;font-size:11px">Weekly Test</div></div></td>`;
+                }
+                const slot=ttSlots[cls]?.[day]?.[pi];
+                if(slot&&slot.subject){
+                  return`<td onclick="openEditSlot('${cls}','${day}',${pi})"><div class="tt-cell">
+                    <div class="tt-subject">${slot.subject}</div>
+                    <div class="tt-teacher">${slot.teacher_name||''}</div>
+                  </div></td>`;
+                }
+                return`<td onclick="openEditSlot('${cls}','${day}',${pi})"><div class="tt-cell tt-empty">
+                  <div style="font-size:10px;color:var(--tx3);text-align:center">—</div>
+                </div></td>`;
+              }).join("")}
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  document.getElementById("page-title").textContent=`Timetable – ${cls}`;
+  document.getElementById("page-meta").textContent="Mon–Thu scheduled · Fri = Weekly Test";
+}
+
+function openEditSlot(cls,day,periodIndex){
+  if(!canDo('admin')){
+    const slot=ttSlots[cls]?.[day]?.[periodIndex];
+    if(slot&&slot.subject){
+      openModal(`${TT_DAYS.find(d=>d===day)} · ${TT_PERIODS[periodIndex].label}`,`
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px">${slot.subject}</div>
+        <div style="font-size:12px;color:var(--tx2)">${slot.teacher_name||'No teacher assigned'}</div>`);
+    }
+    return;
+  }
+  const slot=ttSlots[cls]?.[day]?.[periodIndex]||{};
+  const sec=TT_CLASSES.indexOf(cls)<3?"Junior Secondary":"Senior Secondary";
+  const subs=(SUBJECTS[sec]||[]);
+  const teachers=ttTeachers.filter(t=>{
+    const avail=(t.availability||"").split(",").map(s=>s.trim());
+    return avail.includes(day)||avail.includes("All");
+  });
+  openModal(`${day} · ${TT_PERIODS[periodIndex].label} · ${cls}`,`
+    <div class="field"><label>Subject</label>
+      <select id="sl-sub">
+        <option value="">— clear slot —</option>
+        ${subs.map(s=>`<option${slot.subject===s?" selected":""}>${s}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field"><label>Teacher</label>
+      <select id="sl-teacher">
+        <option value="">— none —</option>
+        ${ttTeachers.map(t=>`<option${slot.teacher_name===t.name?" selected":""}>${t.name}</option>`).join("")}
+      </select>
+    </div>
+    ${ttConflictWarning(cls,day,periodIndex)}
+    <button class="btn btn-primary" style="width:100%" onclick="submitEditSlot('${cls}','${day}',${periodIndex})">
+      <i class="ti ti-check"></i> Save
+    </button>
+    ${slot.id?`<button class="btn" style="width:100%;margin-top:6px" onclick="clearSlot(${slot.id},'${cls}','${day}',${periodIndex})">
+      <i class="ti ti-trash"></i> Clear slot
+    </button>`:''}
+  `);
+}
+
+function ttConflictWarning(cls,day,periodIndex){
+  // check if the teacher is already assigned in another class at same day+period
+  const conflicts=[];
+  for(const c of TT_CLASSES){
+    if(c===cls)continue;
+    const s=ttSlots[c]?.[day]?.[periodIndex];
+    if(s&&s.teacher_name)conflicts.push(`${s.teacher_name} → ${c}`);
+  }
+  if(!conflicts.length)return'';
+  return`<div style="font-size:11px;color:var(--tx-warn);background:var(--bg-warn);padding:7px 10px;border-radius:var(--r);margin-bottom:10px">
+    <i class="ti ti-alert-triangle" style="font-size:13px"></i>
+    Same slot used by: ${conflicts.join(", ")}
+  </div>`;
+}
+
+async function submitEditSlot(cls,day,periodIndex){
+  if(!dbClient){alert("Database not connected");return;}
+  const subject=document.getElementById("sl-sub")?.value||"";
+  const teacher_name=document.getElementById("sl-teacher")?.value||"";
+  if(!subject){await clearSlot(ttSlots[cls]?.[day]?.[periodIndex]?.id||null,cls,day,periodIndex);return;}
+  // check teacher double-booking
+  if(teacher_name){
+    for(const c of TT_CLASSES){
+      if(c===cls)continue;
+      const s=ttSlots[c]?.[day]?.[periodIndex];
+      if(s&&s.teacher_name===teacher_name){
+        if(!confirm(`${teacher_name} is already assigned to ${c} in this slot. Save anyway?`))return;
+        break;
+      }
+    }
+  }
+  const{error}=await dbClient.from("timetable_slots").upsert(
+    {cls,day,period_index:periodIndex,subject,teacher_name:teacher_name||null,term:currentTerm,session:currentSession},
+    {onConflict:"cls,day,period_index,term,session"});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadTimetableSlots(); renderTimetableGrid();
+}
+
+async function clearSlot(id,cls,day,periodIndex){
+  if(!dbClient)return;
+  if(id){
+    const{error}=await dbClient.from("timetable_slots").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+  }
+  if(ttSlots[cls]&&ttSlots[cls][day])delete ttSlots[cls][day][periodIndex];
+  closeModal(); renderTimetableGrid();
+}
+
+function renderTimetableTeachers(){
+  if(!canDo('admin')){
+    document.getElementById("content").innerHTML=`<div class="empty"><i class="ti ti-lock"></i><div>Admin access required</div></div>`;
+    return;
+  }
+  document.getElementById("page-title").textContent="Teacher Configuration";
+  document.getElementById("page-meta").textContent="Part-time & full-time teacher availability";
+  const content=document.getElementById("content");
+  content.innerHTML=`
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn btn-primary btn-sm" onclick="openAddTeacher()"><i class="ti ti-user-plus"></i> Add teacher</button>
+    </div>
+    <div class="card">
+      ${!ttTeachers.length?`<div class="empty"><i class="ti ti-users"></i><div>No teachers configured yet</div></div>`:`
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Subjects</th><th>Classes</th><th>Available</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${ttTeachers.map(t=>`<tr>
+            <td style="font-weight:500">${t.name}</td>
+            <td>${(t.subjects||"").split(",").map(s=>`<span class="annex-pill" style="margin:1px">${s.trim()}</span>`).join("")}</td>
+            <td style="font-size:11px;color:var(--tx2)">${t.classes||"All"}</td>
+            <td>${(t.availability||"").split(",").map(d=>`<span class="annex-pill" style="margin:1px">${d.trim()}</span>`).join("")}</td>
+            <td>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-sm" onclick="openEditTeacher(${t.id})"><i class="ti ti-pencil"></i></button>
+                <button class="btn btn-sm" onclick="deleteTeacher(${t.id})"><i class="ti ti-trash"></i></button>
+              </div>
+            </td>
+          </tr>`).join("")}
+        </tbody>
+      </table>`}
+    </div>`;
+}
+
+function openAddTeacher(){ openTeacherModal(null); }
+function openEditTeacher(id){ openTeacherModal(ttTeachers.find(t=>t.id===id)); }
+
+function openTeacherModal(t){
+  const isEdit=!!t;
+  openModal(isEdit?"Edit Teacher":"Add Teacher",`
+    <div class="field"><label>Name</label>
+      <input id="tt-name" placeholder="Teacher name…" value="${t?.name||''}">
+    </div>
+    <div class="field"><label>Subjects (comma-separated)</label>
+      <input id="tt-subjects" placeholder="e.g. Mathematics, ICT" value="${t?.subjects||''}">
+    </div>
+    <div class="field"><label>Classes (comma-separated, or leave blank for all)</label>
+      <input id="tt-classes" placeholder="e.g. JSS 1, JSS 2, JSS 3" value="${t?.classes||''}">
+    </div>
+    <div class="field"><label>Available days (comma-separated)</label>
+      <input id="tt-avail" placeholder="e.g. Mon, Tue, Wed, Thu" value="${t?.availability||''}">
+    </div>
+    <div class="field"><label>Notes</label>
+      <input id="tt-notes" placeholder="Optional notes…" value="${t?.notes||''}">
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitTeacher(${t?.id||'null'})">
+      <i class="ti ti-check"></i> ${isEdit?"Save changes":"Add teacher"}
+    </button>`);
+}
+
+async function submitTeacher(id){
+  if(!dbClient){alert("Database not connected");return;}
+  const name=document.getElementById("tt-name")?.value?.trim();
+  const subjects=document.getElementById("tt-subjects")?.value?.trim();
+  const classes=document.getElementById("tt-classes")?.value?.trim();
+  const availability=document.getElementById("tt-avail")?.value?.trim();
+  const notes=document.getElementById("tt-notes")?.value?.trim()||null;
+  if(!name){alert("Enter teacher name");return;}
+  if(id){
+    const{error}=await dbClient.from("timetable_teachers").update({name,subjects,classes,availability,notes}).eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+  }else{
+    const{error}=await dbClient.from("timetable_teachers").insert({name,subjects,classes,availability,notes});
+    if(error){alert("Error: "+error.message);return;}
+  }
+  closeModal(); await loadTimetableTeachers(); renderTimetableTeachers();
+}
+
+async function deleteTeacher(id){
+  if(!confirm("Remove this teacher from the timetable config?"))return;
+  const{error}=await dbClient.from("timetable_teachers").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  await loadTimetableTeachers(); renderTimetableTeachers();
 }
 
 /* ── boot ── */

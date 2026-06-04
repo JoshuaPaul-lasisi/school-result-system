@@ -578,16 +578,45 @@ CREATE TABLE IF NOT EXISTS school_events (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── timetable ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS timetable_teachers (
+  id           BIGSERIAL PRIMARY KEY,
+  name         TEXT NOT NULL,
+  subjects     TEXT,              -- comma-separated
+  classes      TEXT,              -- comma-separated, blank = all JSS/SS
+  availability TEXT,              -- comma-separated days, e.g. "Mon,Tue,Wed,Thu"
+  notes        TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS timetable_slots (
+  id           BIGSERIAL PRIMARY KEY,
+  cls          TEXT NOT NULL,     -- e.g. "JSS 1"
+  day          TEXT NOT NULL,     -- "Mon"|"Tue"|"Wed"|"Thu"  (Fri is always Weekly Test)
+  period_index INTEGER NOT NULL,  -- 0-9 matching TT_PERIODS array
+  subject      TEXT NOT NULL,
+  teacher_name TEXT,
+  term         TEXT NOT NULL,
+  session      TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (cls, day, period_index, term, session)
+);
+
 ALTER TABLE activity_memberships  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_sessions     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_competitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_events         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timetable_teachers    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timetable_slots       ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='activity_memberships'  AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON activity_memberships  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='activity_sessions'     AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON activity_sessions     FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='activity_competitions' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON activity_competitions FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='school_events'         AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON school_events         FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='timetable_teachers'    AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON timetable_teachers    FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='timetable_slots'       AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON timetable_slots       FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
 END $$;
 
 CREATE INDEX IF NOT EXISTS activity_memberships_term   ON activity_memberships(term, session);
@@ -597,3 +626,16 @@ CREATE INDEX IF NOT EXISTS activity_sessions_track     ON activity_sessions(trac
 CREATE INDEX IF NOT EXISTS activity_competitions_term  ON activity_competitions(term, session);
 CREATE INDEX IF NOT EXISTS school_events_term          ON school_events(term, session);
 CREATE INDEX IF NOT EXISTS school_events_date          ON school_events(event_date);
+CREATE INDEX IF NOT EXISTS timetable_slots_cls         ON timetable_slots(cls, term, session);
+CREATE INDEX IF NOT EXISTS timetable_slots_day         ON timetable_slots(day);
+
+-- ── pre-populate teachers (from school records) ───────────────────────────────
+INSERT INTO timetable_teachers (name, subjects, classes, availability, notes) VALUES
+  ('Olumide',  'Mathematics, Economics, Accounting',      'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Wed,Thu', 'Wed→Maths/JSS; Thu→Economics+Accounting/SS'),
+  ('Tola',     'NVE, Business Studies',                   'JSS 1,JSS 2,JSS 3',                 'Tue,Wed,Thu', NULL),
+  ('Victoria', 'CRS, PHE, Home Economics',                'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Tue,Wed,Thu', 'CRS for JSS+SS; PHE+Home Ec for JSS'),
+  ('Sofiat',   'Basic Science, Agricultural Science, Biology', 'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Mon,Tue,Wed,Thu', 'Agric+Basic Sci for JSS; Agric+Biology for SS'),
+  ('Aruotin',  'English Language, Literature in English', 'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Mon,Tue', NULL),
+  ('Aliyu',    'Government, Civic Education, CCA',        'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Mon,Tue,Wed,Thu', 'Government+Civic Ed for SS; CCA for JSS'),
+  ('Victor',   'Mathematics, ICT, Basic Technology',      'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Mon,Tue,Wed,Thu', 'Maths+ICT+Basic Tech for JSS; Maths+ICT for SS')
+ON CONFLICT DO NOTHING;
