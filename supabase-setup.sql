@@ -639,3 +639,32 @@ INSERT INTO timetable_teachers (name, subjects, classes, availability, notes) VA
   ('Aliyu',    'Government, Civic Education, CCA',        'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Mon,Tue,Wed,Thu', 'Government+Civic Ed for SS; CCA for JSS'),
   ('Victor',   'Mathematics, ICT, Basic Technology',      'JSS 1,JSS 2,JSS 3,SS 1,SS 2,SS 3', 'Mon,Tue,Wed,Thu', 'Maths+ICT+Basic Tech for JSS; Maths+ICT for SS')
 ON CONFLICT DO NOTHING;
+
+-- ── Supabase Storage: Results PDF bucket ──────────────────────────────────────
+-- Run these AFTER creating the bucket in the Supabase Dashboard:
+--   Dashboard → Storage → New bucket → Name: "results" → Private → Create
+--
+-- Then run this SQL to allow the app (anon key) to upload and create signed URLs:
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='results_anon_insert'
+  ) THEN
+    CREATE POLICY "results_anon_insert" ON storage.objects
+      FOR INSERT TO anon WITH CHECK (bucket_id = 'results');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='results_anon_select'
+  ) THEN
+    CREATE POLICY "results_anon_select" ON storage.objects
+      FOR SELECT TO anon USING (bucket_id = 'results');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='results_anon_update'
+  ) THEN
+    CREATE POLICY "results_anon_update" ON storage.objects
+      FOR UPDATE TO anon USING (bucket_id = 'results');
+  END IF;
+END $$;
+-- Each PDF is stored at: {session}/{term}/{student_id}.pdf
+-- Parents receive a signed link valid for 7 days via WhatsApp.

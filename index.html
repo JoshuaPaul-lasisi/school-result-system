@@ -11,6 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html-to-docx@1.8.0/dist/html-to-docx.browser.consolidated.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>(function(){try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}})()</script>
   <style>
     :root {
@@ -1516,9 +1517,11 @@ function showReportCard(sid){
   document.getElementById("topbar-actions").innerHTML=`
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i></button>
-      <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff" onclick="sendResultWhatsApp(${sid})"
-        title="${waPhone?'Send to '+g1.name+' ('+g1.phone+')':'No guardian phone on file'}">
-        <i class="ti ti-brand-whatsapp"></i>${waPhone?' Send':'⚠ No phone'}
+      <button class="btn btn-sm" onclick="downloadResultPDF(${sid})" title="Download PDF"><i class="ti ti-file-type-pdf"></i> PDF</button>
+      <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;white-space:nowrap"
+        onclick="sendResultPDFWhatsApp(${sid})"
+        title="${waPhone?'Send PDF to '+g1.name+' ('+g1.phone+')':'No guardian phone on file'}">
+        <i class="ti ti-brand-whatsapp"></i>${waPhone?' Send PDF':'⚠ No phone'}
       </button>
       <button class="btn btn-sm btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
     </div>`;
@@ -5392,6 +5395,217 @@ function sendResultWhatsApp(sid){
   window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
+/* ── PDF generation ── */
+async function generateResultPDF(sid){
+  if(!window.jspdf){alert("PDF library still loading — try again in a moment.");return null;}
+  const{jsPDF}=window.jspdf;
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid);
+  if(!s)return null;
+  const sec=s.sec||CLASS_SECTION[s.cls]||"";
+  const subjs=SUBJECTS[sec]||[];
+  const att=getAtt(sid);
+  const pct=att.present&&att.total?Math.round(parseInt(att.present)/parseInt(att.total)*100):null;
+
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=doc.internal.pageSize.getWidth();
+  let y=18;
+
+  // ── Header ──────────────────────────────────────────────
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.setTextColor(139,26,47);              // --burg
+  doc.text('DEBBYFIELD SCHOOLS',W/2,y,{align:'center'});
+  y+=6;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(107,114,128);
+  doc.text('12, Bamgboye Street, Off Alafia Street, Mushin, Lagos',W/2,y,{align:'center'});
+  y+=4;
+  doc.text('9, Assemblies of God Road, Obafemi-Owode, Ogun',W/2,y,{align:'center'});
+  y+=4;
+  doc.text('debbyfieldschools@gmail.com',W/2,y,{align:'center'});
+  y+=5;
+  doc.setDrawColor(139,26,47);
+  doc.setLineWidth(0.6);
+  doc.line(15,y,W-15,y);
+  y+=6;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(30,53,102);             // --navy
+  doc.text('STUDENT REPORT CARD',W/2,y,{align:'center'});
+  y+=10;
+
+  // ── Student info grid ────────────────────────────────────
+  const infoItems=[
+    ['Name',s.name,'Term',currentTerm],
+    ['Class',s.cls,'Session',currentSession],
+    ['Student ID',String(s.id),'Section',sec],
+  ];
+  doc.setFontSize(10);
+  infoItems.forEach(([l1,v1,l2,v2])=>{
+    doc.setFont('helvetica','bold'); doc.setTextColor(107,114,128);
+    doc.text(l1+':',15,y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
+    doc.text(v1,15+doc.getTextWidth(l1+': ')+1,y);
+    if(l2){
+      doc.setFont('helvetica','bold'); doc.setTextColor(107,114,128);
+      doc.text(l2+':',W/2,y);
+      doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
+      doc.text(v2,W/2+doc.getTextWidth(l2+': ')+1,y);
+    }
+    y+=6;
+  });
+  y+=3;
+
+  // ── Subject table ─────────────────────────────────────────
+  const tblX=15, tblW=W-30;
+  const cols=[{w:66,label:'Subject'},{w:18,label:'CA /40'},{w:22,label:'Exam /60'},{w:18,label:'Total'},{w:16,label:'Grade'},{w:tblW-140,label:'Remark'}];
+  let cx=tblX;
+  const colX=cols.map(c=>{const x=cx;cx+=c.w;return x;});
+
+  // Table header
+  doc.setFillColor(30,53,102);
+  doc.rect(tblX,y-5,tblW,7,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(255,255,255);
+  cols.forEach((c,i)=>doc.text(c.label,i===0?colX[i]+2:colX[i]+c.w/2,y,{align:i===0?'left':'center'}));
+  y+=5;
+
+  // Table rows
+  let rowAlt=false;
+  for(const sub of subjs){
+    const sc=getScore(sid,sub);
+    const t=total(sid,sub);
+    const g=grade(t);
+    const rmk=remark(g);
+    doc.setFontSize(9);
+    if(rowAlt){doc.setFillColor(245,240,232);doc.rect(tblX,y-5,tblW,7,'F');}
+    rowAlt=!rowAlt;
+    doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
+    doc.text(sub,colX[0]+2,y);
+    doc.text(sc.ca||'—',colX[1]+cols[1].w/2,y,{align:'center'});
+    doc.text(sc.exam||'—',colX[2]+cols[2].w/2,y,{align:'center'});
+    if(t!==null){doc.setFont('helvetica','bold');}
+    doc.text(t!==null?String(t):'—',colX[3]+cols[3].w/2,y,{align:'center'});
+    doc.setFont('helvetica','normal');
+    const gc={A:[22,163,74],B:[37,99,235],C:[217,119,6],D:[217,119,6],F:[220,38,38]}[g]||[17,24,39];
+    doc.setFont('helvetica','bold'); doc.setTextColor(...gc);
+    doc.text(g,colX[4]+cols[4].w/2,y,{align:'center'});
+    doc.setFont('helvetica','normal'); doc.setTextColor(85,85,85);
+    doc.text(rmk||'',colX[5]+2,y,{maxWidth:cols[5].w-4});
+    y+=7;
+  }
+  // Table border
+  doc.setDrawColor(201,187,164); doc.setLineWidth(0.3);
+  doc.rect(tblX,y-subjs.length*7-5,tblW,subjs.length*7+5);
+  y+=4;
+
+  // ── Attendance ────────────────────────────────────────────
+  doc.setFontSize(9); doc.setTextColor(17,24,39);
+  doc.setFont('helvetica','bold');
+  doc.text('Attendance:',15,y);
+  doc.setFont('helvetica','normal');
+  doc.text(att.present?`${att.present} / ${att.total} days present (${pct}%)`:'Not yet recorded',42,y);
+  y+=8;
+
+  // Grade key
+  doc.setFontSize(7.5); doc.setTextColor(107,114,128);
+  doc.text('A = Excellent (70–100)  ·  B = Good (60–69)  ·  C = Satisfactory (50–59)  ·  D = Needs Improvement (45–49)  ·  F = Fail (0–44)',15,y);
+  y+=8;
+
+  // ── Character & Comments ──────────────────────────────────
+  const charNote=getChar(sid);
+  if(charNote){
+    doc.setFillColor(245,240,232);
+    const cLines=doc.splitTextToSize(charNote,tblW-6);
+    doc.rect(tblX,y-4,tblW,cLines.length*5+8,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(139,99,64);
+    doc.text('EDGE CHARACTER OBSERVATION',tblX+3,y);
+    y+=5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39); doc.setFontSize(9);
+    doc.text(cLines,tblX+3,y);
+    y+=cLines.length*5+5;
+  }
+
+  [[getTComment(sid),"Class Teacher's Comment"],[getPComment(sid),"Principal's Comment"]].forEach(([txt,lbl])=>{
+    if(!txt)return;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(107,114,128);
+    doc.text(lbl+':',15,y);
+    y+=5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
+    const lines=doc.splitTextToSize(txt,tblW);
+    doc.text(lines,15,y);
+    y+=lines.length*5+5;
+  });
+
+  // ── Signature row ─────────────────────────────────────────
+  if(y>265){doc.addPage();y=20;}
+  y+=5;
+  doc.setDrawColor(170,170,170); doc.setLineWidth(0.3);
+  [[15,75,"Class Teacher's Signature"],[90,150,"Principal's Signature"],[165,195,"Date"]].forEach(([x1,x2,lbl])=>{
+    doc.line(x1,y,x2,y);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(107,114,128);
+    doc.text(lbl,x1,y+4);
+  });
+  y+=12;
+
+  // ── Footer ───────────────────────────────────────────────
+  doc.setFontSize(8); doc.setTextColor(156,163,175);
+  doc.text("Achieving Life's Purpose  ·  Debbyfield Schools",W/2,y,{align:'center'});
+
+  return doc;
+}
+
+async function downloadResultPDF(sid){
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid);
+  const doc=await generateResultPDF(sid);
+  if(!doc)return;
+  const fname=`Result_${s.name.replace(/[^a-z0-9]/gi,'_')}_${currentTerm.replace(/\s+/g,'_')}_${currentSession.replace(/\//g,'-')}.pdf`;
+  doc.save(fname);
+}
+
+async function sendResultPDFWhatsApp(sid){
+  const g1=guardiansMap[sid]?.[0];
+  const wa=formatPhoneForWA(g1?.phone);
+  if(!wa){
+    alert("No guardian phone number on file.\n\nOpen Student Details and add a phone number to enable WhatsApp delivery.");
+    return;
+  }
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid);
+
+  // Show loading state on button
+  const btn=event?.target?.closest('button');
+  if(btn){const orig=btn.innerHTML;btn.innerHTML='<i class="ti ti-loader-2"></i> Generating…';btn.disabled=true;
+    setTimeout(()=>{btn.innerHTML=orig;btn.disabled=false;},8000);}
+
+  const doc=await generateResultPDF(sid);
+  if(!doc)return;
+  const pdfBlob=doc.output('blob');
+
+  // Try Supabase Storage upload first
+  if(dbClient){
+    const path=`${currentSession.replace(/\//g,'-')}/${currentTerm.replace(/\s+/g,'_')}/${sid}.pdf`;
+    const{error:upErr}=await dbClient.storage.from('results').upload(path,pdfBlob,
+      {contentType:'application/pdf',upsert:true});
+    if(!upErr){
+      const{data:signed}=await dbClient.storage.from('results').createSignedUrl(path,60*60*24*7);
+      if(signed?.signedUrl){
+        const url=signed.signedUrl;
+        const msg=`Dear ${g1.name||'Parent'},\n\nYour ward *${s.name}*'s ${currentTerm} result (${currentSession}) is ready.\n\n📄 Tap the link to download the PDF:\n${url}\n\n_Debbyfield Schools_`;
+        window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
+        if(btn){btn.innerHTML='<i class="ti ti-check"></i> Sent';btn.disabled=false;}
+        return;
+      }
+    }
+  }
+
+  // Fallback: download PDF + open WhatsApp with text nudge
+  doc.save(`Result_${s.name.replace(/[^a-z0-9]/gi,'_')}.pdf`);
+  await new Promise(r=>setTimeout(r,800)); // let download start
+  const msg=`Dear ${g1.name||'Parent'}, please find *${s.name}*'s ${currentTerm} result attached as a PDF.\n\n_Debbyfield Schools_`;
+  window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
+  if(btn){btn.innerHTML='<i class="ti ti-check"></i> Sent (manual attach)';btn.disabled=false;}
+}
+
 function renderWhatsAppResults(){
   document.getElementById("page-title").textContent="Send Results via WhatsApp";
   document.getElementById("page-meta").textContent="Click Send to open WhatsApp with the result pre-written";
@@ -5441,14 +5655,16 @@ function renderWhatsAppResults(){
                   :`<span style="font-size:11px;color:var(--tx3)">Not sent</span>`}
               </td>
               <td>
-                ${wa
-                  ?`<button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;white-space:nowrap"
-                      onclick="sendResultFromList(${s.id})">
-                      <i class="ti ti-brand-whatsapp"></i> Send
-                    </button>`
-                  :`<button class="btn btn-sm" style="opacity:.4" disabled title="Add phone number first">
-                      <i class="ti ti-brand-whatsapp"></i> Send
-                    </button>`}
+                <div style="display:flex;gap:4px">
+                  ${wa
+                    ?`<button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;white-space:nowrap"
+                        id="wa-btn-${s.id}" onclick="sendResultFromList(${s.id},this)">
+                        <i class="ti ti-brand-whatsapp"></i> PDF
+                      </button>`
+                    :`<button class="btn btn-sm" style="opacity:.4;white-space:nowrap" disabled title="Add phone number first">
+                        <i class="ti ti-brand-whatsapp"></i> PDF
+                      </button>`}
+                </div>
               </td>
             </tr>`;
           }).join("")}
@@ -5457,17 +5673,14 @@ function renderWhatsAppResults(){
     </div>`;
 }
 
-function sendResultFromList(sid){
-  const g=guardiansMap[sid]?.[0];
-  const wa=formatPhoneForWA(g?.phone);
-  if(!wa)return;
-  const msg=buildResultMessage(sid);
-  if(!msg)return;
-  window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
-  // Mark as sent for this session (resets when browser closes)
+async function sendResultFromList(sid,btn){
+  if(btn){const o=btn.innerHTML;btn.innerHTML='<i class="ti ti-loader-2"></i>';btn.disabled=true;
+    setTimeout(()=>{if(btn.disabled){btn.innerHTML=o;btn.disabled=false;}},12000);}
+  await sendResultPDFWhatsApp(sid);
   sessionStorage.setItem(`wa-sent-${currentTerm}-${currentSession}-${sid}`,'1');
   const el=document.getElementById(`wa-status-${sid}`);
   if(el)el.innerHTML=`<span style="font-size:11px;color:var(--tx-ok)"><i class="ti ti-check"></i> Sent this session</span>`;
+  if(btn){btn.innerHTML='<i class="ti ti-check"></i>';btn.disabled=false;}
 }
 
 /* ── timetable generator ── */
