@@ -813,6 +813,7 @@ function renderSidebar(section){
         <div class="nav-label">Students</div>
         <div class="nav-item" onclick="nav('search',null,this)"><i class="ti ti-search"></i>Find Student</div>
         <div class="nav-item" onclick="nav('report-cards',null,this)"><i class="ti ti-file-certificate"></i>Report Cards</div>
+        <div class="nav-item" onclick="nav('whatsapp-results',null,this)"><i class="ti ti-brand-whatsapp"></i>Send Results</div>
       </div>`,
     staff:`
       <div class="nav-section">
@@ -1207,6 +1208,7 @@ function nav(page,arg,el){
   else if(page==="feeder-schools")renderFeederSchools();
   else if(page==="email-results")renderEmailResults();
   else if(page==="report-cards")renderReportCardsView();
+  else if(page==="whatsapp-results")renderWhatsAppResults();
   else if(page==="att-register")openAttendance();
   else if(page==="att-summary")renderAttendanceSummary();
   else if(page==="act-overview")renderActivitiesOverview();
@@ -1509,9 +1511,15 @@ function showReportCard(sid){
   }).join("");
   document.getElementById("page-title").textContent="Report Card";
   document.getElementById("page-meta").textContent=`${s.name} · ${s.cls}`;
+  const g1=guardiansMap[sid]?.[0];
+  const waPhone=g1?.phone?formatPhoneForWA(g1.phone):null;
   document.getElementById("topbar-actions").innerHTML=`
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i></button>
+      <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff" onclick="sendResultWhatsApp(${sid})"
+        title="${waPhone?'Send to '+g1.name+' ('+g1.phone+')':'No guardian phone on file'}">
+        <i class="ti ti-brand-whatsapp"></i>${waPhone?' Send':'⚠ No phone'}
+      </button>
       <button class="btn btn-sm btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
     </div>`;
   document.getElementById("content").innerHTML=`
@@ -5319,6 +5327,147 @@ async function deleteTeacher(id){
   const{error}=await dbClient.from("timetable_teachers").delete().eq("id",id);
   if(error){alert("Error: "+error.message);return;}
   await loadTimetableTeachers(); renderTimetableTeachers();
+}
+
+/* ══════════════════════════════════════════════════════════
+   WHATSAPP RESULTS
+══════════════════════════════════════════════════════════ */
+
+function formatPhoneForWA(raw){
+  if(!raw)return null;
+  let p=raw.replace(/[\s\-\(\)\.]/g,'');
+  if(p.startsWith('+'))p=p.slice(1);
+  if(p.startsWith('0')&&p.length===11)p='234'+p.slice(1); // 08012345678 → 2348012345678
+  if(!/^\d{10,15}$/.test(p))return null;
+  return p;
+}
+
+function buildResultMessage(sid){
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid);
+  if(!s)return null;
+  const sec=s.sec||CLASS_SECTION[s.cls]||"";
+  const subjs=SUBJECTS[sec]||[];
+  const att=getAtt(sid);
+  const pct=att.present&&att.total?Math.round(parseInt(att.present)/parseInt(att.total)*100):null;
+
+  const scoreLines=subjs.map(sub=>{
+    const sc=getScore(sid,sub);
+    const t=total(sid,sub);
+    const g=grade(t);
+    if(!sc.ca&&!sc.exam)return null;
+    return `• ${sub}: ${sc.ca||'–'}/40 + ${sc.exam||'–'}/60 = *${t!==null?t:'–'}* (${g})`;
+  }).filter(Boolean).join('\n');
+
+  const tCmt=getTComment(sid);
+  const pCmt=getPComment(sid);
+
+  const lines=[
+    `📚 *DEBBYFIELD SCHOOLS*`,
+    `_Result Sheet – ${currentTerm}, ${currentSession}_`,
+    ``,
+    `*Student:* ${s.name}`,
+    `*Class:* ${s.cls}`,
+    ``,
+    `*Subject Results:*`,
+    scoreLines||'_(scores not yet entered)_',
+    ``,
+    att.present?`📅 *Attendance:* ${att.present}/${att.total} days (${pct}%)`:'',
+    tCmt?`\n💬 *Class Teacher:* ${tCmt}`:'',
+    pCmt?`🏫 *Principal:* ${pCmt}`:'',
+    ``,
+    `_Achieving Life's Purpose · Debbyfield Schools_`,
+  ];
+  return lines.filter(l=>l!==undefined).join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+function sendResultWhatsApp(sid){
+  const g1=guardiansMap[sid]?.[0];
+  const wa=formatPhoneForWA(g1?.phone);
+  if(!wa){
+    alert("No valid WhatsApp number on file for this student's guardian.\n\nGo to Student Details → update guardian phone number (e.g. 08012345678).");
+    return;
+  }
+  const msg=buildResultMessage(sid);
+  if(!msg)return;
+  window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+function renderWhatsAppResults(){
+  document.getElementById("page-title").textContent="Send Results via WhatsApp";
+  document.getElementById("page-meta").textContent="Click Send to open WhatsApp with the result pre-written";
+  document.getElementById("topbar-actions").innerHTML="";
+
+  // Collect JSS+SS students from current roster
+  const ttStudents=roster.filter(s=>["Junior Secondary","Senior Secondary"].includes(s.sec));
+  const classes=[...new Set(ttStudents.map(s=>s.cls))].sort();
+  const selCls=document.getElementById("wa-cls-filter")?.value||classes[0]||"";
+  const shown=selCls?ttStudents.filter(s=>s.cls===selCls):ttStudents;
+
+  // Count guardian phone coverage
+  const withPhone=shown.filter(s=>formatPhoneForWA(guardiansMap[s.id]?.[0]?.phone));
+  const noPhone=shown.length-withPhone.length;
+
+  document.getElementById("content").innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <select id="wa-cls-filter" onchange="renderWhatsAppResults()" style="width:auto">
+        ${classes.map(c=>`<option${c===selCls?" selected":""}>${c}</option>`).join("")}
+      </select>
+      <span style="font-size:12px;color:var(--tx2);flex:1">
+        ${withPhone.length} of ${shown.length} have a phone number
+        ${noPhone?`· <span style="color:var(--tx-warn)">${noPhone} missing</span>`:''}
+      </span>
+    </div>
+    ${noPhone?`<div style="background:var(--bg-warn);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--tx-warn);margin-bottom:12px">
+      <i class="ti ti-alert-triangle"></i> Students with no phone: open their profile and add a guardian phone number to enable WhatsApp delivery.
+    </div>`:''}
+    <div class="card" style="padding:0;overflow:hidden">
+      <table>
+        <thead><tr>
+          <th>Student</th><th>Guardian</th><th>Phone</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${shown.map(s=>{
+            const g=guardiansMap[s.id]?.[0];
+            const wa=formatPhoneForWA(g?.phone);
+            const sentKey=`wa-sent-${currentTerm}-${currentSession}-${s.id}`;
+            const wasSent=sessionStorage.getItem(sentKey);
+            return`<tr id="wa-row-${s.id}">
+              <td style="font-weight:500">${s.name}</td>
+              <td style="font-size:12px;color:var(--tx2)">${g?.name||'—'}${g?.relationship?` (${g.relationship})`:''}</td>
+              <td style="font-size:12px">${g?.phone||'<span style="color:var(--tx3)">No number</span>'}</td>
+              <td id="wa-status-${s.id}">
+                ${wasSent
+                  ?`<span style="font-size:11px;color:var(--tx-ok)"><i class="ti ti-check"></i> Sent this session</span>`
+                  :`<span style="font-size:11px;color:var(--tx3)">Not sent</span>`}
+              </td>
+              <td>
+                ${wa
+                  ?`<button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;white-space:nowrap"
+                      onclick="sendResultFromList(${s.id})">
+                      <i class="ti ti-brand-whatsapp"></i> Send
+                    </button>`
+                  :`<button class="btn btn-sm" style="opacity:.4" disabled title="Add phone number first">
+                      <i class="ti ti-brand-whatsapp"></i> Send
+                    </button>`}
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function sendResultFromList(sid){
+  const g=guardiansMap[sid]?.[0];
+  const wa=formatPhoneForWA(g?.phone);
+  if(!wa)return;
+  const msg=buildResultMessage(sid);
+  if(!msg)return;
+  window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
+  // Mark as sent for this session (resets when browser closes)
+  sessionStorage.setItem(`wa-sent-${currentTerm}-${currentSession}-${sid}`,'1');
+  const el=document.getElementById(`wa-status-${sid}`);
+  if(el)el.innerHTML=`<span style="font-size:11px;color:var(--tx-ok)"><i class="ti ti-check"></i> Sent this session</span>`;
 }
 
 /* ── timetable generator ── */
