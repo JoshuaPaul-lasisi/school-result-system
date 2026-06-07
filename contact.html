@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contact Us — Debbyfield Schools</title>
+<meta name="description" content="Get in touch with Debbyfield Schools — campus addresses, phone numbers and a contact form for enquiries and admissions." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
+<link rel="stylesheet" href="/site.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+<div class="topbar-strip">🎓 Admissions are now open for the 2026/2027 Session — <a href="/admissions">apply today</a></div>
+<nav class="nav">
+  <div class="nav-row">
+    <a href="/" class="brand"><span class="crest">DS</span><span>Debbyfield Schools<small>Achieving Life's Purpose</small></span></a>
+    <div class="nav-links">
+      <a href="/" data-path="/">Home</a>
+      <a href="/about" data-path="/about">About</a>
+      <a href="/academics" data-path="/academics">Academics</a>
+      <a href="/admissions" data-path="/admissions">Admissions</a>
+      <a href="/gallery" data-path="/gallery">Gallery</a>
+      <a href="/news" data-path="/news">News &amp; Events</a>
+      <a href="/contact" data-path="/contact">Contact</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/portal" class="btn btn-outline" style="padding:8px 16px"><i class="ti ti-lock"></i> Staff Portal</a>
+      <a href="/admissions" class="btn btn-primary" style="padding:8px 16px">Apply Now</a>
+      <button class="nav-burger" aria-label="Menu"><i class="ti ti-menu-2"></i></button>
+    </div>
+  </div>
+</nav>
+
+<header class="page-head">
+  <div class="wrap">
+    <div class="crumbs"><a href="/">Home</a> / Contact</div>
+    <h1>We'd love to hear from you</h1>
+    <p class="lead">Whether you have a question about admissions, academics, or simply want to plan a visit — reach out and our team will respond promptly.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="grid grid-2" style="align-items:start">
+      <div class="card">
+        <h3 style="margin-bottom:18px">Send us a message</h3>
+        <form class="form-row" onsubmit="submitContactForm(event)">
+          <div class="grid grid-2" style="gap:14px">
+            <div><label>Your name</label><input type="text" name="name" placeholder="Full name" required></div>
+            <div><label>Phone number</label><input type="tel" name="phone" placeholder="080…"></div>
+          </div>
+          <div class="grid grid-2" style="gap:14px">
+            <div><label>Email (optional)</label><input type="email" name="email" placeholder="you@example.com"></div>
+            <div>
+              <label>What is this about?</label>
+              <select name="subject">
+                <option>General enquiry</option>
+                <option>Admissions</option>
+                <option>Academics</option>
+                <option>Fees</option>
+                <option>Campus visit</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label>Your message</label>
+            <textarea name="message" rows="5" placeholder="How can we help?" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="ti ti-send"></i> Send message</button>
+          <div class="form-note" style="font-size:13px;min-height:18px"></div>
+        </form>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:22px">
+          <h3 style="margin-bottom:14px"><i class="ti ti-building-community" style="color:var(--burg)"></i> Mushin Campus</h3>
+          <div class="info-row"><div class="ic"><i class="ti ti-map-pin"></i></div><div><b>Address</b><div class="muted" style="font-size:13.5px">12, Bamgboye Street, Off Alafia Street, Mushin, Lagos State</div></div></div>
+          <div class="info-row"><div class="ic"><i class="ti ti-clock"></i></div><div><b>Office hours</b><div class="muted" style="font-size:13.5px">Monday – Friday, 8:00am – 4:00pm</div></div></div>
+        </div>
+        <div class="card" style="margin-bottom:22px">
+          <h3 style="margin-bottom:14px"><i class="ti ti-building-community" style="color:var(--navy)"></i> Obafemi-Owode Campus</h3>
+          <div class="info-row"><div class="ic"><i class="ti ti-map-pin"></i></div><div><b>Address</b><div class="muted" style="font-size:13.5px">9, Assemblies of God Road, Obafemi-Owode, Ogun State</div></div></div>
+          <div class="info-row"><div class="ic"><i class="ti ti-clock"></i></div><div><b>Office hours</b><div class="muted" style="font-size:13.5px">Monday – Friday, 8:00am – 4:00pm</div></div></div>
+        </div>
+        <div class="card" style="background:linear-gradient(160deg,var(--bg2),#fff)">
+          <h3 style="margin-bottom:10px">Other ways to reach us</h3>
+          <div class="info-row"><div class="ic"><i class="ti ti-mail"></i></div><div><b>Email</b><div class="muted" style="font-size:13.5px">Use the form here and our team will reply directly to your email</div></div></div>
+          <div class="info-row"><div class="ic"><i class="ti ti-brand-whatsapp"></i></div><div><b>Phone &amp; WhatsApp</b><div class="muted" style="font-size:13.5px">Call or message either campus office during working hours — numbers are shared on enquiry and posted at each campus</div></div></div>
+          <p class="muted" style="font-size:12.5px;margin-top:8px">For the fastest response on admissions matters, please use the form on this page or our <a href="/admissions" style="text-decoration:underline;color:var(--navy)">Admissions page</a>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <h4>Debbyfield Schools</h4>
+        <p>Achieving Life's Purpose. A nurturing academic community raising confident, capable learners from Nursery through Senior Secondary.</p>
+      </div>
+      <div>
+        <h4>Quick Links</h4>
+        <a href="/about">About Us</a>
+        <a href="/academics">Academics</a>
+        <a href="/admissions">Admissions</a>
+        <a href="/news">News &amp; Events</a>
+      </div>
+      <div>
+        <h4>Campuses</h4>
+        <p>Mushin Campus — 12, Bamgboye Street, Off Alafia Street, Mushin, Lagos</p>
+        <p>Obafemi-Owode Campus — 9, Assemblies of God Road, Obafemi-Owode, Ogun</p>
+      </div>
+      <div>
+        <h4>Connect</h4>
+        <a href="/contact">Contact Us</a>
+        <a href="/gallery">Gallery</a>
+        <a href="/portal"><i class="ti ti-lock"></i> Staff Portal</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Debbyfield Schools. All rights reserved.</span>
+      <span>Achieving Life's Purpose</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/site.js"></script>
+</body>
+</html>

@@ -1,3 +1,12 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/portal", "destination": "/portal/index.html" },
+    { "source": "/portal/(.*)", "destination": "/portal/index.html" },
+    { "source": "/about", "destination": "/about.html" },
+    { "source": "/academics", "destination": "/academics.html" },
+    { "source": "/admissions", "destination": "/admissions.html" },
+    { "source": "/gallery", "destination": "/gallery.html" },
+    { "source": "/news", "destination": "/news.html" },
+    { "source": "/contact", "destination": "/contact.html" }
+  ]
 }

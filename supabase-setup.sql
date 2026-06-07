@@ -668,3 +668,89 @@ DO $$ BEGIN
 END $$;
 -- Each PDF is stored at: {session}/{term}/{student_id}.pdf
 -- Parents receive a signed link valid for 7 days via WhatsApp.
+
+-- ── Public website CMS: news, gallery, contact messages ───────────────────────
+-- These power the public website (index.html, news.html, gallery.html, contact.html)
+-- and are managed by staff from the "Website" section inside the operational system.
+
+CREATE TABLE IF NOT EXISTS site_news (
+  id            SERIAL PRIMARY KEY,
+  title         TEXT NOT NULL,
+  body          TEXT NOT NULL,
+  image_url     TEXT,
+  published     BOOLEAN DEFAULT TRUE,
+  published_at  TIMESTAMPTZ DEFAULT NOW(),
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS site_gallery (
+  id          SERIAL PRIMARY KEY,
+  image_url   TEXT NOT NULL,
+  caption     TEXT,
+  category    TEXT,
+  sort_order  INTEGER DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS site_messages (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL,
+  email       TEXT,
+  phone       TEXT,
+  subject     TEXT,
+  message     TEXT NOT NULL,
+  status      TEXT DEFAULT 'new',
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE site_news     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE site_gallery  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE site_messages ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  -- Public (anon) visitors may only read published news/gallery, and submit messages — never read others' messages.
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_news'     AND policyname='public_read_published') THEN CREATE POLICY "public_read_published" ON site_news     FOR SELECT TO anon USING (published = true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_gallery'  AND policyname='public_read_all')       THEN CREATE POLICY "public_read_all"       ON site_gallery  FOR SELECT TO anon USING (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_messages' AND policyname='public_insert_only')    THEN CREATE POLICY "public_insert_only"    ON site_messages FOR INSERT TO anon WITH CHECK (true); END IF;
+
+  -- Staff (signed in via the operational system, using the same anon key) manage all CMS content & view messages.
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_news'     AND policyname='staff_manage_all') THEN CREATE POLICY "staff_manage_all" ON site_news     FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_gallery'  AND policyname='staff_manage_all') THEN CREATE POLICY "staff_manage_all" ON site_gallery  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_messages' AND policyname='staff_manage_all') THEN CREATE POLICY "staff_manage_all" ON site_messages FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_site_news_published    ON site_news (published, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_site_gallery_sort      ON site_gallery (sort_order);
+CREATE INDEX IF NOT EXISTS idx_site_messages_status   ON site_messages (status, created_at DESC);
+
+-- ── Supabase Storage: Website media bucket ────────────────────────────────────
+-- Run AFTER creating the bucket in the Supabase Dashboard:
+--   Dashboard → Storage → New bucket → Name: "site-media" → Public → Create
+-- (Public, because images are displayed directly on the public website.)
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='sitemedia_anon_insert'
+  ) THEN
+    CREATE POLICY "sitemedia_anon_insert" ON storage.objects
+      FOR INSERT TO anon WITH CHECK (bucket_id = 'site-media');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='sitemedia_anon_select'
+  ) THEN
+    CREATE POLICY "sitemedia_anon_select" ON storage.objects
+      FOR SELECT TO anon USING (bucket_id = 'site-media');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='sitemedia_anon_update'
+  ) THEN
+    CREATE POLICY "sitemedia_anon_update" ON storage.objects
+      FOR UPDATE TO anon USING (bucket_id = 'site-media');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='sitemedia_anon_delete'
+  ) THEN
+    CREATE POLICY "sitemedia_anon_delete" ON storage.objects
+      FOR DELETE TO anon USING (bucket_id = 'site-media');
+  END IF;
+END $$;
