@@ -6,7 +6,7 @@
   <title>Debbyfield Operational System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html-to-docx@1.8.0/dist/html-to-docx.browser.consolidated.min.js"></script>
@@ -17,16 +17,18 @@
     :root {
       --burg:#8B1A2F; --gold:#C9A84C; --navy:#1E3566; --cream:#F5EBD0; --brown:#8B6340; --r:6px;
       --font-sans:'Inter',system-ui,-apple-system,sans-serif;
-      --bg:#fefcf8; --bg2:#f4ead8;
+      --font-serif:'Source Serif 4','Georgia',serif;
+      --bg:#fffdf8; --bg2:#faf3e6;
       --bg-ok:#e8f5e9; --bg-info:#e3f2fd; --bg-warn:#fff8e1; --bg-err:#ffebee;
-      --tx:#111827; --tx2:#6b7280; --tx3:#9ca3af;
+      --tx:#1f2430; --tx2:#5b6172; --tx3:#9aa0b0;
       --tx-ok:#16a34a; --tx-info:#1d4ed8; --tx-warn:#d97706; --tx-err:#dc2626;
-      --bd:#a89a88; --bd2:#c9bba4; --bd3:#e0d4be;
+      --bd:#a89a88; --bd2:#c9bba4; --bd3:#e7dcc8;
       --rmd:6px; --rlg:10px;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%}
-    body{font-family:var(--font-sans);font-size:14px;background:#c8b59a;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    body{font-family:var(--font-sans);font-size:14px;background:var(--bg2);display:flex;align-items:center;justify-content:center;min-height:100vh}
+    h1,h2,h3,h4{font-family:var(--font-serif);font-weight:600;line-height:1.2;color:var(--navy)}
 
     /* ── app shell ── */
     .app{display:grid;grid-template-columns:214px 1fr;width:100%;max-width:1120px;height:96vh;border:.5px solid var(--bd3);border-radius:var(--rlg);overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.09)}
@@ -281,7 +283,7 @@
     .app.hub-mode .topbar{display:none}
     .hub-page{display:flex;flex-direction:column;align-items:center;padding:32px 20px 48px;min-height:100%;background:var(--bg2)}
     .hub-brand{text-align:center;margin-bottom:8px}
-    .hub-school-name{font-size:24px;font-weight:700;color:var(--burg);letter-spacing:-.3px}
+    .hub-school-name{font-size:24px;font-weight:700;font-family:var(--font-serif);color:var(--navy);letter-spacing:-.3px}
     .hub-system-name{font-size:13px;color:var(--tx2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase}
     .hub-status-bar{display:flex;align-items:center;gap:10px;background:var(--bg);border:.5px solid var(--bd3);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--tx2);margin:18px 0 28px}
     .hub-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:100%;max-width:720px}
@@ -329,7 +331,7 @@
       --tx-ok:#4ade80; --tx-info:#60a5fa; --tx-warn:#fbbf24; --tx-err:#f87171;
       --bd:#3a4662; --bd2:#252e47; --bd3:#1c2338;
     }
-    [data-theme="dark"] body{background:#0b0f1a}
+    [data-theme="dark"] body{background:#07090f}
     [data-theme="dark"] .hub-school-name{color:#d4415a}
     [data-theme="dark"] .logo{border-top-color:#3a4662}
     [data-theme="dark"] .nav-item.active{color:var(--tx)}
