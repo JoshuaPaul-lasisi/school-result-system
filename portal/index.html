@@ -167,7 +167,8 @@
       html,body{background:#fff;display:block}
       .app,.sidebar,.topbar,.overlay{display:none!important}
       .content{padding:0;overflow:visible}
-      .rc{max-width:none;display:block!important}
+      .rc{max-width:none;display:block!important;page-break-after:always}
+      .rc:last-of-type{page-break-after:auto}
       .card{border:none;padding:0}
       .paper-actions{display:none!important}
       #paper-print-area{display:block!important;padding:0}
@@ -1512,8 +1513,8 @@ function updateEntryRow(sid,sub){
 }
 
 /* ── report card ── */
-function showReportCard(sid){
-  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid); if(!s)return;
+function reportCardHTML(sid){
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid); if(!s)return"";
   if(!s.sec)s.sec=CLASS_SECTION[s.cls]||"Pre-Primary";
   const subjs=SUBJECTS[s.sec],att=getAtt(sid);
   const pct=att.present?Math.round(parseInt(att.present)/parseInt(att.total)*100):0;
@@ -1527,22 +1528,7 @@ function showReportCard(sid){
       <td style="font-size:11px;color:var(--tx2)">${remark(g)}</td>
     </tr>`;
   }).join("");
-  document.getElementById("page-title").textContent="Report Card";
-  document.getElementById("page-meta").textContent=`${s.name} · ${s.cls}`;
-  const g1=guardiansMap[sid]?.[0];
-  const waPhone=g1?.phone?formatPhoneForWA(g1.phone):null;
-  document.getElementById("topbar-actions").innerHTML=`
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i></button>
-      <button class="btn btn-sm" onclick="downloadResultPDF(${sid})" title="Download PDF"><i class="ti ti-file-type-pdf"></i> PDF</button>
-      <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;white-space:nowrap"
-        onclick="sendResultPDFWhatsApp(${sid})"
-        title="${waPhone?'Send PDF to '+g1.name+' ('+g1.phone+')':'No guardian phone on file'}">
-        <i class="ti ti-brand-whatsapp"></i>${waPhone?' Send PDF':'⚠ No phone'}
-      </button>
-      <button class="btn btn-sm btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
-    </div>`;
-  document.getElementById("content").innerHTML=`
+  return`
     <div class="rc">
       <div class="rc-header">
         <div class="rc-school">DEBBYFIELD SCHOOLS</div>
@@ -1587,6 +1573,53 @@ function showReportCard(sid){
       </div>
       <div style="text-align:center;font-size:10px;color:var(--tx3);margin-top:14px;padding-top:8px;border-top:.5px solid var(--bd3)">Achieving Life's Purpose · Debbyfield Schools</div>
     </div>`;
+}
+function showReportCard(sid){
+  const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid); if(!s)return;
+  document.getElementById("page-title").textContent="Report Card";
+  document.getElementById("page-meta").textContent=`${s.name} · ${s.cls}`;
+  const g1=guardiansMap[sid]?.[0];
+  const waPhone=g1?.phone?formatPhoneForWA(g1.phone):null;
+  document.getElementById("topbar-actions").innerHTML=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="openStudent(${sid})"><i class="ti ti-arrow-left"></i></button>
+      <button class="btn btn-sm" onclick="downloadResultPDF(${sid})" title="Download PDF"><i class="ti ti-file-type-pdf"></i> PDF</button>
+      <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;white-space:nowrap"
+        onclick="sendResultPDFWhatsApp(${sid})"
+        title="${waPhone?'Send PDF to '+g1.name+' ('+g1.phone+')':'No guardian phone on file'}">
+        <i class="ti ti-brand-whatsapp"></i>${waPhone?' Send PDF':'⚠ No phone'}
+      </button>
+      <button class="btn btn-sm btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
+    </div>`;
+  document.getElementById("content").innerHTML=reportCardHTML(sid);
+}
+/* ── bulk print report cards ── */
+function printReportCardsFor(students){
+  if(!students.length){alert("No students to print");return;}
+  document.getElementById("page-title").textContent="Report Cards";
+  document.getElementById("page-meta").textContent=`Printing ${students.length} report card${students.length!==1?"s":""}`;
+  document.getElementById("topbar-actions").innerHTML=`<button class="btn btn-sm" onclick="renderReportCardsView()"><i class="ti ti-arrow-left"></i> Back to Report Cards</button>`;
+  document.getElementById("content").innerHTML=students.map(s=>reportCardHTML(s.id)).join("");
+  setTimeout(()=>window.print(),150);
+}
+function printClassReportCards(cls){
+  const students=roster.filter(s=>s.cls===cls).sort((a,b)=>a.name.localeCompare(b.name));
+  printReportCardsFor(students);
+}
+function printSelectedClassReportCards(){
+  const checked=[...document.querySelectorAll(".rc-bulk-cls:checked")].map(c=>c.value);
+  if(!checked.length){alert("Select at least one class to print");return;}
+  const order=ALL_CLASSES;
+  const students=roster.filter(s=>checked.includes(s.cls))
+    .sort((a,b)=>order.indexOf(a.cls)-order.indexOf(b.cls)||a.name.localeCompare(b.name));
+  printReportCardsFor(students);
+}
+function printAllReportCards(){
+  if(!roster.length){alert("No students in roster");return;}
+  if(!confirm(`Print report cards for all ${roster.length} students? This may take a moment to render.`))return;
+  const order=ALL_CLASSES;
+  const students=[...roster].sort((a,b)=>order.indexOf(a.cls)-order.indexOf(b.cls)||a.name.localeCompare(b.name));
+  printReportCardsFor(students);
 }
 
 /* ── search ── */
@@ -4678,6 +4711,19 @@ function renderReportCardsView(){
 
   document.getElementById("content").innerHTML=`
     <div class="card" style="margin-bottom:14px">
+      <div class="card-head"><span class="card-title"><i class="ti ti-printer"></i> Bulk Print</span></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:10px">Select one or more classes to print all their report cards at once, or print every class in one go.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        ${classes.map(c=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;border:.5px solid var(--bd3);border-radius:20px;padding:5px 12px;cursor:pointer">
+          <input type="checkbox" class="rc-bulk-cls" value="${c}" style="width:auto" /> ${c}
+        </label>`).join("")}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" onclick="printSelectedClassReportCards()"><i class="ti ti-printer"></i> Print Selected Classes</button>
+        <button class="btn btn-sm" onclick="printAllReportCards()"><i class="ti ti-printer"></i> Print All Students</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
       <div class="card-head"><span class="card-title">Select Class</span></div>
       <select id="rc-cls-pick" onchange="renderReportCardsView()" style="max-width:240px">
         <option value="">— Choose a class —</option>
@@ -4686,9 +4732,12 @@ function renderReportCardsView(){
     </div>
     ${selCls&&students.length?`
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:10px 14px;border-bottom:.5px solid var(--bd3);background:var(--bg2);display:flex;align-items:center;justify-content:space-between">
+      <div style="padding:10px 14px;border-bottom:.5px solid var(--bd3);background:var(--bg2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span style="font-weight:600;font-size:13px">${selCls} — ${students.length} students</span>
-        <span style="font-size:11px;color:var(--tx2)">Click a student to view their report card</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:var(--tx2)">Click a student to view their report card</span>
+          <button class="btn btn-sm btn-primary" onclick="printClassReportCards('${selCls}')"><i class="ti ti-printer"></i> Print Class</button>
+        </div>
       </div>
       <table>
         <thead><tr><th>Name</th><th>Gender</th><th></th></tr></thead>
