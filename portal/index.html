@@ -582,7 +582,7 @@ const SUBJECTS = {
   "KG":               ["Literacy","Numeracy","Creativity","Handwriting","Health Habits","Rhymes","Social Habits","BST","Physical Development","Personal Development","CRS","Phonics"],
   "Nursery":          ["Literacy","Numeracy","Creativity","Handwriting","Health Habits","Rhymes","Social Habits","BST","CRS","Phonics"],
   "Primary":          ["Mathematics","English Language","PHE","Basic Science","Information Technology","Quantitative Reasoning","Verbal Reasoning","CRS","Home Economics","Agriculture","Civic Education","Social Studies","Handwriting","CCA","History","Phonics"],
-  "Junior Secondary": ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS"],
+  "Junior Secondary": ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS","Business Studies"],
   "Senior Secondary": ["Mathematics","English Language","ICT","Civic Education","Biology","Economics","Physics","Literature","Account","Chemistry","Government","Further Mathematics","CRS","Commerce"],
 };
 const CLASSES = {
@@ -601,6 +601,25 @@ const PROMOTIONS = {
 const ALL_CLASSES = Object.values(CLASSES).flat();
 const CLASS_SECTION = {};
 for (const [sec,arr] of Object.entries(CLASSES)) arr.forEach(c=>CLASS_SECTION[c]=sec);
+
+/* ── subject config (overrides SUBJECTS defaults when set) ── */
+let customSubjectsConfig = {};
+function getSubjectsFor(sec){ return customSubjectsConfig[sec] || getSubjectsFor(sec) || []; }
+function loadLocalSubjectConfig(){
+  try{ const r=localStorage.getItem("dbs-subject-config"); if(r)customSubjectsConfig=JSON.parse(r); }catch(e){}
+}
+function saveLocalSubjectConfig(){ try{localStorage.setItem("dbs-subject-config",JSON.stringify(customSubjectsConfig));}catch(e){} }
+async function loadSubjectConfig(){
+  if(!dbClient)return;
+  const{data,error}=await dbClient.from("section_subjects").select("section,subjects");
+  if(!error&&data&&data.length){ data.forEach(r=>{customSubjectsConfig[r.section]=r.subjects;}); saveLocalSubjectConfig(); }
+}
+async function saveSubjectConfig(sec,subjects){
+  customSubjectsConfig[sec]=subjects; saveLocalSubjectConfig();
+  if(!dbClient)return;
+  const{error}=await dbClient.from("section_subjects").upsert({section:sec,subjects,updated_at:new Date().toISOString()},{onConflict:"section"});
+  if(error)console.error("saveSubjectConfig:",error);
+}
 
 /* ── state ── */
 let store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
@@ -1109,7 +1128,7 @@ async function loadInventoryTxns() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1282,7 +1301,7 @@ function renderDashboard(){
           <tr class="trow-click" onclick="navToSection('${s}')">
             <td>${s}</td>
             <td style="color:var(--tx2);font-size:12px">${CLASSES[s].join(", ")}</td>
-            <td>${counts[i]}</td><td>${SUBJECTS[s].length}</td>
+            <td>${counts[i]}</td><td>${getSubjectsFor(s).length}</td>
             <td><button class="btn btn-sm" onclick="event.stopPropagation();navToSection('${s}')">View <i class="ti ti-arrow-right"></i></button></td>
           </tr>`).join("")}
         </tbody>
@@ -1296,7 +1315,7 @@ function renderSection(sec){
   document.getElementById("page-title").textContent=sec;
   const base=roster.filter(s=>s.sec===sec&&(!currentAnnexFilter||String(s.annex_id)===String(currentAnnexFilter)));
   const students=base.sort((a,b)=>a.name.localeCompare(b.name));
-  document.getElementById("page-meta").textContent=`${students.length} students · ${SUBJECTS[sec].length} subjects`;
+  document.getElementById("page-meta").textContent=`${students.length} students · ${getSubjectsFor(sec).length} subjects`;
   document.getElementById("topbar-actions").innerHTML="";
   const annexOpts=dbClient?`<select onchange="setAnnexFilter(this.value)" style="width:auto">
     <option value="">All annexes</option>
@@ -1315,7 +1334,7 @@ function renderSection(sec){
       <table id="student-table">
         <thead><tr><th>Name</th><th>Class</th><th class="col-id">ID</th><th>Scores</th><th></th></tr></thead>
         <tbody>${students.map(s=>{
-          const subjs=SUBJECTS[sec];
+          const subjs=getSubjectsFor(sec);
           const entered=subjs.filter(sub=>{const sc=getScore(s.id,sub);return sc.ca||sc.exam;}).length;
           const pct=Math.round(entered/subjs.length*100);
           return`<tr class="trow-click" data-name="${s.name.toLowerCase()}" data-cls="${s.cls}" onclick="openStudent(${s.id})">
@@ -1348,7 +1367,7 @@ function filterTable(q){
 function openStudent(sid){
   const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid)||allStudentsDb.find(x=>x.id===sid); if(!s)return;
   if(!s.sec)s.sec=CLASS_SECTION[s.cls]||"KG";
-  const subjs=SUBJECTS[s.sec];
+  const subjs=getSubjectsFor(s.sec);
   document.getElementById("page-title").textContent=s.name;
   document.getElementById("page-meta").textContent=`${s.cls} · ID ${s.id}`;
   document.getElementById("topbar-actions").innerHTML=`
@@ -1446,7 +1465,7 @@ function renderScoreEntry(){
         <div class="field"><label>Subject</label>
           <select id="entry-sub" onchange="onEntrySubjectChange(this.value)" ${_entryClass?"":"disabled"}>
             <option value="">— Select subject —</option>
-            ${_entryClass?SUBJECTS[sectionForClass(_entryClass)].map(s=>`<option ${s===_entrySubject?"selected":""}>${s}</option>`).join(""):""}
+            ${_entryClass?getSubjectsFor(sectionForClass(_entryClass)).map(s=>`<option ${s===_entrySubject?"selected":""}>${s}</option>`).join(""):""}
           </select></div>
         ${annexOpts}
       </div>
@@ -1459,7 +1478,7 @@ function onEntryClassChange(cls){
   const sub=document.getElementById("entry-sub"),wrap=document.getElementById("entry-table-wrap");
   if(!cls){sub.disabled=true;sub.innerHTML=`<option value="">— Select subject —</option>`;wrap.innerHTML="";return;}
   sub.disabled=false;
-  sub.innerHTML=`<option value="">— Select subject —</option>${SUBJECTS[sectionForClass(cls)].map(s=>`<option>${s}</option>`).join("")}`;
+  sub.innerHTML=`<option value="">— Select subject —</option>${getSubjectsFor(sectionForClass(cls)).map(s=>`<option>${s}</option>`).join("")}`;
   wrap.innerHTML="";
 }
 function onEntrySubjectChange(sub){
@@ -1519,7 +1538,7 @@ function updateEntryRow(sid,sub){
 function reportCardHTML(sid){
   const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid); if(!s)return"";
   if(!s.sec)s.sec=CLASS_SECTION[s.cls]||"KG";
-  const subjs=SUBJECTS[s.sec],att=getAtt(sid);
+  const subjs=getSubjectsFor(s.sec),att=getAtt(sid);
   const pct=att.present?Math.round(parseInt(att.present)/parseInt(att.total)*100):0;
   const rows=subjs.map(sub=>{
     const sc=getScore(sid,sub),t=total(sid,sub),g=grade(t),isEdge=sub==="EDGE Formation";
@@ -1713,8 +1732,8 @@ function renderAdmin(){
     setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
     return;
   }
-  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","schemes","security"];
-  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","schemes":"Schemes","security":"Security"};
+  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","schemes",...(canDo('principal')?["subjects"]:[]),"security"];
+  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","schemes":"Schemes","subjects":"Subjects","security":"Security"};
   document.getElementById("content").innerHTML=`
     <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
     <div id="admin-tab-content"></div>`;
@@ -1747,6 +1766,7 @@ function renderAdminTab(){
   else if(_adminTab==="fee-setup")el.innerHTML=buildAdminFeeHtml();
   else if(_adminTab==="edge"){el.innerHTML=buildAdminEdgeHtml();refreshEdgeSubjects();}
   else if(_adminTab==="schemes")el.innerHTML=buildAdminSchemesHtml();
+  else if(_adminTab==="subjects")el.innerHTML=buildAdminSubjectsHtml();
   else if(_adminTab==="security")el.innerHTML=buildAdminSecurityHtml();
 }
 
@@ -1842,6 +1862,57 @@ function buildAdminNewTermHtml(){
     <button class="btn btn-primary" onclick="runInitNewTerm()"><i class="ti ti-copy"></i> Initialize</button>
     <p style="font-size:11px;color:var(--tx3);margin-top:10px">Only adds missing enrollments — existing records are not changed.</p>
   </div>`;
+}
+
+/* ── admin: subjects tab ── */
+function buildAdminSubjectsHtml(){
+  const sections=Object.keys(CLASSES);
+  return sections.map(sec=>{
+    const subs=getSubjectsFor(sec);
+    const isCustom=!!customSubjectsConfig[sec];
+    return`<div class="card" style="margin-bottom:14px">
+      <div class="card-head">
+        <span class="card-title">${sec}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${isCustom?`<span style="font-size:11px;color:var(--tx2)">${subs.length} subjects (custom)</span>
+            <button class="btn btn-sm" onclick="resetSectionSubjects('${sec}')" title="Reset to built-in defaults"><i class="ti ti-refresh"></i> Reset to defaults</button>`
+            :`<span style="font-size:11px;color:var(--tx3)">${subs.length} subjects (default)</span>`}
+        </div>
+      </div>
+      <div id="subj-list-${sec.replace(/\s/g,'_')}" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        ${subs.map((s,i)=>`<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:.5px solid var(--bd3);border-radius:20px;padding:4px 10px;font-size:12px">
+          <span>${s}</span>
+          <button onclick="removeSubject('${sec}',${i})" style="background:none;border:none;cursor:pointer;color:var(--tx3);padding:0;display:flex;align-items:center;line-height:1" title="Remove"><i class="ti ti-x" style="font-size:12px"></i></button>
+        </div>`).join("")}
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="new-subj-${sec.replace(/\s/g,'_')}" type="text" placeholder="Add subject…" style="max-width:240px"
+          onkeydown="if(event.key==='Enter')addSubject('${sec}')" />
+        <button class="btn btn-sm btn-primary" onclick="addSubject('${sec}')"><i class="ti ti-plus"></i> Add</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+async function addSubject(sec){
+  const key=sec.replace(/\s/g,'_');
+  const input=document.getElementById(`new-subj-${key}`);
+  const name=(input?.value||"").trim(); if(!name){input?.focus();return;}
+  const current=getSubjectsFor(sec);
+  if(current.map(s=>s.toLowerCase()).includes(name.toLowerCase())){alert(`"${name}" is already in the ${sec} list`);return;}
+  await saveSubjectConfig(sec,[...current,name]);
+  input.value=""; renderAdminTab();
+}
+async function removeSubject(sec,idx){
+  const current=getSubjectsFor(sec);
+  if(!confirm(`Remove "${current[idx]}" from ${sec}?`))return;
+  const updated=current.filter((_,i)=>i!==idx);
+  await saveSubjectConfig(sec,updated); renderAdminTab();
+}
+async function resetSectionSubjects(sec){
+  if(!confirm(`Reset ${sec} subjects back to built-in defaults? Any custom changes will be lost.`))return;
+  delete customSubjectsConfig[sec]; saveLocalSubjectConfig();
+  if(dbClient)await dbClient.from("section_subjects").delete().eq("section",sec);
+  renderAdminTab();
 }
 
 function buildAdminSecurityHtml(){
@@ -2157,7 +2228,7 @@ async function runChangePin(){
 
 /* ── exam papers: teacher view ── */
 const EXAM_SUBJECTS = {
-  "Junior Secondary": ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS"],
+  "Junior Secondary": ["Mathematics","English Language","NVE","BST","PVS","CCA","CRS","Business Studies"],
   "Senior Secondary": ["Mathematics","English Language","ICT","Civic Education","Biology","Economics","Physics","Literature","Account","Chemistry","Government","Further Mathematics","CRS","Commerce"],
 };
 function getExamSubjects(cls){
@@ -3649,7 +3720,7 @@ async function deleteScheme(id){
 function refreshSchemeSubjects(){
   const cls=document.getElementById("sch-cls")?.value; if(!cls)return;
   const sec=CLASS_SECTION[cls]||"Junior Secondary";
-  const subs=SUBJECTS[sec]||[];
+  const subs=getSubjectsFor(sec)||[];
   const sel=document.getElementById("sch-sub"); if(!sel)return;
   sel.innerHTML=subs.map(s=>`<option>${s}</option>`).join("");
 }
@@ -5238,7 +5309,7 @@ function openEditSlot(cls,day,periodIndex){
   }
   const slot=ttSlots[cls]?.[day]?.[periodIndex]||{};
   const sec=TT_CLASSES.indexOf(cls)<3?"Junior Secondary":"Senior Secondary";
-  const subs=(SUBJECTS[sec]||[]);
+  const subs=(getSubjectsFor(sec)||[]);
   const teachers=ttTeachers.filter(t=>{
     const avail=(t.availability||"").split(",").map(s=>s.trim());
     return avail.includes(day)||avail.includes("All");
@@ -5418,7 +5489,7 @@ function buildResultMessage(sid){
   const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid);
   if(!s)return null;
   const sec=s.sec||CLASS_SECTION[s.cls]||"";
-  const subjs=SUBJECTS[sec]||[];
+  const subjs=getSubjectsFor(sec)||[];
   const att=getAtt(sid);
   const pct=att.present&&att.total?Math.round(parseInt(att.present)/parseInt(att.total)*100):null;
 
@@ -5471,7 +5542,7 @@ async function generateResultPDF(sid){
   const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid);
   if(!s)return null;
   const sec=s.sec||CLASS_SECTION[s.cls]||"";
-  const subjs=SUBJECTS[sec]||[];
+  const subjs=getSubjectsFor(sec)||[];
   const att=getAtt(sid);
   const pct=att.present&&att.total?Math.round(parseInt(att.present)/parseInt(att.total)*100):null;
 
@@ -5873,7 +5944,7 @@ async function generateTimetable(){
       const classOrder=_ttShuffle([...TT_CLASSES]);
       for(const cls of classOrder){
         const sec=TT_CLASSES.indexOf(cls)<3?"Junior Secondary":"Senior Secondary";
-        const subs=SUBJECTS[sec]||[];
+        const subs=getSubjectsFor(sec)||[];
         const prevPi=_ttPrevPi(pi);
         const prevSub=prevPi>=0
           ?newSlots.find(s=>s.cls===cls&&s.day===day&&s.period_index===prevPi)?.subject
@@ -6180,7 +6251,7 @@ async function deleteSiteMessageItem(id){
 }
 
 /* ── boot ── */
-loadLocalStore(); updateTermDisplay();
+loadLocalStore(); loadLocalSubjectConfig(); updateTermDisplay();
 dbStatus="loading"; updateDbIndicator(); renderHub();
 (async()=>{
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);

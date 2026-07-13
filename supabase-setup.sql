@@ -754,3 +754,16 @@ DO $$ BEGIN
       FOR DELETE TO anon USING (bucket_id = 'site-media');
   END IF;
 END $$;
+
+-- ── section_subjects: custom subject lists per section (managed via Admin → Subjects) ──
+CREATE TABLE IF NOT EXISTS section_subjects (
+  section TEXT PRIMARY KEY,
+  subjects JSONB NOT NULL DEFAULT '[]',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE section_subjects ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='section_subjects' AND policyname='anon_all') THEN
+    CREATE POLICY "anon_all" ON section_subjects FOR ALL TO anon USING (true) WITH CHECK (true);
+  END IF;
+END $$;
