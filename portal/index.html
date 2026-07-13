@@ -1300,7 +1300,7 @@ function renderDashboard(){
         <tbody>${secs.map((s,i)=>`
           <tr class="trow-click" onclick="navToSection('${s}')">
             <td>${s}</td>
-            <td style="color:var(--tx2);font-size:12px">${CLASSES[s].join(", ")}</td>
+            <td style="color:var(--tx2);font-size:12px">${(CLASSES[s]||[]).join(", ")}</td>
             <td>${counts[i]}</td><td>${getSubjectsFor(s).length}</td>
             <td><button class="btn btn-sm" onclick="event.stopPropagation();navToSection('${s}')">View <i class="ti ti-arrow-right"></i></button></td>
           </tr>`).join("")}
