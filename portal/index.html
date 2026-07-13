@@ -604,9 +604,9 @@ for (const [sec,arr] of Object.entries(CLASSES)) arr.forEach(c=>CLASS_SECTION[c]
 
 /* ── subject config (overrides SUBJECTS defaults when set) ── */
 let customSubjectsConfig = {};
-function getSubjectsFor(sec){ return customSubjectsConfig[sec] || getSubjectsFor(sec) || []; }
+function getSubjectsFor(sec){ return customSubjectsConfig[sec] || SUBJECTS[sec] || []; }
 function loadLocalSubjectConfig(){
-  try{ const r=localStorage.getItem("dbs-subject-config"); if(r)customSubjectsConfig=JSON.parse(r); }catch(e){}
+  try{ const r=localStorage.getItem("dbs-subject-config"); if(r){const p=JSON.parse(r);if(p&&typeof p==='object'&&!Array.isArray(p))customSubjectsConfig=p;} }catch(e){}
 }
 function saveLocalSubjectConfig(){ try{localStorage.setItem("dbs-subject-config",JSON.stringify(customSubjectsConfig));}catch(e){} }
 async function loadSubjectConfig(){
