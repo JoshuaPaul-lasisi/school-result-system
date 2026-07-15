@@ -767,3 +767,26 @@ DO $$ BEGIN
     CREATE POLICY "anon_all" ON section_subjects FOR ALL TO anon USING (true) WITH CHECK (true);
   END IF;
 END $$;
+
+-- ── track_documents: per-track file/link store for EDGE Activities ─────────────
+CREATE TABLE IF NOT EXISTS track_documents (
+  id         BIGSERIAL PRIMARY KEY,
+  track      TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  type       TEXT DEFAULT 'Document',
+  url        TEXT,
+  notes      TEXT,
+  added_at   TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE track_documents ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='track_documents' AND policyname='anon_all') THEN
+    CREATE POLICY "anon_all" ON track_documents FOR ALL TO anon USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+-- ── exam_papers: add drive_url for linking Google Docs ──────────────────────────
+ALTER TABLE exam_papers ADD COLUMN IF NOT EXISTS drive_url TEXT;
+
+-- ── edge_tests: add drive_url for linking Google Docs ───────────────────────────
+ALTER TABLE edge_tests ADD COLUMN IF NOT EXISTS drive_url TEXT;

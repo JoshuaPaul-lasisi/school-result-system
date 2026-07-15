@@ -78,7 +78,7 @@
     .badge-a{background:var(--bg-ok);color:var(--tx-ok)} .badge-b{background:var(--bg-info);color:var(--tx-info)}
     .badge-c{background:var(--bg-warn);color:var(--tx-warn)} .badge-d{background:var(--bg-warn);color:var(--tx-warn)}
     .badge-f{background:var(--bg-err);color:var(--tx-err)} .badge-ok{background:var(--bg-ok);color:var(--tx-ok)}
-    .badge-err{background:var(--bg-err);color:var(--tx-err)} .badge-neutral{background:var(--bg2);color:var(--tx2)}
+    .badge-warn{background:var(--bg-warn);color:var(--tx-warn)} .badge-err{background:var(--bg-err);color:var(--tx-err)} .badge-neutral{background:var(--bg2);color:var(--tx2)}
 
     /* ── cards ── */
     .card{background:var(--bg);border:.5px solid var(--bd3);border-radius:var(--rlg);padding:14px 16px;margin-bottom:12px}
@@ -666,6 +666,8 @@ let _candScoreTarget = null;  // candidate id currently selected for score entry
 let activityMemberships = [];
 let activitySessions = [];
 let activityCompetitions = [];
+let trackDocuments = [];
+let _trackDetailTab = "documents";
 let schoolEvents = [];
 let ttTeachers = [];   // timetable teacher records
 let ttSlots = {};      // ttSlots[cls][day][periodIdx] = {subject,teacher_name}
@@ -873,12 +875,16 @@ function renderSidebar(section){
       </div>`,
     activities:`
       <div class="nav-section">
-        <div class="nav-label">Tracks</div>
-        <div class="nav-item" onclick="nav('act-overview',null,this)"><i class="ti ti-layout-grid"></i>Overview</div>
-        <div class="nav-item" onclick="nav('act-members',null,this)"><i class="ti ti-users"></i>Memberships</div>
+        <div class="nav-label">Overview</div>
+        <div class="nav-item" onclick="nav('act-overview',null,this)"><i class="ti ti-layout-grid"></i>All Tracks</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Track Folders</div>
+        ${ACTIVITY_TRACKS.map(t=>`<div class="nav-item" onclick="nav('act-track','${t}',this)"><i class="ti ti-folder"></i>${t}</div>`).join("")}
       </div>
       <div class="nav-section">
         <div class="nav-label">Records</div>
+        <div class="nav-item" onclick="nav('act-members',null,this)"><i class="ti ti-users"></i>All Memberships</div>
         <div class="nav-item" onclick="nav('act-sessions',null,this)"><i class="ti ti-clipboard-list"></i>Session Logs</div>
         <div class="nav-item" onclick="nav('act-competitions',null,this)"><i class="ti ti-award"></i>Competitions</div>
       </div>`,
@@ -1128,7 +1134,7 @@ async function loadInventoryTxns() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1253,6 +1259,7 @@ function nav(page,arg,el){
   else if(page==="act-members")renderActivityMemberships();
   else if(page==="act-sessions")renderActivitySessions();
   else if(page==="act-competitions")renderActivityCompetitions();
+  else if(page==="act-track")renderTrackDetail(arg);
   else if(page==="cal-events")renderCalendar();
   else if(page==="tt-grid")renderTimetableGrid();
   else if(page==="tt-teachers")renderTimetableTeachers();
@@ -1732,8 +1739,8 @@ function renderAdmin(){
     setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
     return;
   }
-  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","schemes",...(canDo('principal')?["subjects"]:[]),"security"];
-  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","schemes":"Schemes","subjects":"Subjects","security":"Security"};
+  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","schemes",...(canDo('principal')?["subjects"]:[]),"data-quality","security"];
+  const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","schemes":"Schemes","subjects":"Subjects","data-quality":"Data Quality","security":"Security"};
   document.getElementById("content").innerHTML=`
     <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
     <div id="admin-tab-content"></div>`;
@@ -1767,6 +1774,7 @@ function renderAdminTab(){
   else if(_adminTab==="edge"){el.innerHTML=buildAdminEdgeHtml();refreshEdgeSubjects();}
   else if(_adminTab==="schemes")el.innerHTML=buildAdminSchemesHtml();
   else if(_adminTab==="subjects")el.innerHTML=buildAdminSubjectsHtml();
+  else if(_adminTab==="data-quality")el.innerHTML=buildAdminDataQualityHtml();
   else if(_adminTab==="security")el.innerHTML=buildAdminSecurityHtml();
 }
 
@@ -1913,6 +1921,58 @@ async function resetSectionSubjects(sec){
   delete customSubjectsConfig[sec]; saveLocalSubjectConfig();
   if(dbClient)await dbClient.from("section_subjects").delete().eq("section",sec);
   renderAdminTab();
+}
+
+function buildAdminDataQualityHtml(){
+  const studentIssues=roster.map(s=>{
+    const p=studentProfiles[s.id];
+    const g=guardiansMap[s.id];
+    const primary=g?g.find(x=>x.is_primary)||g[0]:null;
+    const missing=[];
+    if(!p||!p.dob)missing.push("Date of birth");
+    if(!p||!p.address)missing.push("Address");
+    if(!p||!p.blood_group)missing.push("Blood group");
+    if(!primary)missing.push("Guardian info");
+    else if(!primary.phone)missing.push("Guardian phone");
+    return missing.length?{...s,missing}:null;
+  }).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const staffIssues=staffList.map(s=>{
+    const missing=[];
+    if(!s.phone)missing.push("Phone");
+    if(!s.role)missing.push("Role/Title");
+    return missing.length?{...s,missing}:null;
+  }).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const sRows=studentIssues.map(s=>`<tr>
+    <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+    <td style="color:var(--tx2);font-size:12px">${s.cls}</td>
+    <td style="font-size:12px;color:var(--tx-err)">${s.missing.join(" · ")}</td>
+    <td><button class="btn btn-sm" onclick="openStudent(${s.id})"><i class="ti ti-pencil"></i> Edit</button></td>
+  </tr>`).join("");
+  const stRows=staffIssues.map(s=>`<tr>
+    <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+    <td style="color:var(--tx2);font-size:12px">${s.staff_type||"—"}</td>
+    <td style="font-size:12px;color:var(--tx-err)">${s.missing.join(" · ")}</td>
+  </tr>`).join("");
+  return`<div class="card" style="margin-bottom:14px">
+    <div class="card-head">
+      <span class="card-title"><i class="ti ti-user-exclamation"></i> Students — Incomplete Bio-Data</span>
+      <span class="badge ${studentIssues.length?"badge-warn":"badge-ok"}">${studentIssues.length} issues</span>
+    </div>
+    ${studentIssues.length?`<div style="overflow-x:auto"><table>
+      <thead><tr><th>Student</th><th>Class</th><th>Missing</th><th></th></tr></thead>
+      <tbody>${sRows}</tbody></table></div>`
+    :`<div class="empty" style="padding:16px"><i class="ti ti-circle-check" style="color:var(--tx-ok)"></i> All students have complete bio-data</div>`}
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title"><i class="ti ti-id-badge-off"></i> Staff — Incomplete Records</span>
+      <span class="badge ${staffIssues.length?"badge-warn":"badge-ok"}">${staffIssues.length} issues</span>
+    </div>
+    ${staffIssues.length?`<div style="overflow-x:auto"><table>
+      <thead><tr><th>Staff</th><th>Type</th><th>Missing</th></tr></thead>
+      <tbody>${stRows}</tbody></table></div>`
+    :`<div class="empty" style="padding:16px"><i class="ti ti-circle-check" style="color:var(--tx-ok)"></i> All staff records are complete</div>`}
+  </div>`;
 }
 
 function buildAdminSecurityHtml(){
@@ -2367,11 +2427,31 @@ function buildAdminExamPapersHtml(){
           <option value="Exam">End-of-Term Exam</option>
         </select></div>
     </div>
-    <button class="btn btn-primary" onclick="generateExamPaper()"><i class="ti ti-sparkles"></i> Generate Paper</button>
+    <button class="btn btn-primary" onclick="generateExamPaper()"><i class="ti ti-sparkles"></i> Generate with AI</button>
     <div id="gen-status" style="margin-top:10px;font-size:12px;color:var(--tx2)"></div>
   </div>
   <div class="card" style="margin-top:12px">
-    <div class="card-head"><span class="card-title">Generated Papers — ${currentTerm} ${currentSession}</span></div>
+    <div class="card-head"><span class="card-title"><i class="ti ti-clipboard-text"></i> Paste / Upload Your Own Paper</span></div>
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:14px">Paste content you've written (from Google Docs, Claude, etc.) to save it in your database. Optionally attach a Drive link for quick access.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px">
+      <div class="field"><label>Class</label><select id="paste-cls" onchange="refreshPasteSubjects()">${clsOpts}</select></div>
+      <div class="field"><label>Subject</label><select id="paste-sub"></select></div>
+      <div class="field"><label>Paper type</label>
+        <select id="paste-type">
+          <option value="CA1">CA1 (First Assessment)</option>
+          <option value="CA2">CA2 (Second Assessment)</option>
+          <option value="Exam">End-of-Term Exam</option>
+        </select></div>
+    </div>
+    <div class="field"><label>Google Drive link <span style="color:var(--tx3);font-size:11px">(optional — for quick access)</span></label>
+      <input id="paste-drive-url" type="url" placeholder="https://docs.google.com/…" /></div>
+    <div class="field"><label>Paper content <span style="color:var(--tx3);font-size:11px">(paste text or HTML)</span></label>
+      <textarea id="paste-content" rows="8" placeholder="Paste the paper content here…" style="font-family:monospace;font-size:12px;width:100%"></textarea></div>
+    <button class="btn btn-primary" onclick="savePastedPaper()"><i class="ti ti-device-floppy"></i> Save Paper</button>
+    <div id="paste-status" style="margin-top:10px;font-size:12px;color:var(--tx2)"></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-head"><span class="card-title">Papers — ${currentTerm} ${currentSession}</span></div>
     ${stored.length?`<div style="overflow-x:auto"><table>
       <thead><tr><th>Class</th><th>Subject</th><th>Type</th><th>Generated</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`
@@ -2384,6 +2464,33 @@ function refreshGenSubjects(){
   const subs=getExamSubjects(cls);
   const sel=document.getElementById("gen-sub"); if(!sel)return;
   sel.innerHTML=subs.map(s=>`<option>${s}</option>`).join("");
+}
+function refreshPasteSubjects(){
+  const cls=document.getElementById("paste-cls")?.value; if(!cls)return;
+  const subs=getExamSubjects(cls);
+  const sel=document.getElementById("paste-sub"); if(!sel)return;
+  sel.innerHTML=subs.map(s=>`<option>${s}</option>`).join("");
+}
+async function savePastedPaper(){
+  const cls=document.getElementById("paste-cls")?.value;
+  const subject=document.getElementById("paste-sub")?.value;
+  const paperType=document.getElementById("paste-type")?.value;
+  const driveUrl=(document.getElementById("paste-drive-url")?.value||"").trim();
+  const rawContent=(document.getElementById("paste-content")?.value||"").trim();
+  const status=document.getElementById("paste-status");
+  if(!cls||!subject||!paperType){alert("Select class, subject, and paper type");return;}
+  if(!rawContent&&!driveUrl){alert("Paste content or add a Drive link (or both)");return;}
+  if(!dbClient){alert("Database not connected");return;}
+  const content=rawContent?`<pre style="white-space:pre-wrap;font-family:serif;font-size:13px;line-height:1.7">${rawContent.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</pre>`:
+    `<div style="text-align:center;padding:40px;color:var(--tx2)"><i class="ti ti-external-link" style="font-size:32px"></i><p style="margin-top:8px">Paper stored as Drive link — click Open in Drive to view</p></div>`;
+  if(status)status.innerHTML=`<span style="color:var(--tx2)"><i class="ti ti-loader-2"></i> Saving…</span>`;
+  const sec=CLASS_SECTION[cls]||"Junior Secondary";
+  const{error}=await dbClient.from("exam_papers").upsert(
+    {subject,cls,sec,paper_type:paperType,term:currentTerm,session:currentSession,content,drive_url:driveUrl||null},
+    {onConflict:"subject,cls,paper_type,term,session"});
+  if(error){if(status)status.innerHTML=`<span style="color:var(--tx-err)"><i class="ti ti-alert-circle"></i> Error: ${error.message}</span>`;return;}
+  await loadExamPapers(); renderAdminTab();
+  if(status)status.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Paper saved!</span>`;
 }
 
 async function generateExamPaper(){
@@ -2425,9 +2532,10 @@ function viewPaperAdmin(id){
   const p=examPapersStore.find(x=>x.id===id); if(!p)return;
   openModal(`${p.cls} · ${p.subject} · ${p.paper_type}`,
     `<div style="font-family:serif;line-height:1.7;font-size:13px;max-height:60vh;overflow-y:auto">${p.content}</div>
-    <div style="margin-top:12px;display:flex;gap:8px">
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-sm btn-primary" onclick="printPaperById(${p.id})"><i class="ti ti-printer"></i> Print</button>
       <button class="btn btn-sm" onclick="downloadAsWord(examPapersStore.find(x=>x.id===${p.id})?.content||'','${p.cls}_${p.subject}_${p.paper_type}')"><i class="ti ti-file-word"></i> Word</button>
+      ${p.drive_url?`<a href="${p.drive_url}" target="_blank" rel="noopener" class="btn btn-sm"><i class="ti ti-brand-google-drive"></i> Open in Drive</a>`:""}
       <button class="btn btn-sm" onclick="closeModal()">Close</button>
     </div>`);
 }
@@ -4714,6 +4822,11 @@ async function loadActivityCompetitions(){
     .order("competition_date",{ascending:false});
   if(data)activityCompetitions=data;
 }
+async function loadTrackDocuments(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("track_documents").select("*").order("added_at",{ascending:false});
+  if(data)trackDocuments=data;
+}
 async function loadSchoolEvents(){
   if(!dbClient)return;
   const{data}=await dbClient.from("school_events").select("*")
@@ -4854,7 +4967,7 @@ function renderActivitiesOverview(){
             <div>${ts.sessionCount} session${ts.sessionCount!==1?"s":""} logged &nbsp;·&nbsp; ${ts.compCount} competition${ts.compCount!==1?"s":""}</div>
           </div>
           <div style="display:flex;gap:6px;margin-top:8px">
-            <button class="btn btn-sm" onclick="nav('act-members',null,document.querySelector('.nav-item:nth-child(2)'))">Members</button>
+            <button class="btn btn-sm btn-primary" onclick="nav('act-track','${ts.track}',document.querySelector('[onclick*=\\'act-track\\'][onclick*=\\'${ts.track}\\']'))"><i class="ti ti-folder-open"></i> Open Folder</button>
           </div>
         </div>`).join("")}
     </div>
@@ -4864,6 +4977,120 @@ function renderActivitiesOverview(){
       <div class="stat"><div class="stat-val">${activityCompetitions.length}</div><div class="stat-lbl">Competitions</div></div>
       <div class="stat"><div class="stat-val">${[...new Set(activityMemberships.map(m=>m.student_id))].length}</div><div class="stat-lbl">Students enrolled</div></div>
     </div>`;
+}
+
+/* ── activities: track detail + documents ── */
+function renderTrackDetail(trackName){
+  const members=activityMemberships.filter(m=>m.track===trackName);
+  const captain=members.find(m=>m.role==="captain");
+  const capName=captain?roster.find(s=>s.id===captain.student_id)?.name||"—":"—";
+  const sessions=activitySessions.filter(s=>s.track===trackName);
+  const comps=activityCompetitions.filter(c=>c.track===trackName||c.track==="General");
+  const docs=trackDocuments.filter(d=>d.track===trackName);
+  document.getElementById("page-title").textContent=trackName+" Track";
+  document.getElementById("page-meta").textContent=`${members.length} members · ${docs.length} documents`;
+  document.getElementById("topbar-actions").innerHTML="";
+  const DOC_TYPES=["Report","Research","Lesson Note","Material","Video","Other"];
+  const tabs=["documents","members","sessions","competitions"];
+  const tabLabels={documents:"Documents",members:"Members",sessions:"Sessions",competitions:"Competitions"};
+  let tabContent="";
+  if(_trackDetailTab==="documents"){
+    const docsHtml=docs.length?`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+      ${docs.map(d=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg2);border:.5px solid var(--bd3);border-radius:var(--r)">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+            <span class="badge badge-neutral" style="font-size:10px">${d.type||"Document"}</span>
+            <span style="font-weight:500;font-size:13px">${d.title}</span>
+          </div>
+          ${d.notes?`<div style="font-size:12px;color:var(--tx2);margin-top:2px">${d.notes}</div>`:""}
+          <div style="font-size:11px;color:var(--tx3);margin-top:4px">${new Date(d.added_at).toLocaleDateString()}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+          ${d.url?`<a href="${d.url}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="ti ti-external-link"></i> Open</a>`:`<span style="font-size:11px;color:var(--tx3)">No link</span>`}
+          ${canDo('admin')?`<button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteTrackDocument(${d.id})"><i class="ti ti-trash"></i></button>`:""}
+        </div>
+      </div>`).join("")}
+    </div>`:`<div class="empty" style="margin-bottom:14px"><i class="ti ti-files"></i>No documents yet — add the first one below</div>`;
+    tabContent=`${docsHtml}
+    ${canDo('admin')?`<div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-plus"></i> Add Document / Link</span></div>
+      <div class="field"><label>Title</label><input id="tdoc-title" placeholder="e.g. Term 3 Session Report" /></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Type</label><select id="tdoc-type">${DOC_TYPES.map(t=>`<option>${t}</option>`).join("")}</select></div>
+        <div class="field"><label>URL <span style="color:var(--tx3);font-size:11px">(Google Drive, YouTube, etc.)</span></label><input id="tdoc-url" type="url" placeholder="https://…" /></div>
+      </div>
+      <div class="field"><label>Notes <span style="color:var(--tx3);font-size:11px">(optional)</span></label><input id="tdoc-notes" placeholder="Short description…" /></div>
+      <button class="btn btn-primary" onclick="submitAddTrackDocument('${trackName.replace(/'/g,"\\'")}')"><i class="ti ti-device-floppy"></i> Save</button>
+      <div id="tdoc-status" style="margin-top:8px;font-size:12px"></div>
+    </div>`:""}`;
+  }else if(_trackDetailTab==="members"){
+    const mRows=members.map(m=>{
+      const s=roster.find(x=>x.id===m.student_id)||{name:`ID ${m.student_id}`,cls:"—"};
+      return`<tr>
+        <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+        <td style="color:var(--tx2);font-size:12px">${s.cls||"—"}</td>
+        <td><span class="badge badge-neutral" style="text-transform:capitalize">${m.role}</span></td>
+        ${canDo('admin')?`<td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteMembership(${m.id},'${s.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button></td>`:"<td></td>"}
+      </tr>`;
+    }).join("");
+    tabContent=members.length?`<div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Student</th><th>Class</th><th>Role</th><th></th></tr></thead>
+      <tbody>${mRows}</tbody></table></div>`
+      :`<div class="empty"><i class="ti ti-users-off"></i>No members assigned yet</div>`;
+  }else if(_trackDetailTab==="sessions"){
+    const sRows=sessions.map(s=>`<tr>
+      <td style="color:var(--tx2);font-size:12px">${s.session_date}</td>
+      <td>${s.topic||"—"}</td>
+      <td style="text-align:center">${s.attendance_count||"—"}</td>
+      <td style="color:var(--tx2);font-size:12px;max-width:180px;white-space:normal">${s.notes||""}</td>
+    </tr>`).join("");
+    tabContent=sessions.length?`<div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Date</th><th>Topic</th><th>Attendance</th><th>Notes</th></tr></thead>
+      <tbody>${sRows}</tbody></table></div>`
+      :`<div class="empty"><i class="ti ti-calendar-off"></i>No sessions logged yet</div>`;
+  }else if(_trackDetailTab==="competitions"){
+    const cRows=comps.map(c=>`<tr>
+      <td>${c.title}</td>
+      <td style="color:var(--tx2);font-size:12px">${c.competition_date}</td>
+      <td><span class="badge badge-neutral" style="text-transform:capitalize">${c.level}</span></td>
+      <td>${c.position||"—"}</td>
+    </tr>`).join("");
+    tabContent=comps.length?`<div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Competition</th><th>Date</th><th>Level</th><th>Position</th></tr></thead>
+      <tbody>${cRows}</tbody></table></div>`
+      :`<div class="empty"><i class="ti ti-trophy-off"></i>No competitions recorded yet</div>`;
+  }
+  document.getElementById("content").innerHTML=`
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val">${members.length}</div><div class="stat-lbl">Members</div></div>
+      <div class="stat"><div class="stat-val">${docs.length}</div><div class="stat-lbl">Documents</div></div>
+      <div class="stat"><div class="stat-val">${sessions.length}</div><div class="stat-lbl">Sessions</div></div>
+      <div class="stat"><div class="stat-val">${capName}</div><div class="stat-lbl">Captain</div></div>
+    </div>
+    <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_trackDetailTab?"active":""}" onclick="switchTrackTab('${trackName.replace(/'/g,"\\'")}','${t}')">${tabLabels[t]}</div>`).join("")}</div>
+    <div style="padding-top:4px">${tabContent}</div>`;
+}
+function switchTrackTab(trackName,tab){_trackDetailTab=tab;renderTrackDetail(trackName);}
+async function submitAddTrackDocument(trackName){
+  const title=(document.getElementById("tdoc-title")?.value||"").trim();
+  const type=document.getElementById("tdoc-type")?.value||"Document";
+  const url=(document.getElementById("tdoc-url")?.value||"").trim();
+  const notes=(document.getElementById("tdoc-notes")?.value||"").trim();
+  const status=document.getElementById("tdoc-status");
+  if(!title){alert("Enter a title");return;}
+  if(!dbClient){alert("Database not connected");return;}
+  if(status)status.innerHTML=`<span style="color:var(--tx2)"><i class="ti ti-loader-2"></i> Saving…</span>`;
+  const{data,error}=await dbClient.from("track_documents").insert({track:trackName,title,type,url:url||null,notes:notes||null}).select().single();
+  if(error){if(status)status.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+  trackDocuments.unshift(data);
+  renderTrackDetail(trackName);
+}
+async function deleteTrackDocument(id){
+  if(!confirm("Remove this document?"))return;
+  const{error}=await dbClient.from("track_documents").delete().eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  trackDocuments=trackDocuments.filter(d=>d.id!==id);
+  renderTrackDetail(_curArg);
 }
 
 /* ── activities: memberships ── */
