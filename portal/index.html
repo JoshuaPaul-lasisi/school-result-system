@@ -169,6 +169,8 @@
       .content{padding:0;overflow:visible}
       .rc{max-width:none;display:block!important;page-break-after:always}
       .rc:last-of-type{page-break-after:auto}
+      .bill{display:block!important;page-break-after:always}
+      .bill:last-of-type{page-break-after:auto}
       .card{border:none;padding:0}
       .paper-actions{display:none!important}
       #paper-print-area{display:block!important;padding:0}
@@ -838,8 +840,12 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('finance-dashboard',null,this)"><i class="ti ti-chart-bar"></i>Overview</div>
         <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Fee Payments</div>
         <div class="nav-item" onclick="nav('finance-expenses',null,this)"><i class="ti ti-cash-banknote"></i>Expenses</div>
-        <div class="nav-item" onclick="nav('stock',null,this)"><i class="ti ti-shopping-bag"></i>Stock & Sales</div>
+        <div class="nav-item" onclick="nav('stock',null,this)"><i class="ti ti-shopping-bag"></i>Stock &amp; Sales</div>
         ${canDo('principal')?`<div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>`:""}
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Bills</div>
+        <div class="nav-item" onclick="nav('finance-bills',null,this)"><i class="ti ti-file-invoice"></i>Term Bills</div>
       </div>`,
     students:`
       <div class="nav-section">
@@ -1244,6 +1250,7 @@ function nav(page,arg,el){
   else if(page==="finance-log")renderFinanceLog();
   else if(page==="finance-expenses")renderExpenses();
   else if(page==="finance-ledger")renderFinanceLedger();
+  else if(page==="finance-bills")renderTermBills();
   else if(page==="assets")renderAssets();
   else if(page==="incidents")renderIncidentLog();
   else if(page==="stock")renderInventory();
@@ -2817,6 +2824,118 @@ async function deletePaymentEntry(id){
   await dbClient.from("payment_log").delete().eq("id",id);
   await loadPaymentLog();
   renderFinanceLog();
+}
+
+/* ── finance: term bills ── */
+let _billsClsFilter="";
+function renderTermBills(){
+  document.getElementById("page-title").textContent="Term Bills";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  if(!dbClient){
+    document.getElementById("content").innerHTML=`<div class="empty"><i class="ti ti-plug-off"></i>Connect Supabase to generate bills</div>`;return;
+  }
+  if(!feeStructure.length){
+    document.getElementById("content").innerHTML=`<div class="card"><div class="empty"><i class="ti ti-alert-circle"></i>No fees set up for ${currentTerm} ${currentSession} — go to Admin → Fee Setup first</div></div>`;return;
+  }
+  const allCls=Object.values(CLASSES).flat();
+  const cls=_billsClsFilter||allCls[0];
+  const students=roster.filter(s=>s.cls===cls).sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById("topbar-actions").innerHTML=`
+    <button class="btn btn-primary" onclick="printClassBills('${cls}')"><i class="ti ti-printer"></i> Print All (${students.length})</button>`;
+  const rows=students.map(s=>`
+    <tr>
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name,24)}${s.name}</div></td>
+      <td style="color:var(--tx2);font-size:12px">${s.id}</td>
+      <td><button class="btn btn-sm btn-primary" onclick="printStudentBill(${s.id})"><i class="ti ti-file-invoice"></i> Print Bill</button></td>
+    </tr>`).join("");
+  document.getElementById("content").innerHTML=`
+    <div class="filter-bar">
+      <select onchange="_billsClsFilter=this.value;renderTermBills()" style="width:auto">
+        ${allCls.map(c=>`<option value="${c}"${c===cls?" selected":""}>${c}</option>`).join("")}
+      </select>
+      <span style="font-size:12px;color:var(--tx2)">${students.length} student${students.length!==1?"s":""}</span>
+    </div>
+    ${students.length?`<div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Student</th><th class="col-id">ID</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+    :`<div class="empty"><i class="ti ti-users-off"></i>No students in ${cls}</div>`}`;
+}
+
+function studentBillHTML(s){
+  const group=classGroupFor(s.cls);
+  const items=feeStructure.filter(f=>f.class_group===group||f.class_group==="All");
+  const total=items.reduce((sum,f)=>sum+parseFloat(f.amount||0),0);
+  const issued=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+  const feeRows=items.map(f=>`
+    <tr>
+      <td style="padding:7px 10px;border-bottom:.5px solid #e0d6c8;font-size:13px">${f.fee_name}</td>
+      <td style="padding:7px 10px;border-bottom:.5px solid #e0d6c8;font-size:13px;text-align:right;white-space:nowrap">₦${parseFloat(f.amount||0).toLocaleString("en-NG",{minimumFractionDigits:2})}</td>
+    </tr>`).join("");
+  return`<div class="bill" style="max-width:680px;margin:0 auto 0;padding:32px 40px;font-family:'Georgia',serif;color:#1a1a1a;background:#fff">
+    <!-- header -->
+    <div style="text-align:center;border-bottom:2px solid #8B1A2F;padding-bottom:16px;margin-bottom:20px">
+      <div style="font-size:22px;font-weight:700;letter-spacing:-.3px;color:#8B1A2F">Debbyfield Schools</div>
+      <div style="font-size:11px;color:#555;margin-top:2px;letter-spacing:.5px">SCHOOL FEES INVOICE / DEMAND NOTICE</div>
+    </div>
+    <!-- meta row -->
+    <div style="display:flex;justify-content:space-between;margin-bottom:20px;font-size:12px;color:#444">
+      <div>
+        <div><span style="color:#888">Term:</span> <strong>${currentTerm}</strong></div>
+        <div style="margin-top:4px"><span style="color:#888">Session:</span> <strong>${currentSession}</strong></div>
+      </div>
+      <div style="text-align:right">
+        <div><span style="color:#888">Date Issued:</span> ${issued}</div>
+        <div style="margin-top:4px"><span style="color:#888">Invoice #:</span> DBF-${s.id}-${currentTerm.replace(/\s/g,"").slice(0,2).toUpperCase()}</div>
+      </div>
+    </div>
+    <!-- student info box -->
+    <div style="background:#faf3e6;border:.5px solid #c9a84c;border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:13px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div><span style="color:#888;font-size:11px">STUDENT NAME</span><br><strong>${s.name}</strong></div>
+        <div><span style="color:#888;font-size:11px">CLASS</span><br><strong>${s.cls}</strong></div>
+        <div style="margin-top:6px"><span style="color:#888;font-size:11px">STUDENT ID</span><br><strong>${s.id}</strong></div>
+        <div style="margin-top:6px"><span style="color:#888;font-size:11px">FEE GROUP</span><br><strong>${group}</strong></div>
+      </div>
+    </div>
+    <!-- fee table -->
+    <table style="width:100%;border-collapse:collapse;margin-bottom:0">
+      <thead>
+        <tr style="background:#8B1A2F;color:#fff">
+          <th style="padding:8px 10px;text-align:left;font-size:12px;font-weight:600">Fee Description</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;font-weight:600">Amount (₦)</th>
+        </tr>
+      </thead>
+      <tbody>${feeRows}</tbody>
+      <tfoot>
+        <tr style="background:#1E3566;color:#fff">
+          <td style="padding:10px;font-weight:700;font-size:14px">TOTAL AMOUNT DUE</td>
+          <td style="padding:10px;text-align:right;font-weight:700;font-size:14px">₦${total.toLocaleString("en-NG",{minimumFractionDigits:2})}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <!-- footer -->
+    <div style="margin-top:24px;border-top:.5px solid #ddd;padding-top:14px;font-size:11px;color:#666;text-align:center;line-height:1.6">
+      Kindly ensure full payment is made before the deadline. Present this invoice at the accounts office.<br>
+      <strong style="color:#8B1A2F">Debbyfield Schools</strong>
+    </div>
+  </div>`;
+}
+
+function printStudentBill(sid){
+  const s=roster.find(x=>x.id===sid); if(!s)return;
+  const area=document.getElementById("paper-print-area");
+  area.style.display="block";
+  area.innerHTML=studentBillHTML(s);
+  setTimeout(()=>{window.print();area.style.display="none";area.innerHTML="";},100);
+}
+
+function printClassBills(cls){
+  const students=roster.filter(s=>s.cls===cls).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!students.length){alert("No students in "+cls);return;}
+  const area=document.getElementById("paper-print-area");
+  area.style.display="block";
+  area.innerHTML=students.map(s=>studentBillHTML(s)).join("");
+  setTimeout(()=>{window.print();area.style.display="none";area.innerHTML="";},100);
 }
 
 /* ── finance: ledger ── */
