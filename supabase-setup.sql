@@ -790,3 +790,69 @@ ALTER TABLE exam_papers ADD COLUMN IF NOT EXISTS drive_url TEXT;
 
 -- ── edge_tests: add drive_url for linking Google Docs ───────────────────────────
 ALTER TABLE edge_tests ADD COLUMN IF NOT EXISTS drive_url TEXT;
+
+-- ── student_profiles: referral source tracking ───────────────────────────────────
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS referral_source TEXT;
+
+-- ── teacher observation / accountability log ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS teacher_obs_log (
+  id             BIGSERIAL PRIMARY KEY,
+  staff_name     TEXT NOT NULL,
+  obs_date       DATE NOT NULL DEFAULT CURRENT_DATE,
+  obs_type       TEXT NOT NULL DEFAULT 'Classroom Visit'
+                 CHECK (obs_type IN ('Classroom Visit','Book Audit','Attendance Check','Meeting','Other')),
+  summary        TEXT NOT NULL,
+  rating         TEXT CHECK (rating IN ('Excellent','Satisfactory','Needs Improvement','Unsatisfactory')),
+  follow_up      BOOLEAN NOT NULL DEFAULT false,
+  follow_up_note TEXT,
+  recorded_by    TEXT DEFAULT 'Joshua',
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── parent communication log ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS parent_contacts (
+  id             BIGSERIAL PRIMARY KEY,
+  student_id     INTEGER REFERENCES students(id) ON DELETE SET NULL,
+  student_name   TEXT NOT NULL,
+  contact_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  contact_type   TEXT NOT NULL DEFAULT 'Phone Call'
+                 CHECK (contact_type IN ('Phone Call','WhatsApp','In-Person Visit','Letter','Other')),
+  summary        TEXT NOT NULL,
+  follow_up      BOOLEAN NOT NULL DEFAULT false,
+  follow_up_note TEXT,
+  recorded_by    TEXT DEFAULT 'Joshua',
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── external results tracker ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS external_results (
+  id             BIGSERIAL PRIMARY KEY,
+  student_id     INTEGER REFERENCES students(id) ON DELETE SET NULL,
+  student_name   TEXT NOT NULL,
+  exam_type      TEXT NOT NULL DEFAULT 'WAEC'
+                 CHECK (exam_type IN ('WAEC','BECE','Common Entrance','Competition','Other')),
+  exam_year      TEXT NOT NULL,
+  subject        TEXT,
+  grade          TEXT,
+  result         TEXT,
+  notes          TEXT,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE teacher_obs_log  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_contacts  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE external_results ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='teacher_obs_log'  AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON teacher_obs_log  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='parent_contacts'  AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON parent_contacts  FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='external_results' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON external_results FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS teacher_obs_date        ON teacher_obs_log(obs_date DESC);
+CREATE INDEX IF NOT EXISTS teacher_obs_staff       ON teacher_obs_log(staff_name);
+CREATE INDEX IF NOT EXISTS parent_contacts_student ON parent_contacts(student_id);
+CREATE INDEX IF NOT EXISTS parent_contacts_date    ON parent_contacts(contact_date DESC);
+CREATE INDEX IF NOT EXISTS ext_results_student     ON external_results(student_id);
+CREATE INDEX IF NOT EXISTS ext_results_type        ON external_results(exam_type);
+CREATE INDEX IF NOT EXISTS ext_results_year        ON external_results(exam_year DESC);

@@ -670,6 +670,12 @@ let activitySessions = [];
 let activityCompetitions = [];
 let trackDocuments = [];
 let _trackDetailTab = "documents";
+let teacherObsLog = [];
+let _teacherObsFilter = "";
+let parentContacts = [];
+let _pcStudentFilter = "";
+let externalResults = [];
+let _extResultFilter = "";
 let schoolEvents = [];
 let ttTeachers = [];   // timetable teacher records
 let ttSlots = {};      // ttSlots[cls][day][periodIdx] = {subject,teacher_name}
@@ -833,6 +839,7 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('attendance',null,this)"><i class="ti ti-calendar-check"></i>Attendance</div>
         <div class="nav-item" onclick="nav('papers',null,this)"><i class="ti ti-file-text"></i>Exam Papers</div>
         <div class="nav-item" onclick="nav('edge',null,this)"><i class="ti ti-bolt"></i>EDGE Tests</div>
+        <div class="nav-item" onclick="nav('ext-results',null,this)"><i class="ti ti-award"></i>Ext. Results</div>
       </div>`,
     finance:`
       <div class="nav-section">
@@ -913,6 +920,12 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('site-messages',null,this)"><i class="ti ti-mail"></i>Enquiries</div>
       </div>`,
     "principals-desk":`
+      <div class="nav-section">
+        <div class="nav-label">People</div>
+        <div class="nav-item" onclick="nav('teacher-obs',null,this)"><i class="ti ti-eye"></i>Teacher Observations</div>
+        <div class="nav-item" onclick="nav('parent-contacts',null,this)"><i class="ti ti-message-circle"></i>Parent Contacts</div>
+        <div class="nav-item" onclick="nav('retention',null,this)"><i class="ti ti-chart-line"></i>Retention Dashboard</div>
+      </div>
       <div class="nav-section">
         <div class="nav-label">Records</div>
         <div class="nav-item" onclick="nav('assets',null,this)"><i class="ti ti-package"></i>Asset Register</div>
@@ -1140,7 +1153,7 @@ async function loadInventoryTxns() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments(), loadTeacherObsLog(), loadParentContacts(), loadExternalResults()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1267,6 +1280,10 @@ function nav(page,arg,el){
   else if(page==="act-sessions")renderActivitySessions();
   else if(page==="act-competitions")renderActivityCompetitions();
   else if(page==="act-track")renderTrackDetail(arg);
+  else if(page==="teacher-obs")renderTeacherObsLog();
+  else if(page==="parent-contacts")renderParentContacts();
+  else if(page==="retention")renderRetentionDashboard();
+  else if(page==="ext-results")renderExternalResults();
   else if(page==="cal-events")renderCalendar();
   else if(page==="tt-grid")renderTimetableGrid();
   else if(page==="tt-teachers")renderTimetableTeachers();
@@ -2060,6 +2077,10 @@ function openEditEnrollment(sid){
         <div class="field"><label>Admission date</label><input type="date" id="m-admit" value="${p.admission_date||''}" /></div>
       </div>
       <div class="field"><label>Home address</label><input id="m-address" value="${(p.address||'').replace(/"/g,'&quot;')}" placeholder="Street, City" /></div>
+      <div class="field"><label>How did they hear about us?</label>
+        <select id="m-referral">
+          ${["","Word of mouth (family/friend)","Church / Religious community","Market / Neighbourhood","Social media","Signboard / Flyer","Previous student","Other"].map(r=>`<option ${r===(p.referral_source||"")?"selected":""}>${r}</option>`).join("")}
+        </select></div>
       <div style="border-top:.5px solid var(--bd3);margin:12px 0;padding-top:12px">
         <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--tx)">Primary Guardian</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -2107,6 +2128,7 @@ async function submitEditEnrollment(sid){
   const genotype=document.getElementById("m-geno")?.value||null;
   const admitDate=document.getElementById("m-admit")?.value||null;
   const address=document.getElementById("m-address")?.value?.trim()||null;
+  const referralSource=document.getElementById("m-referral")?.value||null;
 
   // guardian fields
   const g1Name=document.getElementById("g1-name")?.value?.trim();
@@ -2122,7 +2144,7 @@ async function submitEditEnrollment(sid){
   const ops = [
     dbClient.from("students").update({name}).eq("id",sid),
     dbClient.from("enrollments").update({cls,sec,annex_id:annexId}).eq("student_id",sid).eq("term",currentTerm).eq("session",currentSession),
-    dbClient.from("student_profiles").upsert({student_id:sid,dob:dob||null,blood_group:bloodGroup||null,genotype:genotype||null,address,admission_date:admitDate||null},{onConflict:"student_id"}),
+    dbClient.from("student_profiles").upsert({student_id:sid,dob:dob||null,blood_group:bloodGroup||null,genotype:genotype||null,address,admission_date:admitDate||null,referral_source:referralSource||null},{onConflict:"student_id"}),
   ];
 
   // handle guardians: delete existing and re-insert
@@ -4946,6 +4968,21 @@ async function loadTrackDocuments(){
   const{data}=await dbClient.from("track_documents").select("*").order("added_at",{ascending:false});
   if(data)trackDocuments=data;
 }
+async function loadTeacherObsLog(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("teacher_obs_log").select("*").order("obs_date",{ascending:false}).order("created_at",{ascending:false});
+  if(data)teacherObsLog=data;
+}
+async function loadParentContacts(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("parent_contacts").select("*").order("contact_date",{ascending:false}).order("created_at",{ascending:false});
+  if(data)parentContacts=data;
+}
+async function loadExternalResults(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("external_results").select("*").order("exam_year",{ascending:false}).order("created_at",{ascending:false});
+  if(data)externalResults=data;
+}
 async function loadSchoolEvents(){
   if(!dbClient)return;
   const{data}=await dbClient.from("school_events").select("*")
@@ -6594,6 +6631,407 @@ async function deleteSiteMessageItem(id){
   const{error}=await dbClient.from("site_messages").delete().eq("id",id);
   if(error){alert("Error: "+error.message);return;}
   renderSiteMessagesAdmin();
+}
+
+/* ── teacher observation log ── */
+function renderTeacherObsLog(){
+  document.getElementById("page-title").textContent="Teacher Observations";
+  document.getElementById("page-meta").textContent="Classroom visits, book audits & accountability records";
+  document.getElementById("topbar-actions").innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddTeacherObs()"><i class="ti ti-plus"></i> Add Entry</button>`;
+  const ratingColor={"Excellent":"var(--tx-ok)","Satisfactory":"var(--tx-info)","Needs Improvement":"var(--tx-warn)","Unsatisfactory":"var(--tx-err)"};
+  const ratingBg={"Excellent":"var(--bg-ok)","Satisfactory":"var(--bg-info)","Needs Improvement":"var(--bg-warn)","Unsatisfactory":"var(--bg-err)"};
+  const typeColor={"Classroom Visit":"#1d4ed8","Book Audit":"#7c3aed","Attendance Check":"#d97706","Meeting":"#16a34a","Other":"var(--tx2)"};
+  (async()=>{
+    await loadTeacherObsLog();
+    const names=[...new Set(teacherObsLog.map(e=>e.staff_name))].sort();
+    const filtered=_teacherObsFilter?teacherObsLog.filter(e=>e.staff_name===_teacherObsFilter):teacherObsLog;
+    const openFU=filtered.filter(e=>e.follow_up);
+    const el=document.getElementById("content");
+    const nameOpts=`<select onchange="_teacherObsFilter=this.value;renderTeacherObsLog()" style="width:auto">
+      <option value="">All staff</option>
+      ${names.map(n=>`<option ${n===_teacherObsFilter?"selected":""}>${n}</option>`).join("")}
+    </select>`;
+    el.innerHTML=`
+      <div class="filter-bar">${nameOpts}</div>
+      ${openFU.length?`<div class="card" style="border-color:var(--tx-warn);margin-bottom:14px">
+        <div class="card-head"><span class="card-title" style="color:var(--tx-warn)"><i class="ti ti-clock"></i> Open follow-ups — ${openFU.length}</span></div>
+        ${openFU.map(e=>`
+          <div style="padding:8px 0;border-bottom:.5px solid var(--bd3);font-size:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+              <div><span style="font-weight:500">${e.staff_name}</span>
+                <span style="color:var(--tx3);margin-left:6px">${e.obs_date}</span>
+                <span style="margin-left:6px;font-size:11px;color:var(--tx2)">${e.obs_type}</span>
+              </div>
+              <button class="btn btn-sm" onclick="closeTeacherObsFollowup(${e.id})">Mark closed</button>
+            </div>
+            ${e.follow_up_note?`<div style="color:var(--tx2);margin-top:4px">${e.follow_up_note}</div>`:""}
+          </div>`).join("")}
+      </div>`:""}
+      <div class="card">
+        <div class="card-head"><span class="card-title">All Entries (${filtered.length})</span></div>
+        ${filtered.length?filtered.map(e=>`
+          <div style="padding:10px 0;border-bottom:.5px solid var(--bd3)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+                  ${avatar(e.staff_name,24)}
+                  <span style="font-weight:600;font-size:13px">${e.staff_name}</span>
+                  ${e.rating?`<span style="background:${ratingBg[e.rating]||"var(--bg2)"};color:${ratingColor[e.rating]||"var(--tx2)"};padding:2px 8px;border-radius:10px;font-size:11px">${e.rating}</span>`:""}
+                  <span style="background:var(--bg2);color:${typeColor[e.obs_type]||"var(--tx2)"};padding:2px 8px;border-radius:10px;font-size:11px">${e.obs_type}</span>
+                  <span style="font-size:11px;color:var(--tx3)">${e.obs_date}</span>
+                  ${e.follow_up?`<span style="background:var(--bg-warn);color:var(--tx-warn);padding:2px 7px;border-radius:10px;font-size:10px"><i class="ti ti-clock" style="font-size:9px"></i> Follow-up</span>`:""}
+                </div>
+                <div style="font-size:12px;color:var(--tx)">${e.summary}</div>
+                ${e.follow_up_note?`<div style="font-size:12px;color:var(--tx-warn);margin-top:3px"><strong>Follow-up:</strong> ${e.follow_up_note}</div>`:""}
+              </div>
+              <div style="display:flex;gap:4px;flex-shrink:0">
+                ${e.follow_up?`<button class="btn btn-sm" onclick="closeTeacherObsFollowup(${e.id})" style="font-size:11px">Close</button>`:""}
+                <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteTeacherObs(${e.id})"><i class="ti ti-trash"></i></button>
+              </div>
+            </div>
+          </div>`).join("")
+          :`<div class="empty"><i class="ti ti-eye-off"></i>No observation entries yet</div>`}
+      </div>`;
+  })();
+}
+function openAddTeacherObs(){
+  const today=new Date().toISOString().split("T")[0];
+  const staffOpts=staffList.map(s=>`<option value="${s.name}">${s.name}${s.role?" — "+s.role:""}</option>`).join("");
+  const types=["Classroom Visit","Book Audit","Attendance Check","Meeting","Other"];
+  const ratings=["","Excellent","Satisfactory","Needs Improvement","Unsatisfactory"];
+  openModal("Log Teacher Observation",`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Date</label><input type="date" id="to-date" value="${today}" /></div>
+      <div class="field"><label>Type</label><select id="to-type">${types.map(t=>`<option>${t}</option>`).join("")}</select></div>
+    </div>
+    <div class="field"><label>Teacher / Staff</label><select id="to-staff"><option value="">Select…</option>${staffOpts}</select></div>
+    <div class="field"><label>Summary of observation</label>
+      <textarea id="to-summary" rows="3" placeholder="What did you observe? What was the standard of delivery?"></textarea></div>
+    <div class="field"><label>Rating</label>
+      <select id="to-rating">${ratings.map(r=>`<option value="${r}">${r||"No rating"}</option>`).join("")}</select></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <input type="checkbox" id="to-followup" style="width:auto" onchange="document.getElementById('to-fu-field').style.display=this.checked?'':'none'" />
+      <label for="to-followup" style="margin:0;font-size:13px;cursor:pointer">Follow-up required</label>
+    </div>
+    <div class="field" id="to-fu-field" style="display:none"><label>Follow-up note</label>
+      <input id="to-fu-note" placeholder="What needs to happen next…" /></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddTeacherObs()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("to-staff")?.focus(),50);
+}
+async function submitAddTeacherObs(){
+  const staff_name=document.getElementById("to-staff")?.value?.trim();
+  const obs_date=document.getElementById("to-date")?.value||new Date().toISOString().split("T")[0];
+  const obs_type=document.getElementById("to-type")?.value;
+  const summary=document.getElementById("to-summary")?.value?.trim();
+  const rating=document.getElementById("to-rating")?.value||null;
+  const follow_up=document.getElementById("to-followup")?.checked||false;
+  const follow_up_note=document.getElementById("to-fu-note")?.value?.trim()||null;
+  if(!staff_name){alert("Select a staff member");return;}
+  if(!summary){alert("Enter a summary");return;}
+  if(!dbClient){alert("Database not connected");return;}
+  const{error}=await dbClient.from("teacher_obs_log").insert({staff_name,obs_date,obs_type,summary,rating:rating||null,follow_up,follow_up_note});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadTeacherObsLog(); renderTeacherObsLog();
+}
+async function closeTeacherObsFollowup(id){
+  await dbClient.from("teacher_obs_log").update({follow_up:false}).eq("id",id);
+  await loadTeacherObsLog(); renderTeacherObsLog();
+}
+async function deleteTeacherObs(id){
+  if(!confirm("Delete this observation entry?"))return;
+  await dbClient.from("teacher_obs_log").delete().eq("id",id);
+  await loadTeacherObsLog(); renderTeacherObsLog();
+}
+
+/* ── parent communication log ── */
+function renderParentContacts(prefilterStudent){
+  if(prefilterStudent!==undefined)_pcStudentFilter=prefilterStudent;
+  document.getElementById("page-title").textContent="Parent Communication Log";
+  document.getElementById("page-meta").textContent="Every call, visit and message with families";
+  document.getElementById("topbar-actions").innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddParentContact()"><i class="ti ti-plus"></i> Log Contact</button>`;
+  const typeColor={"Phone Call":"#1d4ed8","WhatsApp":"#16a34a","In-Person Visit":"#7c3aed","Letter":"#d97706","Other":"var(--tx2)"};
+  (async()=>{
+    await loadParentContacts();
+    const names=[...new Set(parentContacts.map(e=>e.student_name))].sort();
+    const filtered=_pcStudentFilter?parentContacts.filter(e=>e.student_name===_pcStudentFilter):parentContacts;
+    const openFU=filtered.filter(e=>e.follow_up);
+    const el=document.getElementById("content");
+    const nameOpts=`<select onchange="_pcStudentFilter=this.value;renderParentContacts()" style="width:auto;min-width:160px">
+      <option value="">All students</option>
+      ${names.map(n=>`<option ${n===_pcStudentFilter?"selected":""}>${n}</option>`).join("")}
+    </select>`;
+    el.innerHTML=`
+      <div class="filter-bar">${nameOpts}</div>
+      ${openFU.length?`<div class="card" style="border-color:var(--tx-warn);margin-bottom:14px">
+        <div class="card-head"><span class="card-title" style="color:var(--tx-warn)"><i class="ti ti-clock"></i> Open follow-ups — ${openFU.length}</span></div>
+        ${openFU.map(e=>`
+          <div style="padding:8px 0;border-bottom:.5px solid var(--bd3);font-size:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+              <div><span style="font-weight:500">${e.student_name}</span>
+                <span style="color:var(--tx3);margin-left:6px">${e.contact_date}</span>
+                <span style="margin-left:6px;background:var(--bg2);color:${typeColor[e.contact_type]||"var(--tx2)"};padding:1px 7px;border-radius:10px;font-size:10px">${e.contact_type}</span>
+              </div>
+              <button class="btn btn-sm" onclick="closePcFollowup(${e.id})">Mark closed</button>
+            </div>
+            ${e.follow_up_note?`<div style="color:var(--tx2);margin-top:4px">${e.follow_up_note}</div>`:""}
+          </div>`).join("")}
+      </div>`:""}
+      <div class="card">
+        <div class="card-head"><span class="card-title">All Contacts (${filtered.length})</span></div>
+        ${filtered.length?filtered.map(e=>`
+          <div style="padding:10px 0;border-bottom:.5px solid var(--bd3)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+                  <span style="font-weight:600;font-size:13px">${e.student_name}</span>
+                  <span style="background:var(--bg2);color:${typeColor[e.contact_type]||"var(--tx2)"};padding:2px 8px;border-radius:10px;font-size:11px">${e.contact_type}</span>
+                  <span style="font-size:11px;color:var(--tx3)">${e.contact_date}</span>
+                  ${e.follow_up?`<span style="background:var(--bg-warn);color:var(--tx-warn);padding:2px 7px;border-radius:10px;font-size:10px"><i class="ti ti-clock" style="font-size:9px"></i> Follow-up</span>`:""}
+                </div>
+                <div style="font-size:12px;color:var(--tx)">${e.summary}</div>
+                ${e.follow_up_note?`<div style="font-size:12px;color:var(--tx-warn);margin-top:3px"><strong>Follow-up:</strong> ${e.follow_up_note}</div>`:""}
+              </div>
+              <div style="display:flex;gap:4px;flex-shrink:0">
+                ${e.follow_up?`<button class="btn btn-sm" onclick="closePcFollowup(${e.id})" style="font-size:11px">Close</button>`:""}
+                <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteParentContact(${e.id})"><i class="ti ti-trash"></i></button>
+              </div>
+            </div>
+          </div>`).join("")
+          :`<div class="empty"><i class="ti ti-message-circle-off"></i>No contact logs yet</div>`}
+      </div>`;
+  })();
+}
+function openAddParentContact(preStudent){
+  const today=new Date().toISOString().split("T")[0];
+  const studOpts=roster.sort((a,b)=>a.name.localeCompare(b.name)).map(s=>`<option value="${s.name}"${preStudent&&s.name===preStudent?" selected":""}>${s.name} (${s.cls})</option>`).join("");
+  const types=["Phone Call","WhatsApp","In-Person Visit","Letter","Other"];
+  openModal("Log Parent Contact",`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Date</label><input type="date" id="pc-date" value="${today}" /></div>
+      <div class="field"><label>Type</label><select id="pc-type">${types.map(t=>`<option>${t}</option>`).join("")}</select></div>
+    </div>
+    <div class="field"><label>Student</label>
+      <select id="pc-student"><option value="">Select student…</option>${studOpts}</select></div>
+    <div class="field"><label>Summary of contact</label>
+      <textarea id="pc-summary" rows="3" placeholder="What was discussed? What was the outcome?"></textarea></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <input type="checkbox" id="pc-followup" style="width:auto" onchange="document.getElementById('pc-fu-field').style.display=this.checked?'':'none'" />
+      <label for="pc-followup" style="margin:0;font-size:13px;cursor:pointer">Follow-up required</label>
+    </div>
+    <div class="field" id="pc-fu-field" style="display:none"><label>Follow-up note</label>
+      <input id="pc-fu-note" placeholder="What needs to happen next…" /></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddParentContact()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById(preStudent?"pc-type":"pc-student")?.focus(),50);
+}
+async function submitAddParentContact(){
+  const student_name=document.getElementById("pc-student")?.value?.trim();
+  const contact_date=document.getElementById("pc-date")?.value||new Date().toISOString().split("T")[0];
+  const contact_type=document.getElementById("pc-type")?.value;
+  const summary=document.getElementById("pc-summary")?.value?.trim();
+  const follow_up=document.getElementById("pc-followup")?.checked||false;
+  const follow_up_note=document.getElementById("pc-fu-note")?.value?.trim()||null;
+  const sid=roster.find(s=>s.name===student_name)?.id||null;
+  if(!student_name){alert("Select a student");return;}
+  if(!summary){alert("Enter a summary");return;}
+  if(!dbClient){alert("Database not connected");return;}
+  const{error}=await dbClient.from("parent_contacts").insert({student_id:sid,student_name,contact_date,contact_type,summary,follow_up,follow_up_note});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadParentContacts(); renderParentContacts();
+}
+async function closePcFollowup(id){
+  await dbClient.from("parent_contacts").update({follow_up:false}).eq("id",id);
+  await loadParentContacts(); renderParentContacts();
+}
+async function deleteParentContact(id){
+  if(!confirm("Delete this contact log entry?"))return;
+  await dbClient.from("parent_contacts").delete().eq("id",id);
+  await loadParentContacts(); renderParentContacts();
+}
+
+/* ── retention dashboard ── */
+function renderRetentionDashboard(){
+  document.getElementById("page-title").textContent="Retention Dashboard";
+  document.getElementById("page-meta").textContent="Session-over-session enrollment comparison";
+  document.getElementById("topbar-actions").innerHTML="";
+  const el=document.getElementById("content");
+  el.innerHTML=`<div class="empty"><i class="ti ti-loader-2"></i> Loading enrollment history…</div>`;
+  (async()=>{
+    if(!dbClient){el.innerHTML=`<div class="empty"><i class="ti ti-plug-off"></i>Connect Supabase to view retention data</div>`;return;}
+    const{data,error}=await dbClient.from("enrollments")
+      .select("student_id,cls,sec,session,status").in("status",["active","left","graduated"]).order("session");
+    if(error||!data){el.innerHTML=`<div class="empty"><i class="ti ti-alert-circle"></i>Could not load enrollment data</div>`;return;}
+    const bySession={};
+    data.forEach(e=>{if(!bySession[e.session])bySession[e.session]=[];bySession[e.session].push(e);});
+    const sessions=Object.keys(bySession).sort();
+    if(!sessions.length){el.innerHTML=`<div class="empty"><i class="ti ti-users"></i>No enrollment data yet</div>`;return;}
+    const summaries=sessions.map(sess=>{
+      const rows=bySession[sess];
+      const active=rows.filter(r=>r.status==="active");
+      const ids=new Set(active.map(r=>r.student_id));
+      // count by section
+      const bySection={};
+      active.forEach(r=>{bySection[r.sec]=(bySection[r.sec]||0)+1;});
+      return{sess,total:active.length,ids,bySection};
+    });
+    const comparisons=[];
+    for(let i=1;i<summaries.length;i++){
+      const prev=summaries[i-1],curr=summaries[i];
+      const retained=[...curr.ids].filter(id=>prev.ids.has(id)).length;
+      const newCount=[...curr.ids].filter(id=>!prev.ids.has(id)).length;
+      const leftCount=[...prev.ids].filter(id=>!curr.ids.has(id)).length;
+      comparisons.push({prev:prev.sess,curr:curr.sess,prevTotal:prev.total,currTotal:curr.total,retained,newCount,leftCount,netChange:curr.total-prev.total});
+    }
+    const latest=summaries[summaries.length-1];
+    const prevLatest=summaries.length>1?summaries[summaries.length-2]:null;
+    const latestComp=comparisons.length?comparisons[comparisons.length-1]:null;
+    const sectionOrder=["KG","Nursery","Primary","Junior Secondary","Senior Secondary"];
+    el.innerHTML=`
+      <div class="stats-row" style="margin-bottom:16px">
+        <div class="stat">
+          <div class="stat-val">${latest.total}</div>
+          <div class="stat-lbl">${latest.sess} Active</div>
+        </div>
+        ${latestComp?`
+        <div class="stat">
+          <div class="stat-val" style="color:var(--tx-ok)">${latestComp.retained}</div>
+          <div class="stat-lbl">Retained from prev. session</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" style="color:var(--tx-info)">${latestComp.newCount}</div>
+          <div class="stat-lbl">New enrolments</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" style="color:${latestComp.netChange>=0?"var(--tx-ok)":"var(--tx-err)"}">${latestComp.netChange>=0?"+":""}${latestComp.netChange}</div>
+          <div class="stat-lbl">Net change</div>
+        </div>`:`<div class="stat"><div class="stat-val">—</div><div class="stat-lbl">No previous session</div></div><div class="stat"></div><div class="stat"></div>`}
+      </div>
+      ${comparisons.length?`
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><span class="card-title">Session-over-Session Comparison</span></div>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>From</th><th>To</th><th>Prev.</th><th>Curr.</th><th style="color:var(--tx-ok)">Retained</th><th style="color:var(--tx-info)">New</th><th style="color:var(--tx-err)">Left</th><th>Net</th></tr></thead>
+          <tbody>${comparisons.map(c=>`<tr>
+            <td style="font-size:12px;color:var(--tx2)">${c.prev}</td>
+            <td style="font-weight:500">${c.curr}</td>
+            <td style="text-align:center">${c.prevTotal}</td>
+            <td style="text-align:center;font-weight:500">${c.currTotal}</td>
+            <td style="text-align:center;color:var(--tx-ok)">${c.retained}</td>
+            <td style="text-align:center;color:var(--tx-info)">${c.newCount}</td>
+            <td style="text-align:center;color:var(--tx-err)">${c.leftCount}</td>
+            <td style="text-align:center;font-weight:600;color:${c.netChange>=0?"var(--tx-ok)":"var(--tx-err)"}">${c.netChange>=0?"+":""}${c.netChange}</td>
+          </tr>`).join("")}</tbody>
+        </table></div>
+      </div>`:""}
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><span class="card-title">Enrolment per Session</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;padding:8px 0">
+          ${summaries.map(s=>`<div style="min-width:130px;background:var(--bg2);border-radius:var(--r);padding:10px 14px;text-align:center">
+            <div style="font-size:24px;font-weight:700;color:var(--navy)">${s.total}</div>
+            <div style="font-size:11px;color:var(--tx2);margin-top:2px">${s.sess}</div>
+          </div>`).join("")}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Section Breakdown — ${latest.sess}</span></div>
+        <table><thead><tr><th>Section</th><th>Count</th></tr></thead>
+        <tbody>${sectionOrder.filter(s=>latest.bySection[s]).map(s=>`<tr>
+          <td>${s}</td>
+          <td style="font-weight:500">${latest.bySection[s]}</td>
+        </tr>`).join("")}</tbody></table>
+      </div>`;
+  })();
+}
+
+/* ── external results tracker ── */
+function renderExternalResults(){
+  document.getElementById("page-title").textContent="External Results";
+  document.getElementById("page-meta").textContent="WAEC, BECE, Common Entrance & competition outcomes";
+  document.getElementById("topbar-actions").innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddExternalResult()"><i class="ti ti-plus"></i> Add Result</button>`;
+  const examTypes=["WAEC","BECE","Common Entrance","Competition","Other"];
+  const typeColor={"WAEC":"#1d4ed8","BECE":"#7c3aed","Common Entrance":"#d97706","Competition":"#16a34a","Other":"var(--tx2)"};
+  const typeBg={"WAEC":"#dbeafe","BECE":"#f3e8ff","Common Entrance":"#fff8e1","Competition":"#e8f5e9","Other":"var(--bg2)"};
+  (async()=>{
+    await loadExternalResults();
+    const filtered=_extResultFilter?externalResults.filter(e=>e.exam_type===_extResultFilter):externalResults;
+    const el=document.getElementById("content");
+    const typeOpts=`<select onchange="_extResultFilter=this.value;renderExternalResults()" style="width:auto">
+      <option value="">All exam types</option>
+      ${examTypes.map(t=>`<option ${t===_extResultFilter?"selected":""}>${t}</option>`).join("")}
+    </select>`;
+    el.innerHTML=`
+      <div class="filter-bar">${typeOpts}</div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Results (${filtered.length})</span></div>
+        ${filtered.length?`
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>Student</th><th>Type</th><th>Year</th><th>Subject</th><th>Grade / Result</th><th>Notes</th><th></th></tr></thead>
+          <tbody>${filtered.map(r=>`<tr>
+            <td style="font-weight:500">${r.student_name}</td>
+            <td><span style="background:${typeBg[r.exam_type]||"var(--bg2)"};color:${typeColor[r.exam_type]||"var(--tx2)"};padding:2px 8px;border-radius:10px;font-size:11px">${r.exam_type}</span></td>
+            <td style="color:var(--tx2)">${r.exam_year}</td>
+            <td style="color:var(--tx2);font-size:12px">${r.subject||"—"}</td>
+            <td><span style="font-weight:600;color:var(--navy)">${r.grade||""} ${r.result||""}</span></td>
+            <td style="font-size:12px;color:var(--tx2);max-width:180px">${r.notes||"—"}</td>
+            <td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteExternalResult(${r.id})"><i class="ti ti-trash"></i></button></td>
+          </tr>`).join("")}</tbody>
+        </table></div>`
+        :`<div class="empty"><i class="ti ti-award-off"></i>No external results recorded yet — add WAEC, BECE or Common Entrance outcomes here</div>`}
+      </div>`;
+  })();
+}
+function openAddExternalResult(){
+  const examTypes=["WAEC","BECE","Common Entrance","Competition","Other"];
+  const allStuds=[...roster,...allStudentsDb.filter(s=>!roster.find(r=>r.id===s.id))].sort((a,b)=>a.name.localeCompare(b.name));
+  const studOpts=allStuds.map(s=>`<option value="${s.name}">${s.name}${s.cls?" ("+s.cls+")":""}</option>`).join("");
+  const yr=new Date().getFullYear();
+  openModal("Add External Result",`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Student</label>
+        <select id="er-student"><option value="">Select…</option>${studOpts}</select></div>
+      <div class="field"><label>Exam type</label>
+        <select id="er-type">${examTypes.map(t=>`<option>${t}</option>`).join("")}</select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Year</label><input id="er-year" value="${yr}" /></div>
+      <div class="field"><label>Subject (optional)</label><input id="er-subject" placeholder="e.g. Mathematics" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Grade (optional)</label><input id="er-grade" placeholder="e.g. A1, Pass, 1st Position" /></div>
+      <div class="field"><label>Result / Status</label><input id="er-result" placeholder="e.g. Admitted, 87%, Distinction" /></div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="er-notes" rows="2" placeholder="Any context or comments…"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddExternalResult()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("er-student")?.focus(),50);
+}
+async function submitAddExternalResult(){
+  const student_name=document.getElementById("er-student")?.value?.trim();
+  const exam_type=document.getElementById("er-type")?.value;
+  const exam_year=document.getElementById("er-year")?.value?.trim();
+  const subject=document.getElementById("er-subject")?.value?.trim()||null;
+  const grade=document.getElementById("er-grade")?.value?.trim()||null;
+  const result=document.getElementById("er-result")?.value?.trim()||null;
+  const notes=document.getElementById("er-notes")?.value?.trim()||null;
+  const sid=roster.find(s=>s.name===student_name)?.id||allStudentsDb.find(s=>s.name===student_name)?.id||null;
+  if(!student_name){alert("Select a student");return;}
+  if(!exam_year){alert("Enter the exam year");return;}
+  if(!dbClient){alert("Database not connected");return;}
+  const{error}=await dbClient.from("external_results").insert({student_id:sid,student_name,exam_type,exam_year,subject,grade,result,notes});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadExternalResults(); renderExternalResults();
+}
+async function deleteExternalResult(id){
+  if(!confirm("Delete this result entry?"))return;
+  await dbClient.from("external_results").delete().eq("id",id);
+  await loadExternalResults(); renderExternalResults();
 }
 
 /* ── boot ── */
