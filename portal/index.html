@@ -2578,11 +2578,23 @@ async function deleteExamPaper(id,subject,cls,paperType){
 
 /* ── finance helpers ── */
 function classGroupFor(cls){
-  if(["Nursery 1","Nursery 2","KG 1","KG 2"].includes(cls)) return "Pre-Primary";
+  if(["KG 1","KG 2"].includes(cls))              return "KG";
+  if(["Nursery 1","Nursery 2"].includes(cls))     return "Nursery";
+  if(["Basic 1","Basic 2"].includes(cls))         return "Basic 1-2";
+  if(["Basic 3","Basic 4","Basic 5"].includes(cls)) return "Basic 3-5";
+  if(["JSS 1","JSS 2"].includes(cls))             return "JSS 1-2";
+  if(cls==="JSS 3")                               return "JSS 3";
+  if(["SS 1","SS 2"].includes(cls))               return "SS 1-2";
+  if(cls==="SS 3")                                return "SS 3";
+  return "All";
+}
+// Broad section label used for finance grouping (not fee lookup)
+function classBroadGroup(cls){
+  if(["KG 1","KG 2","Nursery 1","Nursery 2"].includes(cls)) return "Pre-Primary";
   if(["Basic 1","Basic 2","Basic 3","Basic 4","Basic 5"].includes(cls)) return "Primary";
   if(["JSS 1","JSS 2","JSS 3"].includes(cls)) return "JSS";
   if(["SS 1","SS 2","SS 3"].includes(cls)) return "SS";
-  return "Primary";
+  return "Other";
 }
 
 function feeOwedFor(cls){
@@ -2656,7 +2668,7 @@ function renderFinanceDashboard(){
 
   const groups=["Pre-Primary","Primary","JSS","SS"];
   const groupStats=groups.map(g=>{
-    const gStudents=roster.filter(s=>classGroupFor(s.cls)===g);
+    const gStudents=roster.filter(s=>classBroadGroup(s.cls)===g);
     const gExpected=gStudents.reduce((s,st)=>s+feeOwedFor(st.cls),0);
     const gCollected=gStudents.reduce((s,st)=>s+amountPaidFor(st.id),0);
     return{g,count:gStudents.length,expected:gExpected,collected:gCollected};
@@ -3333,38 +3345,75 @@ async function deleteIncident(id){
 }
 
 /* ── admin: fee setup tab ── */
+const FEE_GROUPS=[
+  {val:"KG",        label:"KG 1 & KG 2",        classes:"KG 1, KG 2"},
+  {val:"Nursery",   label:"Nursery 1 & 2",       classes:"Nursery 1, Nursery 2"},
+  {val:"Basic 1-2", label:"Basic 1 & 2",         classes:"Basic 1, Basic 2"},
+  {val:"Basic 3-5", label:"Basic 3, 4 & 5",      classes:"Basic 3, Basic 4, Basic 5"},
+  {val:"JSS 1-2",   label:"JSS 1 & 2",           classes:"JSS 1, JSS 2"},
+  {val:"JSS 3",     label:"JSS 3",               classes:"JSS 3"},
+  {val:"SS 1-2",    label:"SS 1 & 2",            classes:"SS 1, SS 2"},
+  {val:"SS 3",      label:"SS 3",               classes:"SS 3"},
+];
+
 function buildAdminFeeHtml(){
-  const groups=["Pre-Primary","Primary","JSS","SS"];
   const byGroup={};
   feeStructure.forEach(f=>{if(!byGroup[f.class_group])byGroup[f.class_group]=[];byGroup[f.class_group].push(f);});
-
   const schoolWide=byGroup['All']||[];
   const schoolWideMandatory=schoolWide.filter(f=>!f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
 
-  function feeTable(items){
-    return`<table><thead><tr><th>Fee</th><th>Amount</th><th>Type</th><th></th></tr></thead>
-      <tbody>${items.map(f=>`<tr>
-        <td>${f.fee_name}</td>
-        <td>₦${parseFloat(f.amount).toLocaleString()}</td>
-        <td><span style="font-size:11px;color:var(--tx3)">${f.is_optional?"Optional":"Mandatory"}</span></td>
-        <td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteFeeItem(${f.id},'${f.fee_name}')"><i class="ti ti-trash"></i></button></td>
-      </tr>`).join("")}</tbody></table>`;
+  function feeRow(f){
+    const safeId=f.id;
+    const safeName=(f.fee_name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return`<tr data-fee-id="${safeId}">
+      <td style="padding:6px 8px">
+        <input value="${f.fee_name.replace(/"/g,'&quot;')}" onblur="updateFeeItem(${safeId},{fee_name:this.value.trim()||'${safeName}'})"
+          style="border:none;background:transparent;width:100%;font-size:13px;color:var(--tx1);padding:0;outline:none"
+          onfocus="this.style.background='var(--bg2)';this.style.borderRadius='4px';this.style.padding='2px 4px'"
+          onblur2="this.style.background='transparent';this.style.padding='0'" /></td>
+      <td style="padding:6px 8px;white-space:nowrap">
+        <span style="font-size:11px;color:var(--tx3);margin-right:2px">₦</span>
+        <input type="number" value="${parseFloat(f.amount)}" min="0"
+          onblur="updateFeeItem(${safeId},{amount:parseFloat(this.value)||0})"
+          style="border:none;background:transparent;width:90px;font-size:13px;color:var(--tx1);padding:0;outline:none;text-align:right"
+          onfocus="this.style.background='var(--bg2)';this.style.borderRadius='4px';this.style.padding='2px 4px'"
+          onblur2="this.style.background='transparent';this.style.padding='0'" /></td>
+      <td style="padding:6px 8px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3);cursor:pointer;margin:0">
+          <input type="checkbox" ${f.is_optional?"checked":""} style="width:auto;margin:0"
+            onchange="updateFeeItem(${safeId},{is_optional:this.checked})" /> Optional
+        </label></td>
+      <td style="padding:6px 8px;text-align:right">
+        <button class="btn btn-sm" style="color:var(--tx-err);padding:3px 7px" onclick="deleteFeeItem(${safeId},'${safeName}')"><i class="ti ti-trash"></i></button>
+      </td>
+    </tr>`;
   }
 
-  const scopeOpts=[
-    {val:'All',         label:'All classes (school-wide)'},
-    {val:'Pre-Primary', label:'Pre-Primary only'},
-    {val:'Primary',     label:'Primary only'},
-    {val:'JSS',         label:'JSS only'},
-    {val:'SS',          label:'SS only'},
-  ];
+  function feeTable(items){
+    return`<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="font-size:11px;color:var(--tx3);border-bottom:.5px solid var(--bd3)">
+        <th style="text-align:left;padding:4px 8px;font-weight:500">Fee (click to edit)</th>
+        <th style="text-align:right;padding:4px 8px;font-weight:500">Amount</th>
+        <th style="padding:4px 8px;font-weight:500">Type</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${items.map(feeRow).join("")}</tbody>
+    </table>`;
+  }
+
+  const noFees=feeStructure.length===0;
+  const scopeOpts=[{val:'All',label:'All classes (school-wide)'},...FEE_GROUPS.map(g=>({val:g.val,label:`${g.label} (${g.classes})`}))];
 
   return`<div class="card">
     <div class="card-head">
       <span class="card-title">Add Fee Item</span>
-      <span style="font-size:11px;color:var(--tx3)">${currentTerm} · ${currentSession}</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:var(--tx3)">${currentTerm} · ${currentSession}</span>
+        ${noFees?`<button class="btn btn-sm" style="background:var(--navy);color:#fff;border-color:var(--navy);font-size:11px" onclick="prefillMushinFees()"><i class="ti ti-sparkles"></i> Load Mushin First Term 2026/27</button>`
+          :`<button class="btn btn-sm" style="font-size:11px;color:var(--tx2)" onclick="if(confirm('This will ADD fees from the Mushin First Term 2026/27 bill to any groups that currently have no fees. Continue?'))prefillMushinFees()"><i class="ti ti-sparkles"></i> Pre-fill from bill</button>`}
+      </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+    <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr auto;gap:10px;align-items:end">
       <div class="field" style="margin:0"><label>Applies to</label>
         <select id="fee-group">${scopeOpts.map(o=>`<option value="${o.val}">${o.label}</option>`).join("")}</select></div>
       <div class="field" style="margin:0"><label>Fee name</label>
@@ -3375,7 +3424,7 @@ function buildAdminFeeHtml(){
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
       <input type="checkbox" id="fee-optional" style="width:auto" />
-      <label for="fee-optional" style="margin:0;font-size:13px;cursor:pointer">Optional / extra item (uniform, books, excursion etc.)</label>
+      <label for="fee-optional" style="margin:0;font-size:13px;cursor:pointer">Optional item (uniform, excursion, etc.)</label>
     </div>
     <div id="fee-status" style="margin-top:8px;font-size:12px"></div>
   </div>
@@ -3385,23 +3434,27 @@ function buildAdminFeeHtml(){
       <span class="card-title"><i class="ti ti-building-school" style="color:var(--navy)"></i> All Classes — School-wide</span>
       ${schoolWide.length?`<span style="font-size:12px;color:var(--tx2)">Mandatory: <strong>₦${schoolWideMandatory.toLocaleString()}</strong></span>`:""}
     </div>
-    <p style="font-size:11px;color:var(--tx3);margin-bottom:${schoolWide.length?10:0}px">These fees apply to every student in the school regardless of class.</p>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:${schoolWide.length?10:0}px">Fees here apply to every student regardless of class.</p>
     ${schoolWide.length?feeTable(schoolWide):`<div class="empty" style="padding:10px 0">No school-wide fees set</div>`}
   </div>
 
-  ${groups.map(g=>{
-    const items=byGroup[g]||[];
-    const grpMandatory=items.filter(f=>!f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
-    const studentTotal=grpMandatory+schoolWideMandatory;
-    const breakdown=schoolWideMandatory>0
-      ?`<span style="font-size:11px;font-weight:400;color:var(--tx3)"> = ₦${grpMandatory.toLocaleString()} class + ₦${schoolWideMandatory.toLocaleString()} school-wide</span>`
-      :"";
+  ${FEE_GROUPS.map(g=>{
+    const items=byGroup[g.val]||[];
+    const mandatory=items.filter(f=>!f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
+    const optional=items.filter(f=>f.is_optional).reduce((s,f)=>s+parseFloat(f.amount||0),0);
+    const studentTotal=mandatory+schoolWideMandatory;
     return`<div class="card" style="margin-top:10px">
       <div class="card-head">
-        <span class="card-title">${g}</span>
-        <span style="font-size:12px;color:var(--tx2)">Student total: <strong>₦${studentTotal.toLocaleString()}</strong>${breakdown}</span>
+        <div>
+          <span class="card-title">${g.label}</span>
+          <span style="font-size:11px;color:var(--tx3);margin-left:8px">${g.classes}</span>
+        </div>
+        <div style="text-align:right;font-size:12px;color:var(--tx2)">
+          Mandatory: <strong>₦${studentTotal.toLocaleString()}</strong>
+          ${optional>0?`<span style="color:var(--tx3);margin-left:6px">+ ₦${optional.toLocaleString()} optional</span>`:""}
+        </div>
       </div>
-      ${items.length?feeTable(items):`<div class="empty" style="padding:10px 0">No class-specific fees — only school-wide fees apply</div>`}
+      ${items.length?feeTable(items):`<div class="empty" style="padding:10px 0;font-size:12px">No fees set for this group yet</div>`}
     </div>`;
   }).join("")}`;
 }
@@ -3410,23 +3463,122 @@ async function submitAddFee(){
   const classGroup=document.getElementById("fee-group")?.value;
   const feeName=document.getElementById("fee-name")?.value?.trim();
   const amount=parseFloat(document.getElementById("fee-amount")?.value);
-  const isOptional=document.getElementById("fee-optional")?.checked;
+  const isOptional=document.getElementById("fee-optional")?.checked||false;
   const statusEl=document.getElementById("fee-status");
   if(!feeName){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Enter a fee name</span>`;return;}
   if(!amount||amount<=0){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Enter a valid amount</span>`;return;}
-  const {error}=await dbClient.from("fee_structure").upsert(
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx2)">Saving…</span>`;
+  const{error}=await dbClient.from("fee_structure").upsert(
     {class_group:classGroup,fee_name:feeName,amount,is_optional:isOptional,term:currentTerm,session:currentSession},
     {onConflict:"class_group,fee_name,term,session"}
   );
   if(error){if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
-  await loadFeeStructure();
-  renderAdminTab();
+  document.getElementById("fee-name").value="";
+  document.getElementById("fee-amount").value="";
+  document.getElementById("fee-optional").checked=false;
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-ok)">Added ✓</span>`;
+  await loadFeeStructure(); renderAdminTab();
+}
+
+async function updateFeeItem(id, updates){
+  if(!dbClient) return;
+  const{error}=await dbClient.from("fee_structure").update(updates).eq("id",id);
+  if(error){console.error("Fee update error:",error);return;}
+  // Update in-memory array without re-rendering
+  const idx=feeStructure.findIndex(f=>f.id===id);
+  if(idx>=0) Object.assign(feeStructure[idx],updates);
+  const row=document.querySelector(`tr[data-fee-id="${id}"]`);
+  if(row){row.style.transition="background .15s";row.style.background="rgba(22,163,74,0.12)";setTimeout(()=>row.style.background="",900);}
 }
 
 async function deleteFeeItem(id,name){
   if(!confirm(`Delete "${name}" fee item?`))return;
   await dbClient.from("fee_structure").delete().eq("id",id);
   await loadFeeStructure(); renderAdminTab();
+}
+
+async function prefillMushinFees(){
+  if(!dbClient)return;
+  const fees=[
+    // KG
+    {class_group:"KG",fee_name:"Tuition, Exam, Phonics",amount:40000,is_optional:false},
+    {class_group:"KG",fee_name:"Text Books & Note Books",amount:34000,is_optional:false},
+    {class_group:"KG",fee_name:"Uniform",amount:10500,is_optional:true},
+    {class_group:"KG",fee_name:"Tuesday Wear",amount:8200,is_optional:true},
+    {class_group:"KG",fee_name:"Wednesday Wear",amount:9000,is_optional:true},
+    {class_group:"KG",fee_name:"Thursday Wear",amount:9000,is_optional:true},
+    {class_group:"KG",fee_name:"Friday Wear",amount:8000,is_optional:true},
+    // Nursery
+    {class_group:"Nursery",fee_name:"Tuition, Exam, Phonics, DBFS MW Challenge",amount:41500,is_optional:false},
+    {class_group:"Nursery",fee_name:"Text Books & Note Books",amount:36000,is_optional:false},
+    {class_group:"Nursery",fee_name:"Uniform",amount:10500,is_optional:true},
+    {class_group:"Nursery",fee_name:"Tuesday Wear",amount:8200,is_optional:true},
+    {class_group:"Nursery",fee_name:"Wednesday Wear",amount:9000,is_optional:true},
+    {class_group:"Nursery",fee_name:"Thursday Wear",amount:9000,is_optional:true},
+    {class_group:"Nursery",fee_name:"Friday Wear",amount:8000,is_optional:true},
+    // Basic 1-2
+    {class_group:"Basic 1-2",fee_name:"Tuition, Exam, Phonics/ICT, DBFS Word Master Challenge",amount:44500,is_optional:false},
+    {class_group:"Basic 1-2",fee_name:"Text Books",amount:34000,is_optional:false},
+    {class_group:"Basic 1-2",fee_name:"Exercise Books (15 pieces)",amount:7500,is_optional:false},
+    {class_group:"Basic 1-2",fee_name:"Uniform",amount:10500,is_optional:true},
+    {class_group:"Basic 1-2",fee_name:"Tuesday Wear",amount:8200,is_optional:true},
+    {class_group:"Basic 1-2",fee_name:"Wednesday Wear",amount:9000,is_optional:true},
+    {class_group:"Basic 1-2",fee_name:"Thursday Wear",amount:9000,is_optional:true},
+    {class_group:"Basic 1-2",fee_name:"Friday Wear",amount:8000,is_optional:true},
+    // Basic 3-5
+    {class_group:"Basic 3-5",fee_name:"Tuition, Exam, Phonics/ICT, DBFS Word Master Challenge",amount:45000,is_optional:false},
+    {class_group:"Basic 3-5",fee_name:"Text Books",amount:35000,is_optional:false},
+    {class_group:"Basic 3-5",fee_name:"Exercise Books",amount:8000,is_optional:false},
+    {class_group:"Basic 3-5",fee_name:"Uniform",amount:10500,is_optional:true},
+    {class_group:"Basic 3-5",fee_name:"Tuesday Wear",amount:8200,is_optional:true},
+    {class_group:"Basic 3-5",fee_name:"Wednesday Wear",amount:9000,is_optional:true},
+    {class_group:"Basic 3-5",fee_name:"Thursday Wear",amount:9000,is_optional:true},
+    {class_group:"Basic 3-5",fee_name:"Friday Wear",amount:8000,is_optional:true},
+    // JSS 1-2
+    {class_group:"JSS 1-2",fee_name:"Tuition, Exam, ICT/Phonics",amount:50000,is_optional:false},
+    {class_group:"JSS 1-2",fee_name:"Text Books",amount:40000,is_optional:false},
+    {class_group:"JSS 1-2",fee_name:"Exercise Books",amount:10500,is_optional:false},
+    {class_group:"JSS 1-2",fee_name:"Uniform",amount:15000,is_optional:true},
+    {class_group:"JSS 1-2",fee_name:"Tuesday Wear",amount:8500,is_optional:true},
+    {class_group:"JSS 1-2",fee_name:"Wednesday Wear",amount:10500,is_optional:true},
+    {class_group:"JSS 1-2",fee_name:"Thursday Wear",amount:9500,is_optional:true},
+    {class_group:"JSS 1-2",fee_name:"Friday Wear",amount:8200,is_optional:true},
+    // JSS 3
+    {class_group:"JSS 3",fee_name:"Tuition, Exam, ICT/Phonics",amount:53000,is_optional:false},
+    {class_group:"JSS 3",fee_name:"Text Books",amount:40000,is_optional:false},
+    {class_group:"JSS 3",fee_name:"Exercise Books",amount:10500,is_optional:false},
+    {class_group:"JSS 3",fee_name:"Past Question",amount:5000,is_optional:false},
+    {class_group:"JSS 3",fee_name:"Uniform",amount:15000,is_optional:true},
+    {class_group:"JSS 3",fee_name:"Tuesday Wear",amount:8500,is_optional:true},
+    {class_group:"JSS 3",fee_name:"Wednesday Wear",amount:10500,is_optional:true},
+    {class_group:"JSS 3",fee_name:"Thursday Wear",amount:9500,is_optional:true},
+    {class_group:"JSS 3",fee_name:"Friday Wear",amount:8200,is_optional:true},
+    // SS 1-2
+    {class_group:"SS 1-2",fee_name:"Tuition, Exam, ICT/Phonics",amount:55000,is_optional:false},
+    {class_group:"SS 1-2",fee_name:"Text Books",amount:49500,is_optional:false},
+    {class_group:"SS 1-2",fee_name:"Exercise Books",amount:10500,is_optional:false},
+    {class_group:"SS 1-2",fee_name:"Uniform",amount:16000,is_optional:true},
+    {class_group:"SS 1-2",fee_name:"Tuesday Wear",amount:8500,is_optional:true},
+    {class_group:"SS 1-2",fee_name:"Wednesday Wear",amount:10500,is_optional:true},
+    {class_group:"SS 1-2",fee_name:"Thursday Wear",amount:9500,is_optional:true},
+    {class_group:"SS 1-2",fee_name:"Friday Wear",amount:8200,is_optional:true},
+    // SS 3
+    {class_group:"SS 3",fee_name:"Tuition, Weekly Mock, ICT/Phonics",amount:55000,is_optional:false},
+    {class_group:"SS 3",fee_name:"Text Books (Maths/English)",amount:13500,is_optional:false},
+    {class_group:"SS 3",fee_name:"Note Books",amount:10500,is_optional:false},
+    {class_group:"SS 3",fee_name:"NECO Registration",amount:70000,is_optional:false},
+    {class_group:"SS 3",fee_name:"WAEC Registration",amount:80000,is_optional:false},
+    {class_group:"SS 3",fee_name:"Uniform",amount:16000,is_optional:true},
+    {class_group:"SS 3",fee_name:"Tuesday Wear",amount:8500,is_optional:true},
+    {class_group:"SS 3",fee_name:"Wednesday Wear",amount:10500,is_optional:true},
+    {class_group:"SS 3",fee_name:"Thursday Wear",amount:9500,is_optional:true},
+    {class_group:"SS 3",fee_name:"Friday Wear",amount:8200,is_optional:true},
+  ].map(f=>({...f,term:currentTerm,session:currentSession}));
+
+  const{error}=await dbClient.from("fee_structure").upsert(fees,{onConflict:"class_group,fee_name,term,session"});
+  if(error){alert("Error loading fees: "+error.message);return;}
+  await loadFeeStructure(); renderAdminTab();
+  alert("All fees loaded from the Mushin First Term 2026/27 bill ✓\n\nYou can now click any fee name or amount to edit it directly.");
 }
 
 /* ── settings ── */
