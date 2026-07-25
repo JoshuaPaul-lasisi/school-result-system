@@ -6005,8 +6005,8 @@ async function generateResultPDF(sid){
     rowAlt=!rowAlt;
     doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
     doc.text(sub,colX[0]+2,y);
-    doc.text(sc.ca||'—',colX[1]+cols[1].w/2,y,{align:'center'});
-    doc.text(sc.exam||'—',colX[2]+cols[2].w/2,y,{align:'center'});
+    doc.text(sc.ca!=null?String(sc.ca):'—',colX[1]+cols[1].w/2,y,{align:'center'});
+    doc.text(sc.exam!=null?String(sc.exam):'—',colX[2]+cols[2].w/2,y,{align:'center'});
     if(t!==null){doc.setFont('helvetica','bold');}
     doc.text(t!==null?String(t):'—',colX[3]+cols[3].w/2,y,{align:'center'});
     doc.setFont('helvetica','normal');
@@ -6099,7 +6099,7 @@ async function sendResultPDFWhatsApp(sid, callerBtn){
   if(btn){btn.innerHTML='<i class="ti ti-loader-2"></i> Generating…';btn.disabled=true;}
 
   let doc;
-  try{ doc=await generateResultPDF(sid); }catch(e){ doc=null; }
+  try{ doc=await generateResultPDF(sid); }catch(e){ console.error("PDF generation error:",e); doc=null; }
   if(!doc){
     if(btn){btn.innerHTML=origHtml;btn.disabled=false;}
     alert("Could not generate PDF. Make sure scores have been entered for this student.");
