@@ -6106,11 +6106,12 @@ async function sendResultPDFWhatsApp(sid, callerBtn){
     return;
   }
 
-  // Step 1: download the PDF immediately to the device
+  // Convert to data URI — this is just a string, not a programmatic action,
+  // so it is never blocked by the browser regardless of async context.
   const fname=`Result_${s.name.replace(/[^a-z0-9]/gi,'_')}_${currentTerm.replace(/\s+/g,'_')}_${currentSession.replace(/\//g,'-')}.pdf`;
-  doc.save(fname);
+  const dataUri=doc.output('datauristring');
 
-  // Step 2: try uploading to Supabase Storage for a shareable link
+  // Try Supabase Storage for a shareable link (optional — continues silently if bucket not set up)
   let signedUrl=null;
   if(dbClient){
     try{
@@ -6121,41 +6122,46 @@ async function sendResultPDFWhatsApp(sid, callerBtn){
         const{data:signed}=await dbClient.storage.from('results').createSignedUrl(path,60*60*24*7);
         if(signed?.signedUrl)signedUrl=signed.signedUrl;
       }
-    }catch(e){ /* storage bucket not configured — signed link won't be available */ }
+    }catch(e){ /* storage bucket not configured */ }
   }
 
-  // Step 3: build WhatsApp message
   const waMsg=signedUrl
     ?`Dear ${g1.name||'Parent'},\n\nYour ward *${s.name}*'s ${currentTerm} result (${currentSession}) is ready.\n\n📄 Tap the link below to view/download:\n${signedUrl}\n\n_Debbyfield Schools_`
     :`Dear ${g1.name||'Parent'},\n\nYour ward *${s.name}*'s ${currentTerm} result (${currentSession}) is ready. Please find the PDF attached.\n\n_Debbyfield Schools_`;
 
   const waUrl=`https://wa.me/${wa}?text=${encodeURIComponent(waMsg)}`;
 
-  // Step 4: reset button, then show a persistent banner — NOT window.open (blocked after await)
-  if(btn){btn.innerHTML='<i class="ti ti-check"></i> PDF saved';btn.disabled=false;}
-  _showWaReadyBanner(s.name, g1.name||'Parent', waUrl, !!signedUrl);
+  if(btn){btn.innerHTML='<i class="ti ti-check"></i> Ready';btn.disabled=false;}
+  // Show banner — download and WhatsApp are both plain <a> clicks, never blocked
+  _showWaReadyBanner(s.name, g1.name||'Parent', waUrl, dataUri, fname, !!signedUrl);
 }
 
-function _showWaReadyBanner(studentName, parentName, waUrl, hasLink){
+function _showWaReadyBanner(studentName, parentName, waUrl, dataUri, fname, hasLink){
   document.getElementById('wa-ready-banner')?.remove();
   const banner=document.createElement('div');
   banner.id='wa-ready-banner';
-  banner.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:#1f2430;color:#fff;border-radius:12px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.3);display:flex;align-items:center;gap:14px;max-width:500px;width:calc(100% - 32px);animation:slideUp .25s ease';
+  banner.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:#1f2430;color:#fff;border-radius:12px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.3);display:flex;align-items:center;gap:10px;max-width:540px;width:calc(100% - 32px);animation:slideUp .25s ease;flex-wrap:wrap';
   banner.innerHTML=`
-    <div style="flex:1;min-width:0">
-      <div style="font-size:13px;font-weight:600;margin-bottom:3px">PDF saved to your device ✓</div>
+    <div style="flex:1;min-width:160px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:3px">Result PDF ready ✓</div>
       <div style="font-size:11px;opacity:.7">${hasLink
-        ?`Shareable link ready (7 days) — tap Open WhatsApp to send to ${parentName}`
-        :`Attach the saved PDF in WhatsApp when it opens`}</div>
+        ?`Shareable link included (7 days) — send to ${parentName}`
+        :`Download PDF first, then attach it in WhatsApp`}</div>
     </div>
-    <a href="${waUrl}" target="_blank" rel="noopener"
-      onclick="setTimeout(()=>document.getElementById('wa-ready-banner')?.remove(),500)"
-      style="display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0">
-      <i class="ti ti-brand-whatsapp"></i> Open WhatsApp
-    </a>
-    <button onclick="document.getElementById('wa-ready-banner')?.remove()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:20px;padding:0;flex-shrink:0;line-height:1;margin-left:-6px">&times;</button>`;
+    <div style="display:flex;gap:8px;flex-shrink:0">
+      <a href="${dataUri}" download="${fname}"
+        style="display:inline-flex;align-items:center;gap:5px;background:#1e3566;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap">
+        <i class="ti ti-download"></i> Download PDF
+      </a>
+      <a href="${waUrl}" target="_blank" rel="noopener"
+        onclick="setTimeout(()=>document.getElementById('wa-ready-banner')?.remove(),500)"
+        style="display:inline-flex;align-items:center;gap:5px;background:#25D366;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap">
+        <i class="ti ti-brand-whatsapp"></i> Open WhatsApp
+      </a>
+    </div>
+    <button onclick="document.getElementById('wa-ready-banner')?.remove()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:20px;padding:0;line-height:1">&times;</button>`;
   document.body.appendChild(banner);
-  setTimeout(()=>document.getElementById('wa-ready-banner')?.remove(),45000);
+  setTimeout(()=>document.getElementById('wa-ready-banner')?.remove(),60000);
 }
 
 function renderWhatsAppResults(){
