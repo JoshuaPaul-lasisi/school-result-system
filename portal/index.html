@@ -3379,10 +3379,13 @@ function buildAdminFeeHtml(){
           onfocus="this.style.background='var(--bg2)';this.style.borderRadius='4px';this.style.padding='2px 4px'"
           onblur2="this.style.background='transparent';this.style.padding='0'" /></td>
       <td style="padding:6px 8px">
-        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3);cursor:pointer;margin:0">
-          <input type="checkbox" ${f.is_optional?"checked":""} style="width:auto;margin:0"
-            onchange="updateFeeItem(${safeId},{is_optional:this.checked})" /> Optional
-        </label></td>
+        <button onclick="toggleFeeOptional(${safeId},${f.is_optional},this)"
+          style="border-radius:20px;padding:3px 11px;font-size:11px;cursor:pointer;font-weight:500;transition:all .15s;
+          background:${f.is_optional?'var(--bg2)':'rgba(22,163,74,0.12)'};
+          color:${f.is_optional?'var(--tx3)':'#16a34a'};
+          border:.5px solid ${f.is_optional?'var(--bd3)':'rgba(22,163,74,0.35)'}">
+          ${f.is_optional?'Optional':'Mandatory'}
+        </button></td>
       <td style="padding:6px 8px;text-align:right">
         <button class="btn btn-sm" style="color:var(--tx-err);padding:3px 7px" onclick="deleteFeeItem(${safeId},'${safeName}')"><i class="ti ti-trash"></i></button>
       </td>
@@ -3484,9 +3487,24 @@ async function updateFeeItem(id, updates){
   if(!dbClient) return;
   const{error}=await dbClient.from("fee_structure").update(updates).eq("id",id);
   if(error){console.error("Fee update error:",error);return;}
-  // Update in-memory array without re-rendering
   const idx=feeStructure.findIndex(f=>f.id===id);
   if(idx>=0) Object.assign(feeStructure[idx],updates);
+  const row=document.querySelector(`tr[data-fee-id="${id}"]`);
+  if(row){row.style.transition="background .15s";row.style.background="rgba(22,163,74,0.12)";setTimeout(()=>row.style.background="",900);}
+}
+
+async function toggleFeeOptional(id, currentIsOptional, btn){
+  const newOptional=!currentIsOptional;
+  const{error}=await dbClient.from("fee_structure").update({is_optional:newOptional}).eq("id",id);
+  if(error){console.error("Toggle error:",error);return;}
+  const idx=feeStructure.findIndex(f=>f.id===id);
+  if(idx>=0) feeStructure[idx].is_optional=newOptional;
+  // Update pill in place — no full re-render
+  btn.setAttribute("onclick",`toggleFeeOptional(${id},${newOptional},this)`);
+  btn.textContent=newOptional?"Optional":"Mandatory";
+  btn.style.background=newOptional?"var(--bg2)":"rgba(22,163,74,0.12)";
+  btn.style.color=newOptional?"var(--tx3)":"#16a34a";
+  btn.style.borderColor=newOptional?"var(--bd3)":"rgba(22,163,74,0.35)";
   const row=document.querySelector(`tr[data-fee-id="${id}"]`);
   if(row){row.style.transition="background .15s";row.style.background="rgba(22,163,74,0.12)";setTimeout(()=>row.style.background="",900);}
 }
