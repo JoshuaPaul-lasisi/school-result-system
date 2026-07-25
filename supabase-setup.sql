@@ -197,7 +197,7 @@ CREATE TABLE IF NOT EXISTS guardians (
 -- class_group = 'All' means the fee applies to every student regardless of class.
 CREATE TABLE IF NOT EXISTS fee_structure (
   id           BIGSERIAL PRIMARY KEY,
-  class_group  TEXT NOT NULL CHECK (class_group IN ('Pre-Primary','Primary','JSS','SS','All')),
+  class_group  TEXT NOT NULL CHECK (class_group IN ('All','KG','Nursery','Basic 1-2','Basic 3-5','JSS 1-2','JSS 3','SS 1-2','SS 3','Pre-Primary','Primary','JSS','SS')),
   fee_name     TEXT NOT NULL,
   amount       NUMERIC(10,2) NOT NULL DEFAULT 0,
   is_optional  BOOLEAN DEFAULT false,
@@ -347,12 +347,12 @@ CREATE INDEX IF NOT EXISTS daily_att_term_session   ON daily_attendance(term, se
 CREATE INDEX IF NOT EXISTS daily_att_student        ON daily_attendance(student_id);
 CREATE INDEX IF NOT EXISTS holidays_term_session    ON school_holidays(term, session);
 
--- ── expand fee_structure to allow school-wide fees (existing installs) ────────
+-- ── expand fee_structure class_group check to per-class groups (existing installs) ──
 DO $$ BEGIN
   ALTER TABLE fee_structure DROP CONSTRAINT IF EXISTS fee_structure_class_group_check;
   ALTER TABLE fee_structure
     ADD CONSTRAINT fee_structure_class_group_check
-    CHECK (class_group IN ('Pre-Primary','Primary','JSS','SS','All'));
+    CHECK (class_group IN ('All','KG','Nursery','Basic 1-2','Basic 3-5','JSS 1-2','JSS 3','SS 1-2','SS 3','Pre-Primary','Primary','JSS','SS'));
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
