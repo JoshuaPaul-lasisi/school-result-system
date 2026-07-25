@@ -6086,47 +6086,76 @@ async function downloadResultPDF(sid){
   doc.save(fname);
 }
 
-async function sendResultPDFWhatsApp(sid){
+async function sendResultPDFWhatsApp(sid, callerBtn){
   const g1=guardiansMap[sid]?.[0];
   const wa=formatPhoneForWA(g1?.phone);
   if(!wa){
-    alert("No guardian phone number on file.\n\nOpen Student Details and add a phone number to enable WhatsApp delivery.");
+    alert("No guardian phone number on file.\n\nOpen the student's Profile & Guardians tab and add a phone number.");
     return;
   }
   const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid);
+  const btn=callerBtn||event?.target?.closest('button');
+  const origHtml=btn?.innerHTML||'';
+  if(btn){btn.innerHTML='<i class="ti ti-loader-2"></i> Generating…';btn.disabled=true;}
 
-  // Show loading state on button
-  const btn=event?.target?.closest('button');
-  if(btn){const orig=btn.innerHTML;btn.innerHTML='<i class="ti ti-loader-2"></i> Generating…';btn.disabled=true;
-    setTimeout(()=>{btn.innerHTML=orig;btn.disabled=false;},8000);}
-
-  const doc=await generateResultPDF(sid);
-  if(!doc)return;
-  const pdfBlob=doc.output('blob');
-
-  // Try Supabase Storage upload first
-  if(dbClient){
-    const path=`${currentSession.replace(/\//g,'-')}/${currentTerm.replace(/\s+/g,'_')}/${sid}.pdf`;
-    const{error:upErr}=await dbClient.storage.from('results').upload(path,pdfBlob,
-      {contentType:'application/pdf',upsert:true});
-    if(!upErr){
-      const{data:signed}=await dbClient.storage.from('results').createSignedUrl(path,60*60*24*7);
-      if(signed?.signedUrl){
-        const url=signed.signedUrl;
-        const msg=`Dear ${g1.name||'Parent'},\n\nYour ward *${s.name}*'s ${currentTerm} result (${currentSession}) is ready.\n\n📄 Tap the link to download the PDF:\n${url}\n\n_Debbyfield Schools_`;
-        window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
-        if(btn){btn.innerHTML='<i class="ti ti-check"></i> Sent';btn.disabled=false;}
-        return;
-      }
-    }
+  let doc;
+  try{ doc=await generateResultPDF(sid); }catch(e){ doc=null; }
+  if(!doc){
+    if(btn){btn.innerHTML=origHtml;btn.disabled=false;}
+    alert("Could not generate PDF. Make sure scores have been entered for this student.");
+    return;
   }
 
-  // Fallback: download PDF + open WhatsApp with text nudge
-  doc.save(`Result_${s.name.replace(/[^a-z0-9]/gi,'_')}.pdf`);
-  await new Promise(r=>setTimeout(r,800)); // let download start
-  const msg=`Dear ${g1.name||'Parent'}, please find *${s.name}*'s ${currentTerm} result attached as a PDF.\n\n_Debbyfield Schools_`;
-  window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
-  if(btn){btn.innerHTML='<i class="ti ti-check"></i> Sent (manual attach)';btn.disabled=false;}
+  // Step 1: download the PDF immediately to the device
+  const fname=`Result_${s.name.replace(/[^a-z0-9]/gi,'_')}_${currentTerm.replace(/\s+/g,'_')}_${currentSession.replace(/\//g,'-')}.pdf`;
+  doc.save(fname);
+
+  // Step 2: try uploading to Supabase Storage for a shareable link
+  let signedUrl=null;
+  if(dbClient){
+    try{
+      const pdfBlob=doc.output('blob');
+      const path=`${currentSession.replace(/\//g,'-')}/${currentTerm.replace(/\s+/g,'_')}/${sid}.pdf`;
+      const{error:upErr}=await dbClient.storage.from('results').upload(path,pdfBlob,{contentType:'application/pdf',upsert:true});
+      if(!upErr){
+        const{data:signed}=await dbClient.storage.from('results').createSignedUrl(path,60*60*24*7);
+        if(signed?.signedUrl)signedUrl=signed.signedUrl;
+      }
+    }catch(e){ /* storage bucket not configured — signed link won't be available */ }
+  }
+
+  // Step 3: build WhatsApp message
+  const waMsg=signedUrl
+    ?`Dear ${g1.name||'Parent'},\n\nYour ward *${s.name}*'s ${currentTerm} result (${currentSession}) is ready.\n\n📄 Tap the link below to view/download:\n${signedUrl}\n\n_Debbyfield Schools_`
+    :`Dear ${g1.name||'Parent'},\n\nYour ward *${s.name}*'s ${currentTerm} result (${currentSession}) is ready. Please find the PDF attached.\n\n_Debbyfield Schools_`;
+
+  const waUrl=`https://wa.me/${wa}?text=${encodeURIComponent(waMsg)}`;
+
+  // Step 4: reset button, then show a persistent banner — NOT window.open (blocked after await)
+  if(btn){btn.innerHTML='<i class="ti ti-check"></i> PDF saved';btn.disabled=false;}
+  _showWaReadyBanner(s.name, g1.name||'Parent', waUrl, !!signedUrl);
+}
+
+function _showWaReadyBanner(studentName, parentName, waUrl, hasLink){
+  document.getElementById('wa-ready-banner')?.remove();
+  const banner=document.createElement('div');
+  banner.id='wa-ready-banner';
+  banner.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:#1f2430;color:#fff;border-radius:12px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.3);display:flex;align-items:center;gap:14px;max-width:500px;width:calc(100% - 32px);animation:slideUp .25s ease';
+  banner.innerHTML=`
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:600;margin-bottom:3px">PDF saved to your device ✓</div>
+      <div style="font-size:11px;opacity:.7">${hasLink
+        ?`Shareable link ready (7 days) — tap Open WhatsApp to send to ${parentName}`
+        :`Attach the saved PDF in WhatsApp when it opens`}</div>
+    </div>
+    <a href="${waUrl}" target="_blank" rel="noopener"
+      onclick="setTimeout(()=>document.getElementById('wa-ready-banner')?.remove(),500)"
+      style="display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0">
+      <i class="ti ti-brand-whatsapp"></i> Open WhatsApp
+    </a>
+    <button onclick="document.getElementById('wa-ready-banner')?.remove()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:20px;padding:0;flex-shrink:0;line-height:1;margin-left:-6px">&times;</button>`;
+  document.body.appendChild(banner);
+  setTimeout(()=>document.getElementById('wa-ready-banner')?.remove(),45000);
 }
 
 function renderWhatsAppResults(){
