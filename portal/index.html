@@ -2679,7 +2679,8 @@ function renderFinanceDashboard(){
     return{g,count:gStudents.length,expected:gExpected,collected:gCollected};
   }).filter(x=>x.count>0);
 
-  const totalExpenses=expenseLog.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const visibleExpenses=_role==='admin'?expenseLog.filter(e=>!e.is_private):expenseLog;
+  const totalExpenses=visibleExpenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const stockRevenue=stockTermRevenue();
   const totalIncome=totalCollected+stockRevenue;
   const netBalance=totalIncome-totalExpenses;
@@ -3042,6 +3043,7 @@ function renderExpenses(){
   document.getElementById("topbar-actions").innerHTML="";
   const cats=["Staff Cost","Supplies","Maintenance","Programme Cost","Other"];
   const today=new Date().toISOString().split("T")[0];
+  const isPrincipal=canDo('principal');
 
   // shared: add-expense form
   const addForm=`
@@ -3059,12 +3061,18 @@ function renderExpenses(){
         <div class="field" style="margin:0"><label>Date</label><input type="date" id="exp-date" value="${today}" /></div>
         <div class="field" style="margin:0"><label>Receipt / Reference (optional)</label><input id="exp-ref" placeholder="Receipt #, transfer ref…" /></div>
       </div>
+      ${isPrincipal?`<div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+        <input type="checkbox" id="exp-private" style="width:auto" />
+        <label for="exp-private" style="margin:0;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+          <i class="ti ti-lock" style="font-size:13px;color:var(--tx3)"></i> Private — principal view only (hidden from admin)
+        </label>
+      </div>`:""}
       <div id="exp-status" style="margin-top:6px;font-size:12px"></div>
     </div>`;
 
-  // ── admin: today-only view ──────────────────────────────────────────────────
+  // ── admin: today-only view (private expenses excluded) ──────────────────────
   if(_role==='admin'){
-    const todayExps=expenseLog.filter(e=>e.expense_date===today);
+    const todayExps=expenseLog.filter(e=>e.expense_date===today&&!e.is_private);
     const todayTotal=todayExps.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     document.getElementById("content").innerHTML=`
       ${!canDo('admin')?signInNotice('log expenses'):""}
@@ -3087,8 +3095,10 @@ function renderExpenses(){
     return;
   }
 
-  // ── principal: full term view ──────────────────────────────────────────────
+  // ── principal: full term view (all expenses including private) ─────────────
+  const privateCount=expenseLog.filter(e=>e.is_private).length;
   const totalExp=expenseLog.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const privateTotal=expenseLog.filter(e=>e.is_private).reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const byCat={};
   cats.forEach(c=>byCat[c]=expenseLog.filter(e=>e.category===c).reduce((s,e)=>s+parseFloat(e.amount||0),0));
   document.getElementById("content").innerHTML=`
@@ -3099,36 +3109,79 @@ function renderExpenses(){
     <div class="card">
       <div class="card-head">
         <span class="card-title">All Expenses — ${currentTerm}</span>
-        <span style="font-size:13px;font-weight:600;color:var(--tx-err)">Total: ₦${totalExp.toLocaleString()}</span>
+        <div style="display:flex;align-items:center;gap:12px">
+          ${privateCount>0?`<span style="font-size:11px;color:var(--tx3);display:flex;align-items:center;gap:4px"><i class="ti ti-lock"></i>${privateCount} private (₦${privateTotal.toLocaleString()})</span>`:""}
+          <span style="font-size:13px;font-weight:600;color:var(--tx-err)">Total: ₦${totalExp.toLocaleString()}</span>
+        </div>
       </div>
       ${expenseLog.length
         ?`<table>
-            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Ref</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Ref</th><th style="text-align:center">Visibility</th><th></th></tr></thead>
             <tbody>${expenseLog.map(e=>`<tr>
               <td style="white-space:nowrap">${e.expense_date}</td>
-              <td>${e.description}</td>
+              <td>${e.is_private?`<i class="ti ti-lock" style="font-size:11px;color:var(--tx3);margin-right:4px" title="Private"></i>`:""}${e.description}</td>
               <td><span style="font-size:11px;color:var(--tx3)">${e.category}</span></td>
               <td style="font-weight:600">₦${parseFloat(e.amount).toLocaleString()}</td>
               <td style="color:var(--tx3);font-size:11px">${e.receipt_ref||"—"}</td>
+              <td style="text-align:center">
+                <button onclick="toggleExpensePrivacy(${e.id},${!!e.is_private},this)"
+                  title="${e.is_private?'Click to make visible to admin':'Click to hide from admin'}"
+                  style="border:none;border-radius:20px;padding:2px 10px;font-size:11px;cursor:pointer;font-weight:500;
+                  background:${e.is_private?'var(--bg2)':'rgba(22,163,74,0.1)'};
+                  color:${e.is_private?'var(--tx3)':'#16a34a'};
+                  border:.5px solid ${e.is_private?'var(--bd3)':'rgba(22,163,74,0.35)'}">
+                  ${e.is_private?'<i class="ti ti-lock" style="font-size:10px"></i> Private':'<i class="ti ti-eye" style="font-size:10px"></i> Visible'}
+                </button>
+              </td>
               <td>${canDo('principal')?`<button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteExpense(${e.id})"><i class="ti ti-trash"></i></button>`:""}</td>
             </tr>`).join("")}</tbody>
           </table>`
         :`<div class="empty"><i class="ti ti-cash-banknote"></i>No expenses recorded for this term</div>`}
     </div>`;
 }
+
 async function submitAddExpense(){
   const desc=document.getElementById("exp-desc")?.value?.trim();
   const cat=document.getElementById("exp-cat")?.value;
   const amount=parseFloat(document.getElementById("exp-amount")?.value);
   const date=document.getElementById("exp-date")?.value;
   const ref=document.getElementById("exp-ref")?.value?.trim()||null;
+  const isPrivate=document.getElementById("exp-private")?.checked||false;
   const st=document.getElementById("exp-status");
   if(!desc){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a description</span>`;return;}
   if(!amount||amount<=0){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a valid amount</span>`;return;}
-  const {error}=await dbClient.from("expense_log").insert({description:desc,category:cat,amount,expense_date:date||new Date().toISOString().split("T")[0],receipt_ref:ref,term:currentTerm,session:currentSession});
+  const{error}=await dbClient.from("expense_log").insert({description:desc,category:cat,amount,expense_date:date||new Date().toISOString().split("T")[0],receipt_ref:ref,is_private:isPrivate,term:currentTerm,session:currentSession});
   if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
   await loadExpenseLog(); renderExpenses();
 }
+
+async function toggleExpensePrivacy(id, currentPrivate, btn){
+  const newPrivate=!currentPrivate;
+  const{error}=await dbClient.from("expense_log").update({is_private:newPrivate}).eq("id",id);
+  if(error){console.error(error);return;}
+  const idx=expenseLog.findIndex(e=>e.id===id);
+  if(idx>=0) expenseLog[idx].is_private=newPrivate;
+  // Update button in place
+  btn.setAttribute("onclick",`toggleExpensePrivacy(${id},${newPrivate},this)`);
+  btn.title=newPrivate?'Click to make visible to admin':'Click to hide from admin';
+  btn.innerHTML=newPrivate?'<i class="ti ti-lock" style="font-size:10px"></i> Private':'<i class="ti ti-eye" style="font-size:10px"></i> Visible';
+  btn.style.background=newPrivate?'var(--bg2)':'rgba(22,163,74,0.1)';
+  btn.style.color=newPrivate?'var(--tx3)':'#16a34a';
+  btn.style.borderColor=newPrivate?'var(--bd3)':'rgba(22,163,74,0.35)';
+  // Update the lock icon on the description cell
+  const row=btn.closest('tr');
+  if(row){
+    const descCell=row.cells[1];
+    if(descCell){
+      const text=expenseLog[idx]?.description||"";
+      descCell.innerHTML=newPrivate?`<i class="ti ti-lock" style="font-size:11px;color:var(--tx3);margin-right:4px"></i>${text}`:text;
+    }
+    row.style.transition="background .15s";
+    row.style.background="rgba(22,163,74,0.08)";
+    setTimeout(()=>row.style.background="",800);
+  }
+}
+
 async function deleteExpense(id){
   if(!confirm("Delete this expense entry?"))return;
   await dbClient.from("expense_log").delete().eq("id",id);

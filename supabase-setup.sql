@@ -365,10 +365,13 @@ CREATE TABLE IF NOT EXISTS expense_log (
   expense_date   DATE NOT NULL DEFAULT CURRENT_DATE,
   receipt_ref    TEXT,
   note           TEXT,
+  is_private     BOOLEAN DEFAULT false,
   term           TEXT NOT NULL,
   session        TEXT NOT NULL,
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
+-- For existing installs:
+ALTER TABLE expense_log ADD COLUMN IF NOT EXISTS is_private BOOLEAN DEFAULT false;
 
 -- ── asset register ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS assets (
