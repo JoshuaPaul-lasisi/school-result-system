@@ -927,6 +927,10 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('retention',null,this)"><i class="ti ti-chart-line"></i>Retention Dashboard</div>
       </div>
       <div class="nav-section">
+        <div class="nav-label">Communications</div>
+        <div class="nav-item" onclick="nav('broadcast-sms',null,this)"><i class="ti ti-speakerphone"></i>Broadcast SMS</div>
+      </div>
+      <div class="nav-section">
         <div class="nav-label">Records</div>
         <div class="nav-item" onclick="nav('assets',null,this)"><i class="ti ti-package"></i>Asset Register</div>
         <div class="nav-item" onclick="nav('incidents',null,this)"><i class="ti ti-clipboard-list"></i>Incident Log</div>
@@ -1283,6 +1287,7 @@ function nav(page,arg,el){
   else if(page==="teacher-obs")renderTeacherObsLog();
   else if(page==="parent-contacts")renderParentContacts();
   else if(page==="retention")renderRetentionDashboard();
+  else if(page==="broadcast-sms")renderBroadcastSMS();
   else if(page==="ext-results")renderExternalResults();
   else if(page==="cal-events")renderCalendar();
   else if(page==="tt-grid")renderTimetableGrid();
@@ -7237,6 +7242,265 @@ async function deleteExternalResult(id){
   if(!confirm("Delete this result entry?"))return;
   await dbClient.from("external_results").delete().eq("id",id);
   await loadExternalResults(); renderExternalResults();
+}
+
+/* ══════════════════════════════════════════════════════════
+   BROADCAST SMS
+══════════════════════════════════════════════════════════ */
+
+function _smsRecipients(filter){
+  // Collect one phone number per guardian, deduplicated by number.
+  // filter: "All" | section name | class name
+  const students = filter==="All"
+    ? roster
+    : ["KG","Nursery","Primary","Junior Secondary","Senior Secondary"].includes(filter)
+      ? roster.filter(s=>(s.sec||CLASS_SECTION[s.cls])===filter)
+      : roster.filter(s=>s.cls===filter);
+
+  const seen=new Set();
+  const recipients=[];
+  const noPhone=[];
+
+  students.forEach(s=>{
+    const g=guardiansMap[s.id]?.[0];
+    if(!g?.phone){noPhone.push(s.name);return;}
+    const ph=formatPhoneForWA(g.phone);
+    if(!ph){noPhone.push(s.name);return;}
+    if(seen.has(ph))return; // same guardian has multiple kids
+    seen.add(ph);
+    recipients.push({studentName:s.name,parentName:g.name||'',phone:ph,cls:s.cls});
+  });
+  return{recipients,noPhone};
+}
+
+function _smsCharInfo(msg){
+  const len=msg.length;
+  const single=160, multi=153;
+  if(len===0)return{len:0,parts:0,remaining:160};
+  const parts=len<=single?1:Math.ceil(len/multi);
+  const remaining=parts===1?single-len:multi-(len%multi||multi);
+  return{len,parts,remaining};
+}
+
+async function renderBroadcastSMS(){
+  document.getElementById("page-title").textContent="Broadcast SMS";
+  document.getElementById("page-meta").textContent="Send a text message to all parents at once";
+  document.getElementById("topbar-actions").innerHTML="";
+
+  // Fetch balance (non-blocking — show loading then update)
+  let balanceHtml=`<span style="color:var(--tx3);font-size:12px"><i class="ti ti-loader-2"></i> Checking balance…</span>`;
+
+  const filterOpts=[
+    {val:"All",label:"All students (entire school)"},
+    {val:"KG",label:"KG only"},
+    {val:"Nursery",label:"Nursery only"},
+    {val:"Primary",label:"Primary (Basic 1–5)"},
+    {val:"Junior Secondary",label:"JSS only"},
+    {val:"Senior Secondary",label:"SS only"},
+    ...[...new Set(roster.map(s=>s.cls))].sort().map(c=>({val:c,label:`${c} only`})),
+  ];
+
+  const {recipients,noPhone}=_smsRecipients("All");
+  const charInfo=_smsCharInfo("");
+
+  document.getElementById("content").innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start">
+
+      <!-- LEFT: composer -->
+      <div>
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title"><i class="ti ti-speakerphone" style="color:var(--burg)"></i> Message</span>
+            <div id="sms-balance-area">${balanceHtml}</div>
+          </div>
+
+          <div class="field">
+            <label>Recipients</label>
+            <select id="sms-filter" onchange="updateSMSPreview()">
+              ${filterOpts.map(o=>`<option value="${o.val}">${o.label}</option>`).join("")}
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Sender name <span style="font-size:11px;color:var(--tx3)">(shown on recipient's phone)</span></label>
+            <input id="sms-sender" value="Debbyfield" maxlength="11" placeholder="Debbyfield"
+              oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,11)" />
+          </div>
+
+          <div class="field">
+            <label>Message text</label>
+            <textarea id="sms-msg" rows="6" placeholder="Type your message here…"
+              oninput="updateSMSCharCount()"
+              style="width:100%;resize:vertical;font-size:14px;line-height:1.6"></textarea>
+            <div id="sms-char-count" style="font-size:11px;color:var(--tx3);margin-top:4px;text-align:right">
+              0 / 160 characters · 1 SMS part
+            </div>
+          </div>
+
+          <div id="sms-err" style="font-size:12px;color:var(--tx-err);margin-bottom:8px;display:none"></div>
+
+          <button class="btn btn-primary" onclick="sendBroadcastSMS()"
+            style="width:100%;height:44px;font-size:15px;gap:8px">
+            <i class="ti ti-send"></i> Send to <span id="sms-send-count">${recipients.length}</span> parents
+          </button>
+          <p style="font-size:11px;color:var(--tx3);margin-top:8px;text-align:center">
+            Each SMS from your Termii balance. Confirm carefully before sending.
+          </p>
+        </div>
+      </div>
+
+      <!-- RIGHT: preview -->
+      <div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Recipients preview</span></div>
+          <div id="sms-preview-content">
+            ${_buildSMSPreview(recipients,noPhone)}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result banner (hidden until sent) -->
+    <div id="sms-result" style="display:none;margin-top:14px"></div>`;
+
+  // Fetch Termii balance asynchronously
+  try{
+    const r=await fetch("/api/send-sms");
+    if(r.ok){
+      const d=await r.json();
+      const balEl=document.getElementById("sms-balance-area");
+      if(balEl) balEl.innerHTML=`<span style="font-size:12px;color:var(--tx2)">Balance: <strong style="color:var(--tx-ok)">₦${parseFloat(d.balance||0).toLocaleString()}</strong></span>`;
+    } else {
+      const balEl=document.getElementById("sms-balance-area");
+      if(balEl) balEl.innerHTML=`<span style="font-size:11px;color:var(--tx3)">Balance unavailable</span>`;
+    }
+  }catch(e){
+    const balEl=document.getElementById("sms-balance-area");
+    if(balEl) balEl.innerHTML=`<span style="font-size:11px;color:var(--tx-warn)">Add TERMII_API_KEY to Vercel to enable</span>`;
+  }
+}
+
+function _buildSMSPreview(recipients,noPhone){
+  if(!recipients.length&&!noPhone.length){
+    return`<div class="empty">No students in roster</div>`;
+  }
+  return`
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1;background:rgba(22,163,74,.08);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:#16a34a">${recipients.length}</div>
+        <div style="font-size:11px;color:var(--tx3)">will receive SMS</div>
+      </div>
+      ${noPhone.length?`<div style="flex:1;background:rgba(220,38,38,.07);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--tx-err)">${noPhone.length}</div>
+        <div style="font-size:11px;color:var(--tx3)">no phone number</div>
+      </div>`:""}
+    </div>
+    <div style="max-height:340px;overflow-y:auto;font-size:12px">
+      ${recipients.map(r=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:.5px solid var(--bd3)">
+          <div>
+            <div style="font-weight:500">${r.parentName||r.studentName}</div>
+            <div style="color:var(--tx3)">${r.studentName} · ${r.cls}</div>
+          </div>
+          <div style="color:var(--tx3);font-size:11px">${r.phone}</div>
+        </div>`).join("")}
+      ${noPhone.length?`<div style="margin-top:10px;padding:8px;background:var(--bg2);border-radius:6px;color:var(--tx3)">
+        <div style="font-size:11px;font-weight:500;margin-bottom:4px;color:var(--tx-warn)"><i class="ti ti-alert-triangle"></i> No phone on file:</div>
+        ${noPhone.map(n=>`<div style="font-size:11px">${n}</div>`).join("")}
+      </div>`:""}
+    </div>`;
+}
+
+function updateSMSCharCount(){
+  const msg=document.getElementById("sms-msg")?.value||"";
+  const {len,parts,remaining}=_smsCharInfo(msg);
+  const el=document.getElementById("sms-char-count");
+  if(el) el.innerHTML=`<span style="color:${remaining<20?"var(--tx-warn)":"var(--tx3)"}">${len} characters · ${parts} SMS part${parts!==1?"s":""} · ${remaining} remaining</span>`;
+}
+
+function updateSMSPreview(){
+  const filter=document.getElementById("sms-filter")?.value||"All";
+  const {recipients,noPhone}=_smsRecipients(filter);
+  const previewEl=document.getElementById("sms-preview-content");
+  const countEl=document.getElementById("sms-send-count");
+  if(previewEl) previewEl.innerHTML=_buildSMSPreview(recipients,noPhone);
+  if(countEl) countEl.textContent=recipients.length;
+}
+
+async function sendBroadcastSMS(){
+  const msg=(document.getElementById("sms-msg")?.value||"").trim();
+  const filter=document.getElementById("sms-filter")?.value||"All";
+  const sender=(document.getElementById("sms-sender")?.value||"Debbyfield").trim();
+  const errEl=document.getElementById("sms-err");
+
+  if(errEl){errEl.style.display="none";errEl.textContent="";}
+
+  if(!msg){
+    if(errEl){errEl.textContent="Please type a message before sending.";errEl.style.display="block";}
+    return;
+  }
+
+  const {recipients}=_smsRecipients(filter);
+  if(!recipients.length){
+    if(errEl){errEl.textContent="No parents with phone numbers in this group.";errEl.style.display="block";}
+    return;
+  }
+
+  const {parts}=_smsCharInfo(msg);
+  const totalUnits=recipients.length*parts;
+  const confirmed=confirm(
+    `Send this message to ${recipients.length} parent${recipients.length!==1?"s":""}?\n\n`+
+    `"${msg.slice(0,120)}${msg.length>120?"…":""}"\n\n`+
+    `This will use approximately ${totalUnits} SMS unit${totalUnits!==1?"s":""}.\n\nProceed?`
+  );
+  if(!confirmed)return;
+
+  const sendBtn=document.querySelector("#content .btn-primary");
+  const origHtml=sendBtn?.innerHTML||"";
+  if(sendBtn){sendBtn.innerHTML='<i class="ti ti-loader-2"></i> Sending…';sendBtn.disabled=true;}
+
+  try{
+    const r=await fetch("/api/send-sms",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        message:msg,
+        phones:recipients.map(x=>x.phone),
+        sender_id:sender||"Debbyfield",
+      }),
+    });
+    const d=await r.json();
+
+    const resultEl=document.getElementById("sms-result");
+    if(r.ok&&d.success){
+      const balNote=d.balance!=null?`<span style="float:right;font-size:12px;color:var(--tx3)">Remaining balance: ₦${parseFloat(d.balance).toLocaleString()}</span>`:"";
+      if(resultEl) resultEl.innerHTML=`
+        <div class="card" style="border-color:#16a34a;background:rgba(22,163,74,.06)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ti ti-circle-check" style="font-size:28px;color:#16a34a"></i>
+            <div style="flex:1">
+              <div style="font-weight:600;color:#16a34a;font-size:15px">Sent successfully!</div>
+              <div style="font-size:12px;color:var(--tx2);margin-top:2px">
+                ${d.sent} message${d.sent!==1?"s":""} dispatched
+                ${d.skipped>0?`· ${d.skipped} invalid number${d.skipped!==1?"s":""} skipped`:""}
+                ${balNote}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      resultEl.style.display="block";
+      if(sendBtn){sendBtn.innerHTML='<i class="ti ti-check"></i> Sent';sendBtn.disabled=false;}
+      // Clear message field
+      const msgEl=document.getElementById("sms-msg");
+      if(msgEl){msgEl.value="";updateSMSCharCount();}
+    } else {
+      if(errEl){errEl.textContent=d.error||"Send failed. Check your Termii API key and sender ID.";errEl.style.display="block";}
+      if(sendBtn){sendBtn.innerHTML=origHtml;sendBtn.disabled=false;}
+    }
+  }catch(e){
+    if(errEl){errEl.textContent="Network error — could not reach the server. Try again.";errEl.style.display="block";}
+    if(sendBtn){sendBtn.innerHTML=origHtml;sendBtn.disabled=false;}
+  }
 }
 
 /* ── boot ── */
