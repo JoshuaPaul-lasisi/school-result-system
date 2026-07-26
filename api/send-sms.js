@@ -1,9 +1,22 @@
-// Sends bulk SMS to parents via Termii.
-// Requires: TERMII_API_KEY in Vercel environment variables.
-// Get your key from: https://accounts.termii.com/#/
+// Sends bulk SMS to parents via Twilio.
+// Required Vercel env vars:
+//   TWILIO_ACCOUNT_SID  — from console.twilio.com (starts with AC...)
+//   TWILIO_AUTH_TOKEN   — from the same page
+//   TWILIO_FROM         — your Twilio phone number in E.164 format, e.g. +12015551234
 
-const TERMII_BASE = "https://api.ng.termii.com/api";
-const SENDER_ID   = process.env.TERMII_SENDER_ID || "Debbyfield";
+const TWILIO_BASE = "https://api.twilio.com/2010-04-01";
+
+function twilioAuth() {
+  const sid   = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  return "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
+}
+
+function missingConfig() {
+  const missing = ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM"]
+    .filter(k => !process.env[k]);
+  return missing.length ? missing : null;
+}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -11,67 +24,94 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const apiKey = process.env.TERMII_API_KEY;
-  if (!apiKey) {
+  const missing = missingConfig();
+  if (missing) {
     return res.status(500).json({
-      error: "TERMII_API_KEY is not set in Vercel environment variables. Add it in your Vercel project settings."
+      error: `Twilio not configured. Add these to Vercel env vars: ${missing.join(", ")}`
     });
   }
 
-  // GET ?action=balance — check remaining SMS credits
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+
+  // ── GET: check account balance ──────────────────────────────────────────────
   if (req.method === "GET") {
     try {
-      const r = await fetch(`${TERMII_BASE}/get-balance?api_key=${encodeURIComponent(apiKey)}`);
-      const data = await r.json();
-      if (!r.ok) return res.status(502).json({ error: data.message || "Could not fetch balance" });
-      return res.status(200).json({ balance: data.balance, currency: data.currency || "NGN" });
+      const r = await fetch(`${TWILIO_BASE}/Accounts/${sid}/Balance.json`, {
+        headers: { Authorization: twilioAuth() },
+      });
+      const d = await r.json();
+      if (!r.ok) return res.status(502).json({ error: d.message || "Twilio balance check failed" });
+      return res.status(200).json({ balance: parseFloat(d.balance || 0).toFixed(2), currency: d.currency || "USD" });
     } catch (e) {
-      return res.status(502).json({ error: "Network error contacting Termii" });
+      return res.status(502).json({ error: "Could not reach Twilio: " + e.message });
     }
   }
 
-  // POST — send bulk SMS
+  // ── POST: send bulk SMS ─────────────────────────────────────────────────────
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { message, phones, sender_id } = req.body || {};
+  const { message, phones } = req.body || {};
+  if (!message?.trim())  return res.status(400).json({ error: "Message text is required." });
+  if (!phones?.length)   return res.status(400).json({ error: "No phone numbers provided." });
 
-  if (!message?.trim())    return res.status(400).json({ error: "Message text is required." });
-  if (!phones?.length)     return res.status(400).json({ error: "No phone numbers provided." });
-  if (phones.length > 2000) return res.status(400).json({ error: "Too many recipients. Split into batches of 2000." });
+  const from = process.env.TWILIO_FROM;
 
-  // Validate and deduplicate phone numbers
-  const valid   = [...new Set(phones.filter(p => /^\d{10,15}$/.test(p)))];
-  const invalid = phones.length - valid.length;
-  if (!valid.length) return res.status(400).json({ error: "No valid phone numbers found." });
+  // Normalise to E.164 and deduplicate
+  const e164 = [...new Set(
+    phones
+      .map(p => String(p).replace(/\D/g, ""))         // strip non-digits
+      .filter(p => p.length >= 10 && p.length <= 15)
+      .map(p => "+" + p)
+  )];
 
-  try {
-    const r = await fetch(`${TERMII_BASE}/sms/send/bulk`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: apiKey,
-        to:      valid,
-        from:    sender_id || SENDER_ID,
-        sms:     message.trim(),
-        type:    "plain",
-        channel: "generic",
-      }),
-    });
+  if (!e164.length) return res.status(400).json({ error: "No valid phone numbers." });
 
-    const data = await r.json();
+  const endpoint = `${TWILIO_BASE}/Accounts/${sid}/Messages.json`;
+  const auth     = twilioAuth();
 
-    if (!r.ok || (data.code && data.code !== "ok")) {
-      return res.status(502).json({ error: data.message || "Termii returned an error. Check your API key and sender ID." });
+  // Send all messages concurrently (Twilio handles the rate limiting on their end)
+  const results = await Promise.allSettled(
+    e164.map(to =>
+      fetch(endpoint, {
+        method:  "POST",
+        headers: { Authorization: auth, "Content-Type": "application/x-www-form-urlencoded" },
+        body:    new URLSearchParams({ From: from, To: to, Body: message.trim() }).toString(),
+      }).then(r => r.json())
+    )
+  );
+
+  let sent = 0, failed = 0;
+  const errors = [];
+
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      const d = r.value;
+      if (d.sid && !d.error_code) {
+        sent++;
+      } else {
+        failed++;
+        if (d.message && errors.length < 3) errors.push(d.message);
+      }
+    } else {
+      failed++;
     }
+  });
 
-    return res.status(200).json({
-      success:    true,
-      sent:       valid.length,
-      skipped:    invalid,
-      message_id: data.message_id || null,
-      balance:    data.balance     || null,
+  // Fetch updated balance (non-critical — ignore errors)
+  let balance = null;
+  try {
+    const br = await fetch(`${TWILIO_BASE}/Accounts/${sid}/Balance.json`, {
+      headers: { Authorization: auth },
     });
-  } catch (e) {
-    return res.status(502).json({ error: "Network error contacting Termii: " + e.message });
-  }
+    if (br.ok) { const bd = await br.json(); balance = parseFloat(bd.balance || 0).toFixed(2); }
+  } catch (_) {}
+
+  return res.status(200).json({
+    success: sent > 0,
+    sent,
+    failed,
+    balance,
+    currency: "USD",
+    errors: errors.length ? errors : undefined,
+  });
 }

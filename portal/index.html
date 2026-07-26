@@ -7344,7 +7344,7 @@ async function renderBroadcastSMS(){
             <i class="ti ti-send"></i> Send to <span id="sms-send-count">${recipients.length}</span> parents
           </button>
           <p style="font-size:11px;color:var(--tx3);margin-top:8px;text-align:center">
-            Each SMS from your Termii balance. Confirm carefully before sending.
+            Each SMS is charged to your Twilio balance. Confirm carefully before sending.
           </p>
         </div>
       </div>
@@ -7363,20 +7363,20 @@ async function renderBroadcastSMS(){
     <!-- Result banner (hidden until sent) -->
     <div id="sms-result" style="display:none;margin-top:14px"></div>`;
 
-  // Fetch Termii balance asynchronously
+  // Fetch Twilio balance asynchronously
   try{
     const r=await fetch("/api/send-sms");
     if(r.ok){
       const d=await r.json();
       const balEl=document.getElementById("sms-balance-area");
-      if(balEl) balEl.innerHTML=`<span style="font-size:12px;color:var(--tx2)">Balance: <strong style="color:var(--tx-ok)">₦${parseFloat(d.balance||0).toLocaleString()}</strong></span>`;
+      if(balEl) balEl.innerHTML=`<span style="font-size:12px;color:var(--tx2)">Balance: <strong style="color:var(--tx-ok)">$${parseFloat(d.balance||0).toFixed(2)}</strong></span>`;
     } else {
       const balEl=document.getElementById("sms-balance-area");
       if(balEl) balEl.innerHTML=`<span style="font-size:11px;color:var(--tx3)">Balance unavailable</span>`;
     }
   }catch(e){
     const balEl=document.getElementById("sms-balance-area");
-    if(balEl) balEl.innerHTML=`<span style="font-size:11px;color:var(--tx-warn)">Add TERMII_API_KEY to Vercel to enable</span>`;
+    if(balEl) balEl.innerHTML=`<span style="font-size:11px;color:var(--tx-warn)">Add Twilio env vars to Vercel to enable</span>`;
   }
 }
 
@@ -7473,7 +7473,7 @@ async function sendBroadcastSMS(){
 
     const resultEl=document.getElementById("sms-result");
     if(r.ok&&d.success){
-      const balNote=d.balance!=null?`<span style="float:right;font-size:12px;color:var(--tx3)">Remaining balance: ₦${parseFloat(d.balance).toLocaleString()}</span>`:"";
+      const balNote=d.balance!=null?`<span style="float:right;font-size:12px;color:var(--tx3)">Remaining balance: $${parseFloat(d.balance).toFixed(2)}</span>`:"";
       if(resultEl) resultEl.innerHTML=`
         <div class="card" style="border-color:#16a34a;background:rgba(22,163,74,.06)">
           <div style="display:flex;align-items:center;gap:10px">
