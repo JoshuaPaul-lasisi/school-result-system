@@ -859,3 +859,23 @@ CREATE INDEX IF NOT EXISTS parent_contacts_date    ON parent_contacts(contact_da
 CREATE INDEX IF NOT EXISTS ext_results_student     ON external_results(student_id);
 CREATE INDEX IF NOT EXISTS ext_results_type        ON external_results(exam_type);
 CREATE INDEX IF NOT EXISTS ext_results_year        ON external_results(exam_year DESC);
+
+-- ── owner loans: personal funds the principal puts into the school ──────────────
+-- Tracked as debt owed back to the principal — separate from the P&L (not school
+-- income or expense). Not term-scoped: the balance carries across terms/sessions.
+CREATE TABLE IF NOT EXISTS owner_loans (
+  id           BIGSERIAL PRIMARY KEY,
+  entry_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  entry_type   TEXT NOT NULL CHECK (entry_type IN ('loan_in','repayment_out')),
+  amount       NUMERIC(12,2) NOT NULL,
+  note         TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE owner_loans ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='owner_loans' AND policyname='anon_all') THEN CREATE POLICY "anon_all" ON owner_loans FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS owner_loans_date ON owner_loans(entry_date DESC);
