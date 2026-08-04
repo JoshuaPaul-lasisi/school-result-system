@@ -1226,9 +1226,9 @@ function updateTermDisplay(){const el=document.getElementById("term-display");if
 /* ── getters / setters ── */
 function getScore(sid,sub){return(store.scores[sid]||{})[sub]||{ca:'',exam:'',test1:'',test2:'',test3:'',test4:'',test5:'',test6:''};}
 function computeTestCA(sid,sub){const sc=getScore(sid,sub);let sum=0,any=false;for(let i=1;i<=6;i++){const v=sc['test'+i];if(v!==''&&v!=null){sum+=parseFloat(v)||0;any=true;}}return any?sum:null;}
-function caMaxFor(sec){return(sec==='JSS'||sec==='SS')?60:40;}
-function examMaxFor(sec){return(sec==='JSS'||sec==='SS')?40:60;}
-function testSlotsFor(sec){return(sec==='JSS'||sec==='SS')?6:2;}
+function caMaxFor(sec){return(sec==='Junior Secondary'||sec==='Senior Secondary')?60:40;}
+function examMaxFor(sec){return(sec==='Junior Secondary'||sec==='Senior Secondary')?40:60;}
+function testSlotsFor(sec){return(sec==='Junior Secondary'||sec==='Senior Secondary')?6:2;}
 function setScore(sid,sub,field,val){if(!store.scores[sid])store.scores[sid]={};if(!store.scores[sid][sub])store.scores[sid][sub]={ca:'',exam:'',test1:'',test2:'',test3:'',test4:'',test5:'',test6:''};store.scores[sid][sub][field]=val;if(field.startsWith('test')){const c=computeTestCA(sid,sub);store.scores[sid][sub].ca=c!==null?c:'';}saveLocalStore();upsertScore(sid,sub);}
 function getAtt(sid){return store.attendance[sid]||{total:57,present:''};}
 function setAtt(sid,field,val){if(!store.attendance[sid])store.attendance[sid]={total:57,present:''};store.attendance[sid][field]=val;saveLocalStore();upsertAttendance(sid);}
