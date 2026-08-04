@@ -3795,7 +3795,7 @@ function renderSettings(){
       <p style="font-size:12px;color:var(--tx2);margin-bottom:0">Set access PINs for each role. Staff members use their role PIN to sign in.</p>
     </div>
     ${[
-      {key:'admin',    stored:storedAdminPinHash, col:'ops_pin_hash',   label:'Office Admin',          icon:'ti-user',     color:'var(--navy)', desc:'Day-to-day access — payments, expenses, stock entry.', id:'admin'},
+      {key:'admin',    stored:storedAdminPinHash, col:'admin_pin_hash', label:'Office Admin',          icon:'ti-user',     color:'var(--navy)', desc:'Day-to-day access — payments, expenses, stock entry.', id:'admin'},
       {key:'ops',      stored:storedOpsPinHash,   col:'operations_pin_hash', label:'Head of Operations', icon:'ti-briefcase',color:'#0F6E56',     desc:'Full operations access — all admin features, full finance, fee setup.', id:'ops'},
       {key:'owner',    stored:storedOwnerPinHash,  col:'owner_pin_hash', label:'Owner / Family',        icon:'ti-home-2',   color:'#B57A1A',     desc:'Read-only full view — finance, reports, staff. Cannot edit anything.', id:'owner'},
       {key:'director', stored:storedPinHash,       col:'pin_hash',       label:'Director',              icon:'ti-crown',    color:'var(--burg)', desc:'Full system control — all features including PIN management.', id:'director'},
@@ -3828,7 +3828,9 @@ async function savePinFor(id, col){
   if(!pin){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a PIN</span>`;return;}
   if(pin!==pin2){if(st)st.innerHTML=`<span style="color:var(--tx-err)">PINs do not match</span>`;return;}
   const hash=await sha256(pin);
-  const{error}=await dbClient.from("admin_config").upsert({id:1,[col]:hash},{onConflict:"id"});
+  const{error}=col==='pin_hash'
+    ?await dbClient.from("admin_config").upsert({id:1,[col]:hash},{onConflict:"id"})
+    :await dbClient.from("admin_config").update({[col]:hash}).eq("id",1);
   if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
   if(col==='pin_hash')          storedPinHash=hash;
   else if(col==='admin_pin_hash') storedAdminPinHash=hash;
