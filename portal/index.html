@@ -1167,7 +1167,7 @@ async function loadFromSupabase() {
     store = {scores:{},attendance:{},character:{},teacherComments:{},principalComments:{}};
     for (const r of sr.data) {
       if (!store.scores[r.student_id]) store.scores[r.student_id]={};
-      store.scores[r.student_id][r.subject]={ca:r.ca??'',exam:r.exam??''};
+      store.scores[r.student_id][r.subject]={ca:r.ca??'',exam:r.exam??'',test1:r.test1??'',test2:r.test2??'',test3:r.test3??'',test4:r.test4??'',test5:r.test5??'',test6:r.test6??''};
     }
     for (const r of ar.data) store.attendance[r.student_id]={total:r.total_days,present:r.days_present??''};
     for (const r of or_.data) {
@@ -1183,7 +1183,7 @@ async function upsertScore(sid, sub) {
   const key=`${sid}|${sub}`; clearTimeout(scoreTimers[key]); markSaving();
   scoreTimers[key]=setTimeout(async()=>{
     const sc=getScore(sid,sub);
-    const {error}=await dbClient.from("scores").upsert({student_id:sid,subject:sub,ca:sc.ca===''?null:parseFloat(sc.ca),exam:sc.exam===''?null:parseFloat(sc.exam),term:currentTerm,session:currentSession},{onConflict:"student_id,subject,term,session"});
+    const {error}=await dbClient.from("scores").upsert({student_id:sid,subject:sub,ca:sc.ca===''?null:parseFloat(sc.ca),exam:sc.exam===''?null:parseFloat(sc.exam),test1:sc.test1===''?null:parseFloat(sc.test1),test2:sc.test2===''?null:parseFloat(sc.test2),test3:sc.test3===''?null:parseFloat(sc.test3),test4:sc.test4===''?null:parseFloat(sc.test4),test5:sc.test5===''?null:parseFloat(sc.test5),test6:sc.test6===''?null:parseFloat(sc.test6),term:currentTerm,session:currentSession},{onConflict:"student_id,subject,term,session"});
     if(error)console.error("score upsert:",error); markSaved();
   },700);
 }
@@ -1224,8 +1224,12 @@ function updateDbIndicator(){
 function updateTermDisplay(){const el=document.getElementById("term-display");if(el)el.textContent=`${currentTerm} · ${currentSession}`;}
 
 /* ── getters / setters ── */
-function getScore(sid,sub){return(store.scores[sid]||{})[sub]||{ca:'',exam:''};}
-function setScore(sid,sub,field,val){if(!store.scores[sid])store.scores[sid]={};if(!store.scores[sid][sub])store.scores[sid][sub]={ca:'',exam:''};store.scores[sid][sub][field]=val;saveLocalStore();upsertScore(sid,sub);}
+function getScore(sid,sub){return(store.scores[sid]||{})[sub]||{ca:'',exam:'',test1:'',test2:'',test3:'',test4:'',test5:'',test6:''};}
+function computeTestCA(sid,sub){const sc=getScore(sid,sub);let sum=0,any=false;for(let i=1;i<=6;i++){const v=sc['test'+i];if(v!==''&&v!=null){sum+=parseFloat(v)||0;any=true;}}return any?sum:null;}
+function caMaxFor(sec){return(sec==='JSS'||sec==='SS')?60:40;}
+function examMaxFor(sec){return(sec==='JSS'||sec==='SS')?40:60;}
+function testSlotsFor(sec){return(sec==='JSS'||sec==='SS')?6:2;}
+function setScore(sid,sub,field,val){if(!store.scores[sid])store.scores[sid]={};if(!store.scores[sid][sub])store.scores[sid][sub]={ca:'',exam:'',test1:'',test2:'',test3:'',test4:'',test5:'',test6:''};store.scores[sid][sub][field]=val;if(field.startsWith('test')){const c=computeTestCA(sid,sub);store.scores[sid][sub].ca=c!==null?c:'';}saveLocalStore();upsertScore(sid,sub);}
 function getAtt(sid){return store.attendance[sid]||{total:57,present:''};}
 function setAtt(sid,field,val){if(!store.attendance[sid])store.attendance[sid]={total:57,present:''};store.attendance[sid][field]=val;saveLocalStore();upsertAttendance(sid);}
 function getChar(sid){return store.character[sid]||'';}
@@ -1412,33 +1416,39 @@ function openStudent(sid){
       <button class="btn btn-sm btn-primary" onclick="showReportCard(${sid})"><i class="ti ti-file-text"></i> Report Card</button>
     </div>`;
   const att=getAtt(sid);
+  const _dsec=s.sec||'Primary',_dslots=testSlotsFor(_dsec),_dcaMax=caMaxFor(_dsec),_dexMax=examMaxFor(_dsec),_dptMax=Math.floor(_dcaMax/_dslots);
+  let _dTestThs='';for(let i=1;i<=_dslots;i++) _dTestThs+=`<th style="text-align:center;padding:8px 4px;font-size:11px;white-space:nowrap">T${i}<br><span style="font-weight:400;color:var(--tx3)">/${_dptMax}</span></th>`;
   document.getElementById("content").innerHTML=`
-    <div class="card">
-      <div class="card-head">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-head" style="padding:12px 16px">
         <span class="card-title">Scores · ${currentTerm}</span>
-        <span style="font-size:11px;color:var(--tx2)">CA /40 · Exam /60</span>
+        <span style="font-size:11px;color:var(--tx2)">${_dslots} weekly tests → CA /${_dcaMax} · Exam /${_dexMax}</span>
       </div>
-      <div class="srow-hdr">
-        <span class="srow-hdr-name">Subject</span>
-        <div class="srow-hdr-fields">
-          <span>CA /40</span><span>Exam /60</span><span>Total</span><span>Grade</span>
-        </div>
+      <div class="entry-scroll">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:var(--bg2)">
+            <th style="text-align:left;padding:8px 12px;white-space:nowrap">Subject</th>
+            ${_dTestThs}
+            <th style="text-align:center;padding:8px 8px;white-space:nowrap">CA<br><span style="font-size:10px;font-weight:400;color:var(--tx3)">/${_dcaMax}</span></th>
+            <th style="text-align:center;padding:8px 8px;white-space:nowrap">Exam<br><span style="font-size:10px;font-weight:400;color:var(--tx3)">/${_dexMax}</span></th>
+            <th style="text-align:center;padding:8px 8px">Total</th>
+            <th style="text-align:center;padding:8px 8px">Grade</th>
+          </tr></thead>
+          <tbody>${subjs.map(sub=>{
+            const sc=getScore(sid,sub),t=total(sid,sub),g=grade(t),k=sub.replace(/\W/g,"_");
+            const ca=computeTestCA(sid,sub);const caDisplay=ca!==null?ca:(sc.ca!==''?sc.ca:'—');
+            let tCells='';for(let i=1;i<=_dslots;i++) tCells+=`<td style="text-align:center;padding:4px 3px"><input class="score-input" type="number" min="0" max="${_dptMax}" placeholder="—" value="${sc['test'+i]||''}" style="width:44px;padding:3px 4px" oninput="setScore(${sid},'${sub}','test${i}',this.value);updateDetailRow(${sid},'${sub}')" /></td>`;
+            return`<tr>
+              <td style="padding:6px 12px;font-weight:500;white-space:nowrap">${sub}</td>
+              ${tCells}
+              <td id="ca-${sid}-${k}" style="text-align:center;padding:6px 8px;font-weight:700;color:var(--burg)">${caDisplay}</td>
+              <td style="text-align:center;padding:4px 4px"><input class="score-input" type="number" min="0" max="${_dexMax}" placeholder="—" value="${sc.exam}" style="width:52px;padding:3px 4px" oninput="setScore(${sid},'${sub}','exam',this.value);updateDetailRow(${sid},'${sub}')" /></td>
+              <td id="dt-${sid}-${k}" style="text-align:center;padding:6px 8px;font-weight:700">${t!==null?t:"—"}</td>
+              <td id="dg-${sid}-${k}" style="text-align:center;padding:6px 8px">${gradeBadge(g)}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>
       </div>
-      ${subjs.map(sub=>{
-        const sc=getScore(sid,sub),t=total(sid,sub),g=grade(t),k=sub.replace(/\W/g,"_");
-        return`<div class="srow">
-          <div class="srow-name">${sub}</div>
-          <div class="mobile-field-labels"><span>CA /40</span><span>Exam /60</span><span>Total</span><span>Grade</span></div>
-          <div class="srow-fields">
-            <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
-              oninput="setScore(${sid},'${sub}','ca',this.value);updateDetailRow(${sid},'${sub}')" />
-            <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
-              oninput="setScore(${sid},'${sub}','exam',this.value);updateDetailRow(${sid},'${sub}')" />
-            <span id="dt-${sid}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</span>
-            <span id="dg-${sid}-${k}" style="text-align:center">${gradeBadge(g)}</span>
-          </div>
-        </div>`;
-      }).join("")}
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Attendance</span></div>
@@ -1469,7 +1479,11 @@ function openStudent(sid){
     </div>`;
 }
 function updateDetailRow(sid,sub){
-  const k=sub.replace(/\W/g,"_"),t=total(sid,sub),g=grade(t);
+  const k=sub.replace(/\W/g,"_");
+  const ca=computeTestCA(sid,sub),sc=getScore(sid,sub);
+  const caEl=document.getElementById(`ca-${sid}-${k}`);
+  if(caEl)caEl.textContent=ca!==null?ca:(sc.ca!==''?sc.ca:'—');
+  const t=total(sid,sub),g=grade(t);
   const te=document.getElementById(`dt-${sid}-${k}`),ge=document.getElementById(`dg-${sid}-${k}`);
   if(te)te.textContent=t!==null?t:"—"; if(ge)ge.innerHTML=gradeBadge(g);
 }
@@ -1527,33 +1541,35 @@ function buildEntryTable(cls,sub){
   const students=base.sort((a,b)=>a.name.localeCompare(b.name));
   const wrap=document.getElementById("entry-table-wrap"); if(!wrap)return;
   if(!students.length){wrap.innerHTML=`<div class="empty"><i class="ti ti-users-off"></i>No students in ${cls}</div>`;return;}
+  const _esec=sectionForClass(cls)||'Primary',_eslots=testSlotsFor(_esec),_ecaMax=caMaxFor(_esec),_eexMax=examMaxFor(_esec),_eptMax=Math.floor(_ecaMax/_eslots);
+  let _eThs='';for(let i=1;i<=_eslots;i++) _eThs+=`<th style="text-align:center;white-space:nowrap;font-size:11px;padding:8px 4px">T${i}<br><span style="font-weight:400;color:var(--tx3)">/${_eptMax}</span></th>`;
   wrap.innerHTML=`
     <div class="card" style="padding:0;overflow:hidden">
       <div style="padding:12px 16px;border-bottom:.5px solid var(--bd3);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <span class="card-title">${cls} · ${sub}</span>
-        <span style="font-size:11px;color:var(--tx2)">${students.length} students · CA max 40 · Exam max 60</span>
+        <span style="font-size:11px;color:var(--tx2)">${students.length} students · ${_eslots} tests → CA /${_ecaMax} · Exam /${_eexMax}</span>
       </div>
       <div class="entry-scroll">
         <table id="entry-tbl">
           <thead><tr>
-            <th>Name</th>
-            <th style="text-align:center;width:90px">CA /40</th>
-            <th style="text-align:center;width:90px">Exam /60</th>
-            <th style="text-align:center;width:70px">Total</th>
-            <th style="text-align:center;width:58px">Grade</th>
+            <th style="white-space:nowrap">Name</th>
+            ${_eThs}
+            <th style="text-align:center;white-space:nowrap;padding:8px 6px">CA<br><span style="font-size:10px;font-weight:400;color:var(--tx3)">/${_ecaMax}</span></th>
+            <th style="text-align:center;white-space:nowrap;padding:8px 6px">Exam<br><span style="font-size:10px;font-weight:400;color:var(--tx3)">/${_eexMax}</span></th>
+            <th style="text-align:center;width:60px">Total</th>
+            <th style="text-align:center;width:54px">Grade</th>
           </tr></thead>
           <tbody>${students.map(s=>{
             const sc=getScore(s.id,sub),t=total(s.id,sub),g=grade(t),k=sub.replace(/\W/g,"_");
+            const ca=computeTestCA(s.id,sub);const caDisplay=ca!==null?ca:(sc.ca!==''?sc.ca:'—');
+            let tCells='';for(let i=1;i<=_eslots;i++) tCells+=`<td style="text-align:center;padding:4px 3px"><input class="score-input" type="number" min="0" max="${_eptMax}" placeholder="—" value="${sc['test'+i]||''}" style="max-width:48px;margin:0 auto;padding:3px" oninput="setScore(${s.id},'${sub}','test${i}',this.value);updateEntryRow(${s.id},'${sub}')" /></td>`;
             return`<tr>
-              <td><div style="display:flex;align-items:center;gap:8px">${avatar(s.id+"")}${s.name}</div></td>
-              <td style="text-align:center">
-                <input class="score-input" type="number" min="0" max="40" placeholder="—" value="${sc.ca}"
-                  style="max-width:70px;margin:0 auto"
-                  oninput="setScore(${s.id},'${sub}','ca',this.value);updateEntryRow(${s.id},'${sub}')" />
-              </td>
-              <td style="text-align:center">
-                <input class="score-input" type="number" min="0" max="60" placeholder="—" value="${sc.exam}"
-                  style="max-width:70px;margin:0 auto"
+              <td style="white-space:nowrap"><div style="display:flex;align-items:center;gap:8px">${avatar(s.id+"")}${s.name}</div></td>
+              ${tCells}
+              <td id="eca-${s.id}-${k}" style="text-align:center;font-weight:700;color:var(--burg);padding:6px 4px">${caDisplay}</td>
+              <td style="text-align:center;padding:4px 3px">
+                <input class="score-input" type="number" min="0" max="${_eexMax}" placeholder="—" value="${sc.exam}"
+                  style="max-width:60px;margin:0 auto"
                   oninput="setScore(${s.id},'${sub}','exam',this.value);updateEntryRow(${s.id},'${sub}')" />
               </td>
               <td id="et-${s.id}-${k}" style="text-align:center;font-weight:600">${t!==null?t:"—"}</td>
@@ -1565,7 +1581,11 @@ function buildEntryTable(cls,sub){
     </div>`;
 }
 function updateEntryRow(sid,sub){
-  const k=sub.replace(/\W/g,"_"),t=total(sid,sub),g=grade(t);
+  const k=sub.replace(/\W/g,"_");
+  const ca=computeTestCA(sid,sub),sc=getScore(sid,sub);
+  const caEl=document.getElementById(`eca-${sid}-${k}`);
+  if(caEl)caEl.textContent=ca!==null?ca:(sc.ca!==''?sc.ca:'—');
+  const t=total(sid,sub),g=grade(t);
   const te=document.getElementById(`et-${sid}-${k}`),ge=document.getElementById(`eg-${sid}-${k}`);
   if(te)te.textContent=t!==null?t:"—"; if(ge)ge.innerHTML=gradeBadge(g);
 }
@@ -1575,12 +1595,14 @@ function reportCardHTML(sid){
   const s=roster.find(x=>x.id===sid)||STUDENTS.find(x=>x.id===sid); if(!s)return"";
   if(!s.sec)s.sec=CLASS_SECTION[s.cls]||"KG";
   const subjs=getSubjectsFor(s.sec),att=getAtt(sid);
+  const _rcsec=s.sec||'Primary',_rccaMax=caMaxFor(_rcsec),_rcexMax=examMaxFor(_rcsec);
   const pct=att.present?Math.round(parseInt(att.present)/parseInt(att.total)*100):0;
   const rows=subjs.map(sub=>{
     const sc=getScore(sid,sub),t=total(sid,sub),g=grade(t),isEdge=sub==="EDGE Formation";
+    const ca=computeTestCA(sid,sub);const caDisplay=ca!==null?ca:(sc.ca||"—");
     return`<tr style="${isEdge?"background:var(--bg2)":""}">
       <td>${sub}${isEdge?' <span style="font-size:10px;color:#8A6F30">★</span>':''}</td>
-      <td style="text-align:center">${sc.ca||"—"}</td><td style="text-align:center">${sc.exam||"—"}</td>
+      <td style="text-align:center">${caDisplay}</td><td style="text-align:center">${sc.exam||"—"}</td>
       <td style="text-align:center;font-weight:600">${t!==null?t:"—"}</td>
       <td style="text-align:center">${g}</td>
       <td style="font-size:11px;color:var(--tx2)">${remark(g)}</td>
@@ -1603,7 +1625,7 @@ function reportCardHTML(sid){
         <div class="rc-info-row"><span class="rc-info-label">Session:</span><span class="rc-info-val">${currentSession}</span></div>
       </div>
       <table class="rc-table">
-        <thead><tr><th>Subject</th><th>CA /40</th><th>Exam /60</th><th>Total</th><th>Grade</th><th>Remark</th></tr></thead>
+        <thead><tr><th>Subject</th><th>CA /${_rccaMax}</th><th>Exam /${_rcexMax}</th><th>Total</th><th>Grade</th><th>Remark</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="att-row">
@@ -6210,7 +6232,8 @@ async function generateResultPDF(sid){
 
   // ── Subject table ─────────────────────────────────────────
   const tblX=15, tblW=W-30;
-  const cols=[{w:66,label:'Subject'},{w:18,label:'CA /40'},{w:22,label:'Exam /60'},{w:18,label:'Total'},{w:16,label:'Grade'},{w:tblW-140,label:'Remark'}];
+  const _pdfsec=s.sec||sectionForClass(s.cls)||'Primary',_pdfcaMax=caMaxFor(_pdfsec),_pdfexMax=examMaxFor(_pdfsec);
+  const cols=[{w:66,label:'Subject'},{w:18,label:`CA /${_pdfcaMax}`},{w:22,label:`Exam /${_pdfexMax}`},{w:18,label:'Total'},{w:16,label:'Grade'},{w:tblW-140,label:'Remark'}];
   let cx=tblX;
   const colX=cols.map(c=>{const x=cx;cx+=c.w;return x;});
 
@@ -6233,7 +6256,8 @@ async function generateResultPDF(sid){
     rowAlt=!rowAlt;
     doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
     doc.text(sub,colX[0]+2,y);
-    doc.text(sc.ca!=null?String(sc.ca):'—',colX[1]+cols[1].w/2,y,{align:'center'});
+    const pdfCA=computeTestCA(sid,sub);const pdfCAStr=pdfCA!==null?String(pdfCA):(sc.ca!=null?String(sc.ca):'—');
+    doc.text(pdfCAStr,colX[1]+cols[1].w/2,y,{align:'center'});
     doc.text(sc.exam!=null?String(sc.exam):'—',colX[2]+cols[2].w/2,y,{align:'center'});
     if(t!==null){doc.setFont('helvetica','bold');}
     doc.text(t!==null?String(t):'—',colX[3]+cols[3].w/2,y,{align:'center'});

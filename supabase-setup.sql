@@ -25,6 +25,14 @@ DO $$ BEGIN
   ) THEN ALTER TABLE scores ADD COLUMN ca2 NUMERIC(5,2); END IF;
 END $$;
 
+-- Add weekly test columns (test1-test6) for granular score tracking
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scores' AND column_name='test1') THEN ALTER TABLE scores ADD COLUMN test1 NUMERIC(5,2); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scores' AND column_name='test2') THEN ALTER TABLE scores ADD COLUMN test2 NUMERIC(5,2); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scores' AND column_name='test3') THEN ALTER TABLE scores ADD COLUMN test3 NUMERIC(5,2); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scores' AND column_name='test4') THEN ALTER TABLE scores ADD COLUMN test4 NUMERIC(5,2); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scores' AND column_name='test5') THEN ALTER TABLE scores ADD COLUMN test5 NUMERIC(5,2); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scores' AND column_name='test6') THEN ALTER TABLE scores ADD COLUMN test6 NUMERIC(5,2); END IF; END $$;
+
 CREATE TABLE IF NOT EXISTS attendance (
   id           BIGSERIAL PRIMARY KEY,
   student_id   INTEGER NOT NULL,
