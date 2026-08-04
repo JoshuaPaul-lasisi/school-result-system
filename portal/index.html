@@ -650,6 +650,7 @@ let paymentLog = [];        // array of payment log rows for current term/sessio
 let expenseLog = [];        // array of expense log rows for current term/session
 let assetsStore = [];       // all asset register rows (no term filter)
 let incidentLog = [];       // all incident log rows (no term filter)
+let ownerLoans = [];        // all owner loan ledger rows (no term filter) — principal only
 let edgeTestsStore = [];    // EDGE tests for current term/session
 let _edgeFilterCls = "", _edgeFilterType = "";
 let _edgeAdminSubTab = "weekly";
@@ -849,6 +850,7 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('finance-expenses',null,this)"><i class="ti ti-cash-banknote"></i>Expenses</div>
         <div class="nav-item" onclick="nav('stock',null,this)"><i class="ti ti-shopping-bag"></i>Stock &amp; Sales</div>
         ${canDo('principal')?`<div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>`:""}
+        ${canDo('principal')?`<div class="nav-item" onclick="nav('finance-pnl',null,this)"><i class="ti ti-report-money"></i>Principal P&amp;L</div>`:""}
       </div>
       <div class="nav-section">
         <div class="nav-label">Bills</div>
@@ -1120,6 +1122,12 @@ async function loadIncidentLog() {
     .select("*").order("incident_date",{ascending:false}).order("created_at",{ascending:false});
   if (!error && data) incidentLog = data;
 }
+async function loadOwnerLoans() {
+  if (!dbClient) return;
+  const {data,error} = await dbClient.from("owner_loans")
+    .select("*").order("entry_date",{ascending:false}).order("created_at",{ascending:false});
+  if (!error && data) ownerLoans = data;
+}
 async function loadFeederSchools() {
   if (!dbClient) return;
   const {data,error} = await dbClient.from("feeder_schools").select("*").order("name");
@@ -1157,7 +1165,7 @@ async function loadInventoryTxns() {
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments(), loadTeacherObsLog(), loadParentContacts(), loadExternalResults()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadOwnerLoans(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments(), loadTeacherObsLog(), loadParentContacts(), loadExternalResults()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1267,6 +1275,7 @@ function nav(page,arg,el){
   else if(page==="finance-log")renderFinanceLog();
   else if(page==="finance-expenses")renderExpenses();
   else if(page==="finance-ledger")renderFinanceLedger();
+  else if(page==="finance-pnl")renderFinancePnl();
   else if(page==="finance-bills")renderTermBills();
   else if(page==="assets")renderAssets();
   else if(page==="incidents")renderIncidentLog();
@@ -3036,6 +3045,92 @@ function renderFinanceLedger(){
     :`<div class="card"><div class="empty"><i class="ti ti-table-off"></i>No students match</div></div>`}`;
 }
 
+/* ── principal's P&L + owner loan ledger ── */
+function renderFinancePnl(){
+  document.getElementById("page-title").textContent="Principal's P&L";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML="";
+  if(!canDo('principal')){
+    document.getElementById("content").innerHTML=`<div class="card" style="max-width:420px">
+      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> Principal access required</span></div>
+      <p style="font-size:13px;color:var(--tx2)">This financial summary is only visible to the principal.</p>
+    </div>`;
+    return;
+  }
+
+  const totalCollected=paymentLog.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const stockRevenue=stockTermRevenue();
+  const totalIncome=totalCollected+stockRevenue;
+  const totalExpenses=expenseLog.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const netResult=totalIncome-totalExpenses;
+
+  const totalPutIn=ownerLoans.filter(l=>l.entry_type==='loan_in').reduce((s,l)=>s+parseFloat(l.amount||0),0);
+  const totalRepaid=ownerLoans.filter(l=>l.entry_type==='repayment_out').reduce((s,l)=>s+parseFloat(l.amount||0),0);
+  const owedToPrincipal=totalPutIn-totalRepaid;
+  const today=new Date().toISOString().split("T")[0];
+  const sortedLoans=[...ownerLoans].sort((a,b)=>(b.entry_date||"").localeCompare(a.entry_date||"")||(b.id-a.id));
+
+  document.getElementById("content").innerHTML=`
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-chart-bar"></i> P&amp;L — ${currentTerm} · ${currentSession}</span></div>
+      <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div class="stat"><div class="stat-label">Fees income</div><div class="stat-val" style="color:var(--tx-ok)">₦${totalCollected.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Stock sales</div><div class="stat-val" style="color:var(--tx-ok)">₦${stockRevenue.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Expenses (incl. private)</div><div class="stat-val" style="color:var(--tx-err)">₦${totalExpenses.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Net result</div><div class="stat-val" style="color:${netResult>=0?"var(--tx-ok)":"var(--tx-err)"}">₦${netResult.toLocaleString()}</div></div>
+      </div>
+      <p style="font-size:11px;color:var(--tx2);margin-top:10px">This is the current period only — switch term/session in Settings (including "Summer Coaching") to see a different period's P&amp;L. Includes private expenses, which stay hidden from office admin.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-cash-banknote"></i> Owner Loan Ledger — all time</span></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Money you personally put into the school is tracked here as debt the school owes you back — separate from the P&amp;L above, and not counted as school income or expense.</p>
+      <div class="stats-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+        <div class="stat"><div class="stat-label">Total you've put in</div><div class="stat-val">₦${totalPutIn.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Total repaid to you</div><div class="stat-val">₦${totalRepaid.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Balance the school owes you</div><div class="stat-val" style="color:${owedToPrincipal>0?"var(--tx-err)":"var(--tx-ok)"}">₦${owedToPrincipal.toLocaleString()}</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px">
+        <div class="field" style="margin:0"><label>Type</label>
+          <select id="loan-type">
+            <option value="loan_in">Money I put in</option>
+            <option value="repayment_out">School repaid me</option>
+          </select></div>
+        <div class="field" style="margin:0"><label>Amount (₦)</label><input type="number" id="loan-amount" min="0" placeholder="0" /></div>
+        <div class="field" style="margin:0"><label>Date</label><input type="date" id="loan-date" value="${today}" /></div>
+        <button class="btn btn-primary" style="height:38px" onclick="submitOwnerLoanEntry()"><i class="ti ti-plus"></i> Add</button>
+      </div>
+      <div class="field"><label>Note (optional)</label><input id="loan-note" placeholder="e.g. Covered July staff salaries shortfall" /></div>
+      <div id="loan-status" style="margin-bottom:8px;font-size:12px"></div>
+      ${sortedLoans.length?`<div style="overflow-x:auto"><table>
+        <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr></thead>
+        <tbody>${sortedLoans.map(l=>`<tr>
+          <td style="white-space:nowrap">${l.entry_date}</td>
+          <td>${l.entry_type==='loan_in'?`<span style="color:var(--tx2)">Put in</span>`:`<span style="color:var(--tx-ok)">Repaid</span>`}</td>
+          <td style="font-weight:600">₦${parseFloat(l.amount).toLocaleString()}</td>
+          <td style="color:var(--tx2)">${l.note||"—"}</td>
+          <td><button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteOwnerLoan(${l.id})"><i class="ti ti-trash"></i></button></td>
+        </tr>`).join("")}</tbody>
+      </table></div>`:`<div class="empty"><i class="ti ti-cash-banknote"></i>No entries yet</div>`}
+    </div>`;
+}
+async function submitOwnerLoanEntry(){
+  const type=document.getElementById("loan-type")?.value;
+  const amount=parseFloat(document.getElementById("loan-amount")?.value);
+  const date=document.getElementById("loan-date")?.value;
+  const note=document.getElementById("loan-note")?.value?.trim()||null;
+  const st=document.getElementById("loan-status");
+  if(!amount||amount<=0){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a valid amount</span>`;return;}
+  const{error}=await dbClient.from("owner_loans").insert({entry_type:type,amount,entry_date:date||new Date().toISOString().split("T")[0],note});
+  if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+  await loadOwnerLoans(); renderFinancePnl();
+}
+async function deleteOwnerLoan(id){
+  if(!confirm("Delete this ledger entry?"))return;
+  await dbClient.from("owner_loans").delete().eq("id",id);
+  await loadOwnerLoans(); renderFinancePnl();
+}
+
 /* ── finance: expenses ── */
 function renderExpenses(){
   document.getElementById("page-title").textContent="Expenses";
@@ -3675,12 +3770,12 @@ function renderSettings(){
       <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Currently viewing: <strong>${currentTerm} · ${currentSession}</strong></p>
       <div class="settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="field"><label>Term</label>
-          <select id="sw-term">${["First Term","Second Term","Third Term"].map(t=>`<option ${t===currentTerm?"selected":""}>${t}</option>`).join("")}</select></div>
+          <select id="sw-term">${["First Term","Second Term","Third Term","Summer Coaching"].map(t=>`<option ${t===currentTerm?"selected":""}>${t}</option>`).join("")}</select></div>
         <div class="field"><label>Session (e.g. 2025/2026)</label>
           <input type="text" id="sw-session" value="${currentSession}" placeholder="2025/2026" /></div>
       </div>
       <button class="btn btn-primary" onclick="switchTermSession()"><i class="ti ti-refresh"></i> Switch</button>
-      <p style="font-size:11px;color:var(--tx2);margin-top:8px">Previous terms remain in the database and are accessible by switching back.</p>
+      <p style="font-size:11px;color:var(--tx2);margin-top:8px">Previous terms remain in the database and are accessible by switching back. "Summer Coaching" covers the paid coaching period between Third Term of one session and First Term of the next — use it to log its own fees, payments, and expenses (e.g. staff pay) separately from either session's terms.</p>
     </div>
     <div class="card">
       <div class="card-head">
