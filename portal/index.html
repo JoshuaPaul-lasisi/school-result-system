@@ -367,6 +367,9 @@
     .role-pill{display:flex;align-items:center;gap:8px;background:var(--bg);border:.5px solid var(--bd3);padding:6px 14px;border-radius:20px;font-size:12px}
     .role-pill-admin{border-color:var(--navy)}
     .role-pill-principal{border-color:var(--burg)}
+    .role-pill-operations{border-color:#0F6E56}
+    .role-pill-owner{border-color:#B57A1A}
+    .role-pill-director{border-color:var(--burg)}
 
     /* ── sign-in required notice ── */
     .signin-notice{background:var(--bg2);border:.5px solid var(--bd3);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:10px;margin-bottom:12px}
@@ -635,9 +638,14 @@ let staffList = [];
 let annexList = [{id:1,name:"Mushin",address:"12, Bamgboye Street, Off Alafia Street, Mushin, Lagos"},{id:2,name:"Obafemi-Owode",address:"9, Assemblies of God Road, Obafemi-Owode, Ogun"}];
 let currentAnnexFilter = "";
 let adminUnlocked = false;
-let storedPinHash = null;
-let storedAdminPinHash = null;
-let _role = null;           // null | 'admin' | 'principal'
+let storedPinHash = null;        // director
+let storedAdminPinHash = null;   // office admin
+let storedOpsPinHash = null;     // head of operations
+let storedOwnerPinHash = null;   // owner / family
+let _role = null;           // null | 'admin' | 'operations' | 'owner' | 'director'
+const _ROLE_LABELS  = {admin:'Office Admin', operations:'Head of Operations', owner:'Owner', director:'Director'};
+const _ROLE_ICONS   = {admin:'ti-user', operations:'ti-briefcase', owner:'ti-home-2', director:'ti-crown'};
+const _ROLE_COLORS  = {admin:'var(--navy)', operations:'#0F6E56', owner:'#B57A1A', director:'var(--burg)'};
 let inventoryItems = [];    // master item list
 let inventoryTxns = [];     // all transactions (all time, for stock levels)
 let _curPage = "dashboard", _curArg = null;
@@ -708,9 +716,9 @@ function renderHub(){
       </div>
       <div class="hub-auth">
         ${_role
-          ?`<div class="role-pill role-pill-${_role}" >
-              <i class="ti ti-${_role==='principal'?'shield-check':'user-check'}" style="color:${_role==='principal'?'var(--burg)':'var(--navy)'}"></i>
-              <span style="font-weight:500">${_role==='principal'?'Principal':'Office Admin'}</span>
+          ?`<div class="role-pill role-pill-${_role}">
+              <i class="ti ${_ROLE_ICONS[_role]||'ti-user'}" style="color:${_ROLE_COLORS[_role]||'var(--navy)'}"></i>
+              <span style="font-weight:500">${_ROLE_LABELS[_role]||_role}</span>
               <button class="btn btn-sm" onclick="signOut()" style="padding:3px 10px;font-size:11px">Sign out</button>
             </div>`
           :`<button class="btn" onclick="openLoginModal()" style="font-size:12px;padding:6px 16px;border-radius:20px">
@@ -735,14 +743,14 @@ function renderHub(){
           {id:"calendar",    icCls:"tile-ic-calendar",   icon:"ti-calendar-event",  label:"School Calendar",   desc:"Events, competition dates & term schedule"},
           {id:"timetable",   icCls:"tile-ic-timetable",  icon:"ti-calendar-time",   label:"Timetable",         desc:"JSS–SS class schedules & teacher assignments"},
           {id:"website",     icCls:"tile-ic-website",    icon:"ti-world",           label:"Website",           desc:"Public site news, gallery & enquiries", needsAuth:true},
-          {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", locked:true},
+          {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", needsOps:true},
         ].map(t=>`
-          <div class="hub-tile${t.locked||(!canDo('admin')&&t.needsAuth)?" tile-locked":""}" onclick="enterSection('${t.id}')">
+          <div class="hub-tile${(t.needsOps&&!canDo('ops'))||(!_role&&t.needsAuth)?" tile-locked":""}" onclick="enterSection('${t.id}')">
             <div class="hub-tile-icon ${t.icCls}"><i class="ti ${t.icon}"></i></div>
             <div class="hub-tile-label">${t.label}</div>
             <div class="hub-tile-desc">${t.desc}</div>
-            ${t.locked?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> PIN required</div>`:""}
-            ${!t.locked&&t.needsAuth&&!canDo('admin')?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> Sign in required</div>`:""}
+            ${t.needsOps&&!canDo('ops')?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> ${_role?'Insufficient access':'Sign in required'}</div>`:""}
+            ${!t.needsOps&&t.needsAuth&&!_role?`<div class="hub-tile-lock"><i class="ti ti-lock" style="font-size:9px"></i> Sign in required</div>`:""}
           </div>`).join("")}
       </div>
     </div>`;
@@ -751,29 +759,12 @@ function renderHub(){
 function navToHub(){ renderHub(); closeSidebar(); }
 
 function enterSection(name){
-  if((name==="finance"||name==="entrance"||name==="website")&&!canDo('admin')){
-    openLoginModal();
-    return;
+  if((name==="finance"||name==="entrance"||name==="website")&&!_role){
+    openLoginModal(); return;
   }
-  if(name==="principals-desk"&&!adminUnlocked){
-    openModal("Principal's Desk",`
-      <div style="text-align:center;padding:4px 0 18px">
-        <div class="tile-ic-principal" style="width:56px;height:56px;border-radius:16px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center">
-          <i class="ti ti-shield-lock" style="font-size:28px"></i>
-        </div>
-        <p style="font-size:13px;color:var(--tx2)">
-          ${storedPinHash===null?"Create your PIN to access Principal's Desk":"Enter your PIN to continue"}
-        </p>
-      </div>
-      ${storedPinHash===null
-        ?`<div class="field"><label>New PIN</label><input type="password" id="hub-pin" placeholder="Enter PIN…"></div>
-          <div class="field"><label>Confirm PIN</label><input type="password" id="hub-pin2" placeholder="Repeat PIN…"></div>`
-        :`<div class="field"><label>PIN</label><input type="password" id="hub-pin" placeholder="Enter PIN…" onkeydown="if(event.key==='Enter')submitHubPin()"></div>`}
-      <button class="btn btn-primary" style="width:100%" onclick="submitHubPin()">
-        <i class="ti ti-lock-open"></i> ${storedPinHash===null?"Create PIN & Enter":"Enter"}
-      </button>`);
-    setTimeout(()=>document.getElementById("hub-pin")?.focus(),80);
-    return;
+  if(name==="principals-desk"){
+    if(!canDo('ops')){openLoginModal();return;}
+    adminUnlocked=true;
   }
   _curSection=name;
   document.getElementById("app").classList.remove("hub-mode");
@@ -848,7 +839,7 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('finance-log',null,this)"><i class="ti ti-receipt"></i>Fee Payments</div>
         <div class="nav-item" onclick="nav('finance-expenses',null,this)"><i class="ti ti-cash-banknote"></i>Expenses</div>
         <div class="nav-item" onclick="nav('stock',null,this)"><i class="ti ti-shopping-bag"></i>Stock &amp; Sales</div>
-        ${canDo('principal')?`<div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>`:""}
+        ${canDo('finance-view')?`<div class="nav-item" onclick="nav('finance-ledger',null,this)"><i class="ti ti-table"></i>Ledger</div>`:""}
       </div>
       <div class="nav-section">
         <div class="nav-label">Bills</div>
@@ -876,7 +867,7 @@ function renderSidebar(section){
         <div class="nav-label">Schools</div>
         <div class="nav-item" onclick="nav('feeder-schools',null,this)"><i class="ti ti-building-school"></i>Feeder Schools</div>
       </div>
-      ${canDo('principal')?`<div class="nav-section">
+      ${canDo('ops')?`<div class="nav-section">
         <div class="nav-label">Results</div>
         <div class="nav-item" onclick="nav('email-results',null,this)"><i class="ti ti-mail"></i>Email Results</div>
       </div>`:""}`,
@@ -1031,9 +1022,13 @@ async function loadStaff() {
 
 async function loadAdminPin() {
   if (!dbClient) return;
-  const {data} = await dbClient.from("admin_config").select("pin_hash,admin_pin_hash").eq("id",1).single();
-  if (data) { storedPinHash = data.pin_hash; storedAdminPinHash = data.admin_pin_hash||null; }
-  else { storedPinHash = null; storedAdminPinHash = null; }
+  const {data} = await dbClient.from("admin_config").select("pin_hash,admin_pin_hash,operations_pin_hash,owner_pin_hash").eq("id",1).single();
+  if (data) {
+    storedPinHash      = data.pin_hash||null;
+    storedAdminPinHash = data.admin_pin_hash||null;
+    storedOpsPinHash   = data.operations_pin_hash||null;
+    storedOwnerPinHash = data.owner_pin_hash||null;
+  } else { storedPinHash=null; storedAdminPinHash=null; storedOpsPinHash=null; storedOwnerPinHash=null; }
 }
 
 async function loadExamPapers() {
@@ -1472,7 +1467,7 @@ function openStudent(sid){
       <div class="field"><label>Teacher's comment</label>
         <textarea rows="2" placeholder="Teacher's observation…" oninput="setTComment(${sid},this.value)">${getTComment(sid)}</textarea></div>
       <div class="field"><label>Principal's comment</label>
-        ${canDo('principal')
+        ${canDo('ops')
           ?`<textarea rows="2" placeholder="Principal's comment…" oninput="setPComment(${sid},this.value)">${getPComment(sid)}</textarea>`
           :`<div style="min-height:36px;border:.5px solid var(--bd3);border-radius:var(--r);padding:7px 10px;font-size:12px;color:${getPComment(sid)?'var(--tx)':'var(--tx3)'}">${getPComment(sid)||'Principal access required'}</div>`}
       </div>
@@ -1771,26 +1766,20 @@ let _adminTab="students";
 let _adminClassFilter="";
 function renderAdmin(){
   document.getElementById("page-title").textContent="Admin Panel";
-  document.getElementById("page-meta").textContent=adminUnlocked?"Unlocked":"PIN required";
-  document.getElementById("topbar-actions").innerHTML=adminUnlocked?`<button class="btn btn-sm" onclick="lockAdmin()"><i class="ti ti-lock"></i> Lock</button>`:"";
+  document.getElementById("page-meta").textContent=_role?(_ROLE_LABELS[_role]||_role):"Sign in required";
+  document.getElementById("topbar-actions").innerHTML=canDo('ops')?`<button class="btn btn-sm" onclick="signOut()"><i class="ti ti-lock"></i> Sign Out</button>`:"";
   if(!dbClient){
     document.getElementById("content").innerHTML=`<div class="card"><div class="empty"><i class="ti ti-plug-off"></i>Connect Supabase first to use Admin</div></div>`;return;
   }
-  if(!adminUnlocked){
-    document.getElementById("content").innerHTML=`<div class="card" style="max-width:400px">
-      <div class="card-head"><span class="card-title"><i class="ti ti-shield-lock"></i> Admin Access</span></div>
-      ${storedPinHash===null
-        ?`<p style="font-size:13px;color:var(--tx2);margin-bottom:12px">No PIN set yet. Create your admin PIN:</p>
-          <div class="field"><label>New PIN</label><input type="password" id="admin-pin" placeholder="Enter PIN…" /></div>
-          <div class="field"><label>Confirm PIN</label><input type="password" id="admin-pin2" placeholder="Repeat PIN…" /></div>`
-        :`<p style="font-size:13px;color:var(--tx2);margin-bottom:12px">Enter your admin PIN:</p>
-          <div class="field"><label>PIN</label><input type="password" id="admin-pin" placeholder="Enter PIN…" onkeydown="if(event.key==='Enter')submitAdminPin()" /></div>`}
-      <button class="btn btn-primary" onclick="submitAdminPin()"><i class="ti ti-lock-open"></i> ${storedPinHash===null?"Create PIN & Unlock":"Unlock"}</button>
+  if(!canDo('ops')){
+    document.getElementById("content").innerHTML=`<div class="card" style="max-width:420px">
+      <div class="card-head"><span class="card-title"><i class="ti ti-shield-lock"></i> Access Required</span></div>
+      <p style="font-size:13px;color:var(--tx2);margin-bottom:16px">Sign in as <strong>Head of Operations</strong> or <strong>Director</strong> to access this panel.</p>
+      <button class="btn btn-primary" onclick="openLoginModal()"><i class="ti ti-login"></i> Sign In</button>
     </div>`;
-    setTimeout(()=>document.getElementById("admin-pin")?.focus(),50);
     return;
   }
-  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","schemes",...(canDo('principal')?["subjects"]:[]),"data-quality","security"];
+  const tabs=["students","staff","new-term","exam-papers","fee-setup","edge","schemes",...(canDo('ops')?["subjects"]:[]),"data-quality","security"];
   const tabLabels={"students":"Students","staff":"Staff","new-term":"New Term","exam-papers":"Exam Papers","fee-setup":"Fee Setup","edge":"EDGE Tests","schemes":"Schemes","subjects":"Subjects","data-quality":"Data Quality","security":"Security"};
   document.getElementById("content").innerHTML=`
     <div class="atabs">${tabs.map(t=>`<div class="atab ${t===_adminTab?"active":""}" onclick="switchAdminTab('${t}')">${tabLabels[t]}</div>`).join("")}</div>
@@ -1798,7 +1787,7 @@ function renderAdmin(){
   renderAdminTab();
 }
 function switchAdminTab(tab){ _adminTab=tab; _adminClassFilter=""; renderAdmin(); }
-function lockAdmin(){ adminUnlocked=false; navToHub(); }
+function lockAdmin(){ signOut(); }
 function setAdminClassFilter(val){ _adminClassFilter=val; renderAdminTab(); }
 
 async function submitAdminPin(){
@@ -2826,7 +2815,7 @@ function renderFinanceLog(){
               </div>
               <div style="display:flex;align-items:center;gap:8px">
                 <span style="font-weight:600;color:var(--tx-ok)">₦${parseFloat(p.amount).toLocaleString()}</span>
-                ${canDo('principal')?`<button class="btn btn-sm" style="padding:3px 8px;color:var(--tx-err)" onclick="deletePaymentEntry(${p.id})"><i class="ti ti-trash"></i></button>`:""}
+                ${canDo('ops')?`<button class="btn btn-sm" style="padding:3px 8px;color:var(--tx-err)" onclick="deletePaymentEntry(${p.id})"><i class="ti ti-trash"></i></button>`:""}
               </div>
             </div>`).join("")}
         </div>`:`<div class="empty"><i class="ti ti-receipt-off"></i>No entries today</div>`}
@@ -3006,10 +2995,10 @@ function renderFinanceLedger(){
   document.getElementById("page-title").textContent="Payment Ledger";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
   document.getElementById("topbar-actions").innerHTML="";
-  if(!canDo('principal')){
+  if(!canDo('finance-view')){
     document.getElementById("content").innerHTML=`<div class="card" style="max-width:420px">
-      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> Principal access required</span></div>
-      <p style="font-size:13px;color:var(--tx2)">The full payment ledger is only visible to the principal.</p>
+      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> Access required</span></div>
+      <p style="font-size:13px;color:var(--tx2)">The full payment ledger is visible to Operations, Owner, and Director.</p>
     </div>`;
     return;
   }
@@ -3065,7 +3054,7 @@ function renderExpenses(){
   document.getElementById("topbar-actions").innerHTML="";
   const cats=["Staff Cost","Supplies","Maintenance","Programme Cost","Other"];
   const today=new Date().toISOString().split("T")[0];
-  const isPrincipal=canDo('principal');
+  const canOps=canDo('ops');
 
   // shared: add-expense form
   const addForm=`
@@ -3083,10 +3072,10 @@ function renderExpenses(){
         <div class="field" style="margin:0"><label>Date</label><input type="date" id="exp-date" value="${today}" /></div>
         <div class="field" style="margin:0"><label>Receipt / Reference (optional)</label><input id="exp-ref" placeholder="Receipt #, transfer ref…" /></div>
       </div>
-      ${isPrincipal?`<div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      ${canOps?`<div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <input type="checkbox" id="exp-private" style="width:auto" />
         <label for="exp-private" style="margin:0;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
-          <i class="ti ti-lock" style="font-size:13px;color:var(--tx3)"></i> Private — principal view only (hidden from admin)
+          <i class="ti ti-lock" style="font-size:13px;color:var(--tx3)"></i> Private — hidden from Office Admin
         </label>
       </div>`:""}
       <div id="exp-status" style="margin-top:6px;font-size:12px"></div>
@@ -3155,7 +3144,7 @@ function renderExpenses(){
                   ${e.is_private?'<i class="ti ti-lock" style="font-size:10px"></i> Private':'<i class="ti ti-eye" style="font-size:10px"></i> Visible'}
                 </button>
               </td>
-              <td>${canDo('principal')?`<button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteExpense(${e.id})"><i class="ti ti-trash"></i></button>`:""}</td>
+              <td>${canDo('ops')?`<button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteExpense(${e.id})"><i class="ti ti-trash"></i></button>`:""}</td>
             </tr>`).join("")}</tbody>
           </table>`
         :`<div class="empty"><i class="ti ti-cash-banknote"></i>No expenses recorded for this term</div>`}
@@ -3704,35 +3693,55 @@ function renderSettings(){
       <button class="btn btn-primary" onclick="switchTermSession()"><i class="ti ti-refresh"></i> Switch</button>
       <p style="font-size:11px;color:var(--tx2);margin-top:8px">Previous terms remain in the database and are accessible by switching back.</p>
     </div>
+    ${canDo('director')?`
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-key" style="color:var(--burg)"></i> PIN Management</span><span class="badge badge-neutral">Director only</span></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:0">Set access PINs for each role. Staff members use their role PIN to sign in.</p>
+    </div>
+    ${[
+      {key:'admin',    stored:storedAdminPinHash, col:'ops_pin_hash',   label:'Office Admin',          icon:'ti-user',     color:'var(--navy)', desc:'Day-to-day access — payments, expenses, stock entry.', id:'admin'},
+      {key:'ops',      stored:storedOpsPinHash,   col:'operations_pin_hash', label:'Head of Operations', icon:'ti-briefcase',color:'#0F6E56',     desc:'Full operations access — all admin features, full finance, fee setup.', id:'ops'},
+      {key:'owner',    stored:storedOwnerPinHash,  col:'owner_pin_hash', label:'Owner / Family',        icon:'ti-home-2',   color:'#B57A1A',     desc:'Read-only full view — finance, reports, staff. Cannot edit anything.', id:'owner'},
+      {key:'director', stored:storedPinHash,       col:'pin_hash',       label:'Director',              icon:'ti-crown',    color:'var(--burg)', desc:'Full system control — all features including PIN management.', id:'director'},
+    ].map(r=>`
     <div class="card">
       <div class="card-head">
-        <span class="card-title"><i class="ti ti-user" style="color:var(--navy)"></i> Office Admin PIN</span>
-        ${storedAdminPinHash?`<span class="badge badge-ok"><i class="ti ti-check"></i> PIN set</span>`:`<span class="badge badge-neutral">Not set</span>`}
+        <span class="card-title"><i class="ti ${r.icon}" style="color:${r.color}"></i> ${r.label} PIN</span>
+        ${r.stored?`<span class="badge badge-ok"><i class="ti ti-check"></i> Set</span>`:`<span class="badge badge-neutral">Not set</span>`}
       </div>
-      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Set a separate PIN for your office admin / front-desk staff. They can log payments, expenses, and stock transactions once signed in.</p>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">${r.desc}</p>
       <div class="settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="field"><label>${storedAdminPinHash?"New admin PIN":"Create admin PIN"}</label>
-          <input type="password" id="set-admin-pin" placeholder="Enter PIN…" /></div>
+        <div class="field"><label>${r.stored?"New PIN":"Create PIN"}</label>
+          <input type="password" id="set-pin-${r.id}" placeholder="Enter PIN…" /></div>
         <div class="field"><label>Confirm PIN</label>
-          <input type="password" id="set-admin-pin2" placeholder="Repeat PIN…" /></div>
+          <input type="password" id="set-pin2-${r.id}" placeholder="Repeat PIN…" /></div>
       </div>
-      <button class="btn btn-primary" onclick="saveAdminPin()"><i class="ti ti-device-floppy"></i> ${storedAdminPinHash?"Update Admin PIN":"Set Admin PIN"}</button>
-      <div id="admin-pin-status" style="margin-top:8px;font-size:12px"></div>
-    </div>`;
+      <button class="btn btn-primary" onclick="savePinFor('${r.id}','${r.col}')"><i class="ti ti-device-floppy"></i> ${r.stored?"Update":"Set"} ${r.label} PIN</button>
+      <div id="pin-status-${r.id}" style="margin-top:8px;font-size:12px"></div>
+    </div>`).join('')}
+    `:`<div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> PIN Management</span></div>
+      <p style="font-size:12px;color:var(--tx2)">Only the Director can manage access PINs.</p>
+    </div>`}
+`;
 }
-async function saveAdminPin(){
-  const pin=document.getElementById("set-admin-pin")?.value?.trim();
-  const pin2=document.getElementById("set-admin-pin2")?.value?.trim();
-  const st=document.getElementById("admin-pin-status");
+async function savePinFor(id, col){
+  const pin=document.getElementById(`set-pin-${id}`)?.value?.trim();
+  const pin2=document.getElementById(`set-pin2-${id}`)?.value?.trim();
+  const st=document.getElementById(`pin-status-${id}`);
   if(!pin){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a PIN</span>`;return;}
   if(pin!==pin2){if(st)st.innerHTML=`<span style="color:var(--tx-err)">PINs do not match</span>`;return;}
   const hash=await sha256(pin);
-  const{error}=await dbClient.from("admin_config").update({admin_pin_hash:hash}).eq("id",1);
+  const{error}=await dbClient.from("admin_config").upsert({id:1,[col]:hash},{onConflict:"id"});
   if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
-  storedAdminPinHash=hash;
-  if(st)st.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Admin PIN saved</span>`;
+  if(col==='pin_hash')          storedPinHash=hash;
+  else if(col==='admin_pin_hash') storedAdminPinHash=hash;
+  else if(col==='operations_pin_hash') storedOpsPinHash=hash;
+  else if(col==='owner_pin_hash') storedOwnerPinHash=hash;
+  if(st)st.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> PIN saved</span>`;
   renderSettings();
 }
+async function saveAdminPin(){ savePinFor('admin','admin_pin_hash'); }
 async function retryConnect(){
   dbStatus="loading"; updateDbIndicator(); renderSettings();
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -4427,7 +4436,7 @@ function renderCandidates(){
             <td><span style="font-size:11px;font-weight:500;color:${CAND_STATUS_COLORS[c.status]}">${CAND_STATUS_LABELS[c.status]||c.status}</span></td>
             <td style="white-space:nowrap">
               ${canDo('admin')?`<button class="btn btn-sm" style="padding:3px 8px;margin-right:3px" onclick="openEditCandidate(${c.id})"><i class="ti ti-pencil"></i></button>`:''}
-              ${canDo('principal')?`<button class="btn btn-sm" style="padding:3px 8px;color:var(--tx-err)" onclick="deleteCandidate(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>`:''}
+              ${canDo('ops')?`<button class="btn btn-sm" style="padding:3px 8px;color:var(--tx-err)" onclick="deleteCandidate(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>`:''}
             </td>
           </tr>`;}).join('')}
         </tbody></table></div></div>`}`;
@@ -4524,7 +4533,7 @@ async function submitEditCandidate(id){
   closeModal(); await loadExternalCandidates(); renderCandidates();
 }
 async function deleteCandidate(id,name){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   if(!confirm(`Delete "${name}" and all their scores?`))return;
   await dbClient.from("external_candidates").delete().eq("id",id);
   await Promise.all([loadExternalCandidates(),loadCandidateScores()]); renderCandidates();
@@ -4631,13 +4640,13 @@ async function saveScoreRow(cid){
 function renderFeederSchools(){
   document.getElementById("page-title").textContent="Feeder Schools";
   document.getElementById("page-meta").textContent="Schools that send us candidates";
-  document.getElementById("topbar-actions").innerHTML=canDo('principal')
+  document.getElementById("topbar-actions").innerHTML=canDo('ops')
     ?`<button class="btn btn-primary btn-sm" onclick="openAddFeederSchool()"><i class="ti ti-plus"></i> Add School</button>`:"";
 
   document.getElementById("content").innerHTML=`
     ${!canDo('admin')?signInNotice('view feeder schools'):""}
     ${feederSchools.length===0
-      ?`<div class="card"><div class="empty"><i class="ti ti-building-off"></i>No feeder schools yet${canDo('principal')?" — click Add School":""}</div></div>`
+      ?`<div class="card"><div class="empty"><i class="ti ti-building-off"></i>No feeder schools yet${canDo('ops')?" — click Add School":""}</div></div>`
       :feederSchools.map(school=>{
         const count=externalCandidates.filter(c=>c.feeder_school_id===school.id).length;
         const sessions=[...new Set(externalCandidates.filter(c=>c.feeder_school_id===school.id).map(c=>c.exam_session))];
@@ -4649,7 +4658,7 @@ function renderFeederSchools(){
             </div>
             <div style="display:flex;align-items:center;gap:8px">
               <span class="badge badge-neutral">${count} candidate${count!==1?'s':''}</span>
-              ${canDo('principal')?`
+              ${canDo('ops')?`
               <button class="btn btn-sm" onclick="openEditFeederSchool(${school.id})"><i class="ti ti-pencil"></i></button>
               <button class="btn btn-sm" style="color:var(--tx-err)" onclick="deleteFeederSchool(${school.id},'${school.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>`:''}
             </div>
@@ -4661,7 +4670,7 @@ function renderFeederSchools(){
             ${sessions.length?`<div><span style="color:var(--tx3)">Sessions: </span>${sessions.join(', ')}</div>`:''}
           </div>
           ${school.discount_note?`<div style="margin-top:8px;padding:6px 10px;background:var(--bg-ok);border-radius:var(--r);font-size:11px;color:var(--tx-ok)"><i class="ti ti-tag"></i> ${school.discount_note}</div>`:''}
-          ${canDo('principal')&&school.email?`<button class="btn btn-sm" style="margin-top:10px;color:#0d6b52;border-color:#0d6b52" onclick="_emailTargetSchool=${school.id};nav('email-results',null,document.querySelector('#sidebar-nav .nav-item:last-of-type'))"><i class="ti ti-mail"></i> Email results</button>`:''}
+          ${canDo('ops')&&school.email?`<button class="btn btn-sm" style="margin-top:10px;color:#0d6b52;border-color:#0d6b52" onclick="_emailTargetSchool=${school.id};nav('email-results',null,document.querySelector('#sidebar-nav .nav-item:last-of-type'))"><i class="ti ti-mail"></i> Email results</button>`:''}
         </div>`;}).join('')}`;
 }
 function feederSchoolForm(s={}){
@@ -4684,7 +4693,7 @@ function feederSchoolForm(s={}){
     </div>`;
 }
 function openAddFeederSchool(){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   openModal("Add Feeder School",feederSchoolForm()+`
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitAddFeederSchool()"><i class="ti ti-check"></i> Save</button>
@@ -4693,7 +4702,7 @@ function openAddFeederSchool(){
   setTimeout(()=>document.getElementById("fs-name")?.focus(),50);
 }
 function openEditFeederSchool(id){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   const s=feederSchools.find(x=>x.id===id);if(!s)return;
   openModal("Edit School",feederSchoolForm(s)+`
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -4728,7 +4737,7 @@ async function submitEditFeederSchool(id){
   closeModal(); await loadFeederSchools(); renderFeederSchools();
 }
 async function deleteFeederSchool(id,name){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   if(!confirm(`Delete "${name}"? This will not delete their candidates.`))return;
   await dbClient.from("feeder_schools").delete().eq("id",id);
   await loadFeederSchools(); renderFeederSchools();
@@ -4740,10 +4749,10 @@ function renderEmailResults(){
   document.getElementById("page-title").textContent="Email Results";
   document.getElementById("page-meta").textContent="Send results to feeder schools";
   document.getElementById("topbar-actions").innerHTML="";
-  if(!canDo('principal')){
+  if(!canDo('ops')){
     document.getElementById("content").innerHTML=`<div class="card" style="max-width:420px">
-      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> Principal access required</span></div>
-      <p style="font-size:13px;color:var(--tx2)">Only the principal can send results emails.</p>
+      <div class="card-head"><span class="card-title"><i class="ti ti-lock"></i> Access required</span></div>
+      <p style="font-size:13px;color:var(--tx2)">Only Operations or Director can send results emails.</p>
     </div>`;return;
   }
   const sessions=[...new Set(externalCandidates.map(c=>c.exam_session))].sort().reverse();
@@ -4805,7 +4814,7 @@ function renderEmailResults(){
     </div>`:`<div class="card"><div class="empty">No schools have candidates for this session</div></div>`}`;
 }
 async function sendResultsEmail(){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   const selSchool=_emailTargetSchool?feederSchools.find(s=>s.id===_emailTargetSchool):null;
   if(!selSchool?.email){alert("No email address for this school");return;}
   const candidates=externalCandidates.filter(c=>c.feeder_school_id===selSchool.id&&(!_emailTargetSession||c.exam_session===_emailTargetSession));
@@ -4836,9 +4845,14 @@ async function sendResultsEmail(){
 
 /* ── role management ── */
 function canDo(level){
-  if(level==='admin')    return _role==='admin'||_role==='principal';
-  if(level==='principal')return _role==='principal';
-  return true;
+  if(!_role) return false;
+  if(level==='director')      return _role==='director';
+  if(level==='ops')           return _role==='operations'||_role==='director';
+  if(level==='finance-view')  return _role==='operations'||_role==='owner'||_role==='director';
+  if(level==='owner')         return _role==='owner'||_role==='director';
+  if(level==='principal')     return _role==='operations'||_role==='director'; // backward compat → ops+director
+  if(level==='admin')         return _role!=='owner'; // owner is read-only; admin/ops/director can edit
+  return !!_role; // 'any' — just signed in
 }
 function signInNotice(action='perform this action'){
   return`<div class="signin-notice"><i class="ti ti-lock" style="font-size:16px;color:var(--tx3);flex-shrink:0"></i>
@@ -4848,54 +4862,85 @@ let _loginRole=null;
 function openLoginModal(){
   _loginRole=null;
   openModal("Sign In",`
-    <p style="font-size:13px;color:var(--tx2);margin-bottom:14px">Choose your role:</p>
+    <p style="font-size:13px;color:var(--tx2);margin-bottom:12px">Choose your role to continue:</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div id="rc-admin" onclick="selectLoginRole('admin')" style="border:.5px solid var(--bd3);border-radius:var(--r);padding:14px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s">
-        <i class="ti ti-user" style="font-size:24px;color:var(--navy)"></i>
-        <div style="font-size:13px;font-weight:600;margin-top:8px;color:var(--tx)">Office Admin</div>
-        <div style="font-size:11px;color:var(--tx3);margin-top:3px">Payments, expenses & stock</div>
+      <div id="rc-admin" onclick="selectLoginRole('admin')" style="border:.5px solid var(--bd3);border-radius:var(--r);padding:12px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s">
+        <i class="ti ti-user" style="font-size:22px;color:var(--navy)"></i>
+        <div style="font-size:12px;font-weight:600;margin-top:6px;color:var(--tx)">Office Admin</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:2px">Payments, fees & stock</div>
       </div>
-      <div id="rc-principal" onclick="selectLoginRole('principal')" style="border:.5px solid var(--bd3);border-radius:var(--r);padding:14px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s">
-        <i class="ti ti-shield-lock" style="font-size:24px;color:var(--burg)"></i>
-        <div style="font-size:13px;font-weight:600;margin-top:8px;color:var(--tx)">Principal</div>
-        <div style="font-size:11px;color:var(--tx3);margin-top:3px">Full system access</div>
+      <div id="rc-operations" onclick="selectLoginRole('operations')" style="border:.5px solid var(--bd3);border-radius:var(--r);padding:12px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s">
+        <i class="ti ti-briefcase" style="font-size:22px;color:#0F6E56"></i>
+        <div style="font-size:12px;font-weight:600;margin-top:6px;color:var(--tx)">Head of Operations</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:2px">Full operations access</div>
+      </div>
+      <div id="rc-owner" onclick="selectLoginRole('owner')" style="border:.5px solid var(--bd3);border-radius:var(--r);padding:12px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s">
+        <i class="ti ti-home-2" style="font-size:22px;color:#B57A1A"></i>
+        <div style="font-size:12px;font-weight:600;margin-top:6px;color:var(--tx)">Owner / Family</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:2px">Read-only full view</div>
+      </div>
+      <div id="rc-director" onclick="selectLoginRole('director')" style="border:.5px solid var(--bd3);border-radius:var(--r);padding:12px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s">
+        <i class="ti ti-crown" style="font-size:22px;color:var(--burg)"></i>
+        <div style="font-size:12px;font-weight:600;margin-top:6px;color:var(--tx)">Director</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:2px">Full system control</div>
       </div>
     </div>
-    <div id="login-pin-wrap" style="display:none">
-      <div class="field"><label id="login-pin-lbl">PIN</label>
-        <input type="password" id="login-pin" placeholder="Enter PIN…" onkeydown="if(event.key==='Enter')submitRoleLogin()" /></div>
+    <div id="login-pin-wrap"></div>`);
+}
+function selectLoginRole(role){
+  _loginRole=role;
+  ['admin','operations','owner','director'].forEach(r=>{
+    const el=document.getElementById('rc-'+r);
+    if(el){el.style.borderColor=r===role?(_ROLE_COLORS[role]||'var(--navy)'):'var(--bd3)';
+           el.style.background=r===role?'var(--bg2)':'var(--bg)';}
+  });
+  const wrap=document.getElementById('login-pin-wrap');
+  if(role==='director'&&!storedPinHash){
+    wrap.innerHTML=`<p style="font-size:12px;color:var(--tx2);margin-bottom:10px">No Director PIN set — create one to secure this portal.</p>
+      <div class="field"><label>New Director PIN</label><input type="password" id="login-pin" placeholder="Choose a PIN…" /></div>
+      <div class="field"><label>Confirm PIN</label><input type="password" id="login-pin2" placeholder="Repeat PIN…" onkeydown="if(event.key==='Enter')submitRoleLogin()" /></div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitRoleLogin()"><i class="ti ti-lock"></i> Create PIN &amp; Sign In</button>
+      <div id="login-err" style="margin-top:8px;font-size:12px;color:var(--tx-err)"></div>`;
+  } else {
+    wrap.innerHTML=`<div class="field"><label>${_ROLE_LABELS[role]||role} PIN</label>
+      <input type="password" id="login-pin" placeholder="Enter PIN…" onkeydown="if(event.key==='Enter')submitRoleLogin()" /></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary" onclick="submitRoleLogin()"><i class="ti ti-login"></i> Sign In</button>
         <button class="btn" onclick="closeModal()">Cancel</button>
       </div>
-      <div id="login-err" style="margin-top:8px;font-size:12px;color:var(--tx-err)"></div>
-    </div>`);
-}
-function selectLoginRole(role){
-  _loginRole=role;
-  ['admin','principal'].forEach(r=>{
-    const el=document.getElementById('rc-'+r);
-    if(el){el.style.borderColor=r===role?(role==='principal'?'var(--burg)':'var(--navy)'):'var(--bd3)';
-           el.style.background=r===role?'var(--bg2)':'var(--bg)';}
-  });
-  document.getElementById('login-pin-wrap').style.display='block';
-  document.getElementById('login-pin-lbl').textContent=role==='admin'?'Admin PIN':'Principal PIN';
+      <div id="login-err" style="margin-top:8px;font-size:12px;color:var(--tx-err)"></div>`;
+  }
   setTimeout(()=>document.getElementById('login-pin')?.focus(),50);
 }
 async function submitRoleLogin(){
   if(!_loginRole){alert("Select a role");return;}
-  const pin=document.getElementById("login-pin")?.value?.trim();
   const errEl=document.getElementById("login-err");
+  const pin=document.getElementById("login-pin")?.value?.trim();
   if(!pin){if(errEl)errEl.textContent="Enter your PIN";return;}
   const hash=await sha256(pin);
-  if(_loginRole==='admin'){
-    if(!storedAdminPinHash){if(errEl)errEl.textContent="No admin PIN set yet. Ask the principal to set one in Settings.";return;}
+  if(_loginRole==='director'){
+    if(!storedPinHash){
+      const pin2=document.getElementById("login-pin2")?.value?.trim();
+      if(pin!==pin2){if(errEl)errEl.textContent="PINs do not match";return;}
+      const{error}=await dbClient.from("admin_config").upsert({id:1,pin_hash:hash},{onConflict:"id"});
+      if(error){if(errEl)errEl.textContent="Error saving PIN: "+error.message;return;}
+      storedPinHash=hash;
+    } else {
+      if(hash!==storedPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
+    }
+    _role='director'; adminUnlocked=true;
+  } else if(_loginRole==='operations'){
+    if(!storedOpsPinHash){if(errEl)errEl.textContent="No Operations PIN set yet. Ask the Director to set one in Security Settings.";return;}
+    if(hash!==storedOpsPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
+    _role='operations'; adminUnlocked=true;
+  } else if(_loginRole==='owner'){
+    if(!storedOwnerPinHash){if(errEl)errEl.textContent="No Owner PIN set yet. Ask the Director to set one in Security Settings.";return;}
+    if(hash!==storedOwnerPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
+    _role='owner'; adminUnlocked=false;
+  } else if(_loginRole==='admin'){
+    if(!storedAdminPinHash){if(errEl)errEl.textContent="No Admin PIN set yet. Ask the Director to set one in Security Settings.";return;}
     if(hash!==storedAdminPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
-    _role='admin';
-  }else{
-    if(!storedPinHash){if(errEl)errEl.textContent="No principal PIN set. Create one via Principal's Desk.";return;}
-    if(hash!==storedPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
-    _role='principal'; adminUnlocked=true;
+    _role='admin'; adminUnlocked=false;
   }
   closeModal(); renderHub();
 }
@@ -4919,7 +4964,7 @@ function stockQtyBadge(qty,threshold){
 function renderInventory(){
   document.getElementById("page-title").textContent="Stock & Sales";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
-  document.getElementById("topbar-actions").innerHTML=canDo('principal')
+  document.getElementById("topbar-actions").innerHTML=canDo('ops')
     ?`<button class="btn btn-primary btn-sm" onclick="openAddInventoryItem()"><i class="ti ti-plus"></i> Add Item</button>`:"";
 
   const lowStock=inventoryItems.filter(i=>{const q=stockCurrentQty(i.id);return q<=i.low_stock_threshold&&q>0;});
@@ -4943,7 +4988,7 @@ function renderInventory(){
     </div>
     ${!canDo('admin')?signInNotice('record sales and stock movements'):""}
     ${inventoryItems.length===0
-      ?`<div class="card"><div class="empty"><i class="ti ti-package-off"></i>No items yet${canDo('principal')?" — click Add Item to start":""}</div></div>`
+      ?`<div class="card"><div class="empty"><i class="ti ti-package-off"></i>No items yet${canDo('ops')?" — click Add Item to start":""}</div></div>`
       :`<div class="stock-grid">
         ${inventoryItems.map(item=>{
           const qty=stockCurrentQty(item.id);
@@ -4961,7 +5006,7 @@ function renderInventory(){
               <button class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 9px" onclick="openSaleModal(${item.id})"><i class="ti ti-shopping-cart"></i> Sell</button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openStockIn(${item.id})"><i class="ti ti-package-import"></i> Stock In</button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openAdjustStock(${item.id})"><i class="ti ti-adjustments"></i> Adjust</button>
-              ${canDo('principal')?`
+              ${canDo('ops')?`
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;margin-left:auto" onclick="openEditInventoryItem(${item.id})"><i class="ti ti-pencil"></i></button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;color:var(--tx-err)" onclick="deleteInventoryItem(${item.id},'${item.item_name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
               `:""}
@@ -4977,7 +5022,7 @@ function renderInventory(){
       ${termTxns.length===0
         ?`<div class="empty"><i class="ti ti-list-search"></i>No transactions this term</div>`
         :`<div style="overflow-x:auto"><table>
-          <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Unit ₦</th><th>Total</th><th>Note</th>${canDo('principal')?'<th></th>':''}</tr></thead>
+          <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Unit ₦</th><th>Total</th><th>Note</th>${canDo('ops')?'<th></th>':''}</tr></thead>
           <tbody>${termTxns.map(t=>{
             const item=inventoryItems.find(i=>i.id===t.item_id);
             const typeStyle=t.transaction_type==='sale'?'color:var(--tx-ok)'
@@ -4992,7 +5037,7 @@ function renderInventory(){
               <td style="color:var(--tx2)">₦${parseFloat(t.unit_price||0).toLocaleString()}</td>
               <td style="font-weight:600;${t.transaction_type==='sale'?'color:var(--tx-ok)':''}">₦${parseFloat(t.total_value||0).toLocaleString()}</td>
               <td style="color:var(--tx3);font-size:11px;max-width:120px">${t.note||"—"}</td>
-              ${canDo('principal')?`<td><button class="btn btn-sm" style="color:var(--tx-err);padding:3px 7px" onclick="deleteInventoryTxn(${t.id})"><i class="ti ti-trash"></i></button></td>`:""}
+              ${canDo('ops')?`<td><button class="btn btn-sm" style="color:var(--tx-err);padding:3px 7px" onclick="deleteInventoryTxn(${t.id})"><i class="ti ti-trash"></i></button></td>`:""}
             </tr>`;}).join("")}
           </tbody></table></div>`}
     </div>`;
@@ -5015,7 +5060,7 @@ function inventoryItemForm(i={}){
     </div>`;
 }
 function openAddInventoryItem(){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   openModal("Add Stock Item",inventoryItemForm()+`
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitAddInventoryItem()"><i class="ti ti-check"></i> Save</button>
@@ -5024,7 +5069,7 @@ function openAddInventoryItem(){
   setTimeout(()=>document.getElementById("inv-name")?.focus(),50);
 }
 function openEditInventoryItem(id){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   const item=inventoryItems.find(i=>i.id===id);if(!item)return;
   openModal("Edit Item",inventoryItemForm(item)+`
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -5057,13 +5102,13 @@ async function submitEditInventoryItem(id){
   closeModal(); await loadInventoryItems(); renderInventory();
 }
 async function deleteInventoryItem(id,name){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   if(!confirm(`Delete "${name}" and all its transaction history?`))return;
   await dbClient.from("inventory_items").delete().eq("id",id);
   await Promise.all([loadInventoryItems(),loadInventoryTxns()]); renderInventory();
 }
 async function deleteInventoryTxn(id){
-  if(!canDo('principal')){alert("Principal access required");return;}
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
   if(!confirm("Delete this transaction?"))return;
   await dbClient.from("inventory_transactions").delete().eq("id",id);
   await loadInventoryTxns(); renderInventory();

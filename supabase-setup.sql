@@ -150,6 +150,16 @@ DO $$ BEGIN
   THEN ALTER TABLE admin_config ADD COLUMN admin_pin_hash TEXT; END IF;
 END $$;
 
+-- Add role PINs for Head of Operations and Owner/Family
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_config' AND column_name='operations_pin_hash')
+  THEN ALTER TABLE admin_config ADD COLUMN operations_pin_hash TEXT; END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_config' AND column_name='owner_pin_hash')
+  THEN ALTER TABLE admin_config ADD COLUMN owner_pin_hash TEXT; END IF;
+END $$;
+
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
 ALTER TABLE scores            ENABLE ROW LEVEL SECURITY;
