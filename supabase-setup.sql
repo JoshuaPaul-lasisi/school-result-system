@@ -160,6 +160,34 @@ DO $$ BEGIN
   THEN ALTER TABLE admin_config ADD COLUMN owner_pin_hash TEXT; END IF;
 END $$;
 
+-- ── Prospects ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS prospect_groups (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL,
+  description TEXT,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS prospects (
+  id             SERIAL PRIMARY KEY,
+  group_id       INTEGER REFERENCES prospect_groups(id) ON DELETE SET NULL,
+  name           TEXT NOT NULL,
+  phone          TEXT,
+  email          TEXT,
+  child_name     TEXT,
+  interest_class TEXT,
+  status         TEXT DEFAULT 'active',
+  last_contact   DATE,
+  notes          TEXT,
+  created_at     TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE prospect_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prospects       ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "anon_all_prospect_groups" ON prospect_groups FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "anon_all_prospects"       ON prospects       FOR ALL TO anon USING (true) WITH CHECK (true);
+
 -- Add stock metadata fields to inventory_items
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory_items' AND column_name='class_group')

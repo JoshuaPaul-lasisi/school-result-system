@@ -648,6 +648,9 @@ const _ROLE_ICONS   = {admin:'ti-user', operations:'ti-briefcase', owner:'ti-hom
 const _ROLE_COLORS  = {admin:'var(--navy)', operations:'#0F6E56', owner:'#B57A1A', director:'var(--burg)'};
 let inventoryItems = [];    // master item list
 let inventoryTxns = [];     // all transactions (all time, for stock levels)
+let prospectGroups = [];
+let prospectsList  = [];
+let _prospectGroupFilter = null;
 let _curPage = "dashboard", _curArg = null;
 let examPapersStore = [];
 let _paperFilterCls = "", _paperFilterType = "";
@@ -861,6 +864,10 @@ function renderSidebar(section){
         <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
       </div>`,
     entrance:`
+      <div class="nav-section">
+        <div class="nav-label">Prospects</div>
+        <div class="nav-item" onclick="nav('prospects',null,this)"><i class="ti ti-users-group"></i>Prospect Groups</div>
+      </div>
       <div class="nav-section">
         <div class="nav-label">Candidates</div>
         <div class="nav-item" onclick="nav('candidates',null,this)"><i class="ti ti-users"></i>All Candidates</div>
@@ -1157,11 +1164,21 @@ async function loadInventoryTxns() {
     .select("*").order("transaction_date",{ascending:false}).order("created_at",{ascending:false});
   if (!error && data) inventoryTxns = data;
 }
+async function loadProspectGroups(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("prospect_groups").select("*").order("created_at");
+  if(data)prospectGroups=data;
+}
+async function loadProspects(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("prospects").select("*").order("created_at",{ascending:false});
+  if(data)prospectsList=data;
+}
 
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadOwnerLoans(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments(), loadTeacherObsLog(), loadParentContacts(), loadExternalResults()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadOwnerLoans(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments(), loadTeacherObsLog(), loadParentContacts(), loadExternalResults(), loadProspectGroups(), loadProspects()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1280,6 +1297,7 @@ function nav(page,arg,el){
   else if(page==="assets")renderAssets();
   else if(page==="incidents")renderIncidentLog();
   else if(page==="stock")renderInventory();
+  else if(page==="prospects")renderProspects();
   else if(page==="candidates")renderCandidates();
   else if(page==="entrance-scores")renderEntranceScores();
   else if(page==="feeder-schools")renderFeederSchools();
@@ -7539,25 +7557,200 @@ async function deleteExternalResult(id){
    BROADCAST SMS
 ══════════════════════════════════════════════════════════ */
 
+/* ── Prospects ── */
+function renderProspects(){
+  document.getElementById("page-title").textContent="Prospects";
+  document.getElementById("page-meta").textContent="Prospective students & contacts";
+  document.getElementById("topbar-actions").innerHTML=canDo('ops')
+    ?`<button class="btn btn-primary btn-sm" onclick="openAddProspectGroup()"><i class="ti ti-folder-plus"></i> New Group</button>`:'';
+
+  const filtered=_prospectGroupFilter!==null
+    ?prospectsList.filter(p=>p.group_id===_prospectGroupFilter)
+    :prospectsList;
+
+  document.getElementById("content").innerHTML=`
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;align-items:center">
+      <button class="btn btn-sm ${_prospectGroupFilter===null?'btn-primary':''}" onclick="_prospectGroupFilter=null;renderProspects()">
+        All <span style="font-size:10px;opacity:.7">(${prospectsList.length})</span>
+      </button>
+      ${prospectGroups.map(g=>{
+        const cnt=prospectsList.filter(p=>p.group_id===g.id).length;
+        return`<div style="display:inline-flex;align-items:center;gap:2px">
+          <button class="btn btn-sm ${_prospectGroupFilter===g.id?'btn-primary':''}" onclick="_prospectGroupFilter=${g.id};renderProspects()">${g.name} <span style="font-size:10px;opacity:.7">(${cnt})</span></button>
+          ${canDo('ops')?`<button class="btn btn-sm" style="padding:3px 5px;color:var(--tx3)" title="Delete group" onclick="deleteProspectGroup(${g.id},'${g.name.replace(/'/g,"\\'")}')"><i class="ti ti-x" style="font-size:10px"></i></button>`:''}
+        </div>`;
+      }).join('')}
+      ${canDo('admin')?`<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="openAddProspect(${_prospectGroupFilter!==null?_prospectGroupFilter:'null'})"><i class="ti ti-user-plus"></i> Add Prospect</button>`:''}
+    </div>
+    ${filtered.length===0
+      ?`<div class="card"><div class="empty"><i class="ti ti-users-group"></i>No prospects${_prospectGroupFilter!==null?' in this group':' yet'}${canDo('admin')?" — click 'Add Prospect' to start":''}</div></div>`
+      :`<div class="card"><div style="overflow-x:auto"><table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Child's name</th><th>Class interest</th><th>Group</th><th>Status</th><th>Last contact</th><th>Notes</th>${canDo('admin')?'<th></th>':''}</tr></thead>
+          <tbody>${filtered.map(p=>{
+            const grp=prospectGroups.find(g=>g.id===p.group_id);
+            const sc=p.status==='enrolled'?'var(--tx-ok)':p.status==='dropped'?'var(--tx3)':'var(--navy)';
+            return`<tr>
+              <td style="font-weight:500;white-space:nowrap">${p.name}</td>
+              <td style="color:var(--tx2)">${p.phone||'—'}</td>
+              <td>${p.child_name||'—'}</td>
+              <td style="font-size:11px">${p.interest_class||'—'}</td>
+              <td>${grp?`<span style="background:var(--bg2);padding:2px 8px;border-radius:20px;font-size:11px">${grp.name}</span>`:'—'}</td>
+              <td><span style="color:${sc};font-size:11px;text-transform:capitalize;font-weight:500">${p.status||'active'}</span></td>
+              <td style="color:var(--tx3);font-size:11px;white-space:nowrap">${p.last_contact||'—'}</td>
+              <td style="color:var(--tx3);font-size:11px;max-width:160px;word-break:break-word">${p.notes||'—'}</td>
+              ${canDo('admin')?`<td style="white-space:nowrap">
+                <button class="btn btn-sm" style="padding:3px 7px" onclick="openEditProspect(${p.id})"><i class="ti ti-pencil"></i></button>
+                ${canDo('ops')?`<button class="btn btn-sm" style="padding:3px 7px;color:var(--tx-err)" onclick="deleteProspect(${p.id},'${p.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>`:''}
+              </td>`:''}
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div></div>`}`;
+}
+function openAddProspectGroup(){
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
+  openModal("New Prospect Group",`
+    <div class="field"><label>Group name</label>
+      <input id="pg-name" placeholder="e.g. Holiday Lessons 2025, August Reach-out, Enquiries…" /></div>
+    <div class="field"><label>Description (optional)</label>
+      <input id="pg-desc" placeholder="Brief note about this group" /></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddProspectGroup()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('pg-name')?.focus(),50);
+}
+async function submitAddProspectGroup(){
+  const name=document.getElementById('pg-name')?.value?.trim();
+  const description=document.getElementById('pg-desc')?.value?.trim()||null;
+  if(!name){alert("Enter a group name");return;}
+  const{error}=await dbClient.from('prospect_groups').insert({name,description});
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadProspectGroups(); renderProspects();
+}
+async function deleteProspectGroup(id,name){
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
+  if(!confirm(`Delete group "${name}"? Prospects inside will be unassigned (not deleted).`))return;
+  await dbClient.from('prospect_groups').delete().eq('id',id);
+  if(_prospectGroupFilter===id)_prospectGroupFilter=null;
+  await Promise.all([loadProspectGroups(),loadProspects()]); renderProspects();
+}
+function prospectForm(p={}){
+  return`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field" style="grid-column:1/-1"><label>Contact name</label>
+        <input id="pro-name" value="${p.name||''}" placeholder="Parent or guardian name" /></div>
+      <div class="field"><label>Phone</label>
+        <input id="pro-phone" value="${p.phone||''}" type="tel" placeholder="08012345678" /></div>
+      <div class="field"><label>Email (optional)</label>
+        <input id="pro-email" value="${p.email||''}" type="email" placeholder="email@example.com" /></div>
+      <div class="field"><label>Group</label>
+        <select id="pro-group">
+          <option value="">No group</option>
+          ${prospectGroups.map(g=>`<option value="${g.id}" ${p.group_id==g.id?'selected':''}>${g.name}</option>`).join('')}
+        </select></div>
+      <div class="field"><label>Child's name (optional)</label>
+        <input id="pro-child" value="${p.child_name||''}" placeholder="Child's name" /></div>
+      <div class="field"><label>Interested in class</label>
+        <select id="pro-class">
+          <option value="">Not specified</option>
+          ${ALL_CLASSES.map(c=>`<option value="${c}" ${p.interest_class===c?'selected':''}>${c}</option>`).join('')}
+        </select></div>
+      <div class="field"><label>Status</label>
+        <select id="pro-status">
+          <option value="active" ${(!p.status||p.status==='active')?'selected':''}>Active</option>
+          <option value="enrolled" ${p.status==='enrolled'?'selected':''}>Enrolled</option>
+          <option value="dropped" ${p.status==='dropped'?'selected':''}>Dropped</option>
+        </select></div>
+      <div class="field"><label>Last contact date</label>
+        <input type="date" id="pro-contact" value="${p.last_contact||''}" /></div>
+      <div class="field" style="grid-column:1/-1"><label>Notes</label>
+        <textarea id="pro-notes" rows="2" placeholder="Any additional info…">${p.notes||''}</textarea></div>
+    </div>`;
+}
+function readProspectForm(){
+  return{
+    name:document.getElementById('pro-name')?.value?.trim(),
+    phone:document.getElementById('pro-phone')?.value?.trim()||null,
+    email:document.getElementById('pro-email')?.value?.trim()||null,
+    group_id:parseInt(document.getElementById('pro-group')?.value)||null,
+    child_name:document.getElementById('pro-child')?.value?.trim()||null,
+    interest_class:document.getElementById('pro-class')?.value||null,
+    status:document.getElementById('pro-status')?.value||'active',
+    last_contact:document.getElementById('pro-contact')?.value||null,
+    notes:document.getElementById('pro-notes')?.value?.trim()||null,
+  };
+}
+function openAddProspect(groupId=null){
+  if(!canDo('admin')){openLoginModal();return;}
+  openModal("Add Prospect",prospectForm({group_id:groupId})+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitAddProspect()"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('pro-name')?.focus(),50);
+}
+function openEditProspect(id){
+  if(!canDo('admin')){openLoginModal();return;}
+  const p=prospectsList.find(x=>x.id===id);if(!p)return;
+  openModal("Edit Prospect",prospectForm(p)+`
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitEditProspect(${id})"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('pro-name')?.focus(),50);
+}
+async function submitAddProspect(){
+  const d=readProspectForm();
+  if(!d.name){alert("Enter a contact name");return;}
+  const{error}=await dbClient.from('prospects').insert(d);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadProspects(); renderProspects();
+}
+async function submitEditProspect(id){
+  const d=readProspectForm();
+  if(!d.name){alert("Enter a contact name");return;}
+  const{error}=await dbClient.from('prospects').update(d).eq('id',id);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadProspects(); renderProspects();
+}
+async function deleteProspect(id,name){
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
+  if(!confirm(`Delete "${name}"?`))return;
+  await dbClient.from('prospects').delete().eq('id',id);
+  await loadProspects(); renderProspects();
+}
+
 function _smsRecipients(filter){
-  // Collect one phone number per guardian, deduplicated by number.
-  // filter: "All" | section name | class name
-  const students = filter==="All"
-    ? roster
-    : ["KG","Nursery","Primary","Junior Secondary","Senior Secondary"].includes(filter)
-      ? roster.filter(s=>(s.sec||CLASS_SECTION[s.cls])===filter)
-      : roster.filter(s=>s.cls===filter);
-
-  const seen=new Set();
-  const recipients=[];
-  const noPhone=[];
-
+  // Prospect group targeting
+  if(filter==='prospect:all'||filter.startsWith('prospect:')){
+    const groupId=filter==='prospect:all'?null:parseInt(filter.split(':')[1]);
+    const targets=groupId!==null
+      ?prospectsList.filter(p=>p.group_id===groupId)
+      :prospectsList;
+    const seen=new Set();const recipients=[];const noPhone=[];
+    targets.forEach(p=>{
+      if(!p.phone){noPhone.push(p.name);return;}
+      const ph=formatPhoneForWA(p.phone);
+      if(!ph){noPhone.push(p.name);return;}
+      if(seen.has(ph))return;
+      seen.add(ph);
+      recipients.push({studentName:p.child_name||'',parentName:p.name,phone:ph,cls:'',isProspect:true});
+    });
+    return{recipients,noPhone};
+  }
+  // Parent / student targeting
+  const students=filter==="All"
+    ?roster
+    :["KG","Nursery","Primary","Junior Secondary","Senior Secondary"].includes(filter)
+      ?roster.filter(s=>(s.sec||CLASS_SECTION[s.cls])===filter)
+      :roster.filter(s=>s.cls===filter);
+  const seen=new Set();const recipients=[];const noPhone=[];
   students.forEach(s=>{
     const g=guardiansMap[s.id]?.[0];
     if(!g?.phone){noPhone.push(s.name);return;}
     const ph=formatPhoneForWA(g.phone);
     if(!ph){noPhone.push(s.name);return;}
-    if(seen.has(ph))return; // same guardian has multiple kids
+    if(seen.has(ph))return;
     seen.add(ph);
     recipients.push({studentName:s.name,parentName:g.name||'',phone:ph,cls:s.cls});
   });
@@ -7581,15 +7774,21 @@ async function renderBroadcastSMS(){
   // Fetch balance (non-blocking — show loading then update)
   let balanceHtml=`<span style="color:var(--tx3);font-size:12px"><i class="ti ti-loader-2"></i> Checking balance…</span>`;
 
-  const filterOpts=[
-    {val:"All",label:"All students (entire school)"},
-    {val:"KG",label:"KG only"},
-    {val:"Nursery",label:"Nursery only"},
-    {val:"Primary",label:"Primary (Basic 1–5)"},
-    {val:"Junior Secondary",label:"JSS only"},
-    {val:"Senior Secondary",label:"SS only"},
-    ...[...new Set(roster.map(s=>s.cls))].sort().map(c=>({val:c,label:`${c} only`})),
-  ];
+  const parentOpts=[
+    `<option value="All">All students (entire school)</option>`,
+    `<option value="KG">KG only</option>`,
+    `<option value="Nursery">Nursery only</option>`,
+    `<option value="Primary">Primary (Basic 1–5)</option>`,
+    `<option value="Junior Secondary">JSS only</option>`,
+    `<option value="Senior Secondary">SS only</option>`,
+    ...[...new Set(roster.map(s=>s.cls))].sort().map(c=>`<option value="${c}">${c} only</option>`),
+  ].join('');
+  const prospectOpts=prospectGroups.length
+    ?`<optgroup label="Prospects">
+       <option value="prospect:all">All Prospects (${prospectsList.length})</option>
+       ${prospectGroups.map(g=>`<option value="prospect:${g.id}">${g.name} (${prospectsList.filter(p=>p.group_id===g.id).length})</option>`).join('')}
+     </optgroup>`:'' ;
+  const filterSelectHtml=`<select id="sms-filter" onchange="updateSMSPreview()"><optgroup label="Parents / Students">${parentOpts}</optgroup>${prospectOpts}</select>`;
 
   const {recipients,noPhone}=_smsRecipients("All");
   const charInfo=_smsCharInfo("");
@@ -7607,9 +7806,7 @@ async function renderBroadcastSMS(){
 
           <div class="field">
             <label>Recipients</label>
-            <select id="sms-filter" onchange="updateSMSPreview()">
-              ${filterOpts.map(o=>`<option value="${o.val}">${o.label}</option>`).join("")}
-            </select>
+            ${filterSelectHtml}
           </div>
 
           <div class="field">
@@ -7632,7 +7829,7 @@ async function renderBroadcastSMS(){
 
           <button class="btn btn-primary" onclick="sendBroadcastSMS()"
             style="width:100%;height:44px;font-size:15px;gap:8px">
-            <i class="ti ti-send"></i> Send to <span id="sms-send-count">${recipients.length}</span> parents
+            <i class="ti ti-send"></i> Send to <span id="sms-send-count">${recipients.length}</span> <span id="sms-recipient-type">parents</span>
           </button>
           <p style="font-size:11px;color:var(--tx3);margin-top:8px;text-align:center">
             Each SMS is charged to your Twilio balance. Confirm carefully before sending.
@@ -7691,7 +7888,9 @@ function _buildSMSPreview(recipients,noPhone){
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:.5px solid var(--bd3)">
           <div>
             <div style="font-weight:500">${r.parentName||r.studentName}</div>
-            <div style="color:var(--tx3)">${r.studentName} · ${r.cls}</div>
+            ${r.isProspect
+              ?(r.studentName?`<div style="color:var(--tx3)">Child: ${r.studentName}</div>`:'')
+              :`<div style="color:var(--tx3)">${r.studentName} · ${r.cls}</div>`}
           </div>
           <div style="color:var(--tx3);font-size:11px">${r.phone}</div>
         </div>`).join("")}
@@ -7714,8 +7913,10 @@ function updateSMSPreview(){
   const {recipients,noPhone}=_smsRecipients(filter);
   const previewEl=document.getElementById("sms-preview-content");
   const countEl=document.getElementById("sms-send-count");
+  const typeEl=document.getElementById("sms-recipient-type");
   if(previewEl) previewEl.innerHTML=_buildSMSPreview(recipients,noPhone);
   if(countEl) countEl.textContent=recipients.length;
+  if(typeEl) typeEl.textContent=filter.startsWith('prospect:')?'prospects':'parents';
 }
 
 async function sendBroadcastSMS(){
