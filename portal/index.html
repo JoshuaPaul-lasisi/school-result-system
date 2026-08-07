@@ -2703,8 +2703,21 @@ function renderFinanceDashboard(){
   const visibleExpenses=_role==='admin'?expenseLog.filter(e=>!e.is_private):expenseLog;
   const totalExpenses=visibleExpenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const stockRevenue=stockTermRevenue();
+  const stockCOGS=canDo('ops')?stockTermCOGS():0;
+  const stockProfit=stockRevenue-stockCOGS;
   const totalIncome=totalCollected+stockRevenue;
   const netBalance=totalIncome-totalExpenses;
+
+  const distributorSummary=canDo('ops')?Object.values(
+    inventoryItems.filter(i=>i.distributor).reduce((map,i)=>{
+      if(!map[i.distributor])map[i.distributor]={name:i.distributor,items:[],totalCost:0};
+      map[i.distributor].items.push(i.item_name);
+      map[i.distributor].totalCost+=inventoryTxns
+        .filter(t=>t.item_id===i.id&&t.transaction_type==='stock_in')
+        .reduce((s,t)=>s+parseFloat(t.total_value||0),0);
+      return map;
+    },{})
+  ).sort((a,b)=>b.totalCost-a.totalCost):[];
 
   document.getElementById("content").innerHTML=`
     <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
@@ -2719,6 +2732,31 @@ function renderFinanceDashboard(){
       <div class="stat"><div class="stat-label">Expenses</div><div class="stat-val" style="color:var(--tx-err)">₦${totalExpenses.toLocaleString()}</div></div>
       <div class="stat"><div class="stat-label">Net balance</div><div class="stat-val" style="color:${netBalance>=0?"var(--tx-ok)":"var(--tx-err)"}">₦${netBalance.toLocaleString()}</div></div>
     </div>
+    ${canDo('ops')?`
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head">
+        <span class="card-title"><i class="ti ti-report-money"></i> Stock P&amp;L — ${currentTerm}</span>
+      </div>
+      <div class="stats-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:${distributorSummary.length?12:0}px">
+        <div class="stat"><div class="stat-label">Sales revenue</div><div class="stat-val" style="color:var(--tx-ok)">₦${stockRevenue.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Cost of goods sold</div><div class="stat-val" style="color:var(--tx-err)">₦${stockCOGS.toLocaleString()}</div></div>
+        <div class="stat"><div class="stat-label">Gross profit</div><div class="stat-val" style="color:${stockProfit>=0?"var(--tx-ok)":"var(--tx-err)"}">₦${stockProfit.toLocaleString()}</div></div>
+      </div>
+      ${distributorSummary.length?`
+      <div style="border-top:.5px solid var(--bd3);padding-top:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Distributor / Supplier Breakdown</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${distributorSummary.map(d=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg2);border-radius:var(--r);font-size:12px">
+            <div>
+              <div style="font-weight:500">${d.name}</div>
+              <div style="font-size:11px;color:var(--tx3)">${d.items.join(' · ')}</div>
+            </div>
+            <span style="font-weight:600">₦${d.totalCost.toLocaleString()}</span>
+          </div>`).join('')}
+        </div>
+      </div>`:''}
+    </div>`:''}
     ${feeStructure.length===0?`<div class="card"><div class="empty"><i class="ti ti-alert-circle"></i>No fee structure set up yet. Go to Admin → Fee Setup to define fees for this term.</div></div>`:""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
       <div class="card">
@@ -5053,6 +5091,22 @@ function stockTermRevenue(){
     .filter(t=>t.transaction_type==='sale'&&t.term===currentTerm&&t.session===currentSession)
     .reduce((s,t)=>s+parseFloat(t.total_value||0),0);
 }
+function stockTermCOGS(){
+  return inventoryTxns
+    .filter(t=>t.transaction_type==='sale'&&t.term===currentTerm&&t.session===currentSession)
+    .reduce((s,t)=>s+parseFloat(t.cost_price||0)*Math.abs(t.quantity),0);
+}
+function stockTermProfit(){ return stockTermRevenue()-stockTermCOGS(); }
+function classGroupOptions(sel=''){
+  return[
+    `<option value="" ${!sel?'selected':''}>All Sections</option>`,
+    `<optgroup label="Sections">`,
+    ...Object.keys(CLASSES).map(s=>`<option value="${s}" ${sel===s?'selected':''}>${s}</option>`),
+    `</optgroup><optgroup label="Individual Classes">`,
+    ...ALL_CLASSES.map(c=>`<option value="${c}" ${sel===c?'selected':''}>${c}</option>`),
+    `</optgroup>`,
+  ].join('');
+}
 function stockQtyBadge(qty,threshold){
   if(qty<=0) return`<span class="stock-qty-out">Out of stock</span>`;
   if(qty<=threshold) return`<span class="stock-qty-low">${qty} left (low)</span>`;
@@ -5068,6 +5122,7 @@ function renderInventory(){
   const lowStock=inventoryItems.filter(i=>{const q=stockCurrentQty(i.id);return q<=i.low_stock_threshold&&q>0;});
   const outOfStock=inventoryItems.filter(i=>stockCurrentQty(i.id)<=0);
   const termRevenue=stockTermRevenue();
+  const termProfit=canDo('ops')?stockTermProfit():null;
   const termTxns=inventoryTxns.filter(t=>t.term===currentTerm&&t.session===currentSession);
 
   document.getElementById("content").innerHTML=`
@@ -5079,9 +5134,10 @@ function renderInventory(){
         ${lowStock.map(i=>`<span style="background:var(--bg-warn);color:var(--tx-warn);padding:3px 10px;border-radius:20px;font-size:11px">${i.item_name} — ${stockCurrentQty(i.id)} left</span>`).join("")}
       </div>
     </div>`:""}
-    <div class="stats-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+    <div class="stats-row" style="display:grid;grid-template-columns:repeat(${canDo('ops')?4:3},1fr);gap:10px;margin-bottom:16px">
       <div class="stat"><div class="stat-label">Items tracked</div><div class="stat-val">${inventoryItems.length}</div></div>
       <div class="stat"><div class="stat-label">Sales revenue this term</div><div class="stat-val" style="color:var(--tx-ok)">₦${termRevenue.toLocaleString()}</div></div>
+      ${canDo('ops')?`<div class="stat"><div class="stat-label">Gross profit this term</div><div class="stat-val" style="color:${termProfit>=0?"var(--tx-ok)":"var(--tx-err)"}">₦${termProfit.toLocaleString()}</div></div>`:""}
       <div class="stat"><div class="stat-label">Transactions this term</div><div class="stat-val">${termTxns.length}</div></div>
     </div>
     ${!canDo('admin')?signInNotice('record sales and stock movements'):""}
@@ -5094,11 +5150,12 @@ function renderInventory(){
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
               <div>
                 <div style="font-weight:600;font-size:13px">${item.item_name}</div>
-                <div style="font-size:11px;color:var(--tx3);margin-top:2px">${item.category}</div>
+                <div style="font-size:11px;color:var(--tx3);margin-top:2px">${item.category}${item.class_group?` · ${item.class_group}`:''}</div>
+                ${item.publisher||item.distributor?`<div style="font-size:10px;color:var(--tx3);margin-top:1px">${[item.publisher,item.distributor].filter(Boolean).join(' · ')}</div>`:''}
               </div>
               ${stockQtyBadge(qty,item.low_stock_threshold)}
             </div>
-            <div style="font-size:12px;color:var(--tx2)">₦${parseFloat(item.unit_price).toLocaleString()} / unit</div>
+            <div style="font-size:12px;color:var(--tx2)">Sell ₦${parseFloat(item.unit_price).toLocaleString()}${canDo('ops')&&item.cost_price?` <span style="color:var(--tx3)">· Cost ₦${parseFloat(item.cost_price).toLocaleString()}</span>`:''}</div>
             ${canDo('admin')?`
             <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">
               <button class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 9px" onclick="openSaleModal(${item.id})"><i class="ti ti-shopping-cart"></i> Sell</button>
@@ -5146,14 +5203,22 @@ function inventoryItemForm(i={}){
   return`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field" style="grid-column:1/-1"><label>Item name</label>
-        <input id="inv-name" value="${i.item_name||""}" placeholder="e.g. JSS Uniform (shirt)" /></div>
+        <input id="inv-name" value="${i.item_name||""}" placeholder="e.g. Basic 1 Textbook — Mathematics" /></div>
       <div class="field"><label>Category</label>
         <select id="inv-cat">${cats.map(c=>`<option ${i.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
-      <div class="field"><label>Unit price (₦)</label>
+      <div class="field"><label>Class / Section</label>
+        <select id="inv-class">${classGroupOptions(i.class_group||'')}</select></div>
+      <div class="field"><label>Cost price / unit (₦)</label>
+        <input type="number" id="inv-cost" value="${i.cost_price||0}" min="0" /></div>
+      <div class="field"><label>Selling price / unit (₦)</label>
         <input type="number" id="inv-price" value="${i.unit_price||0}" min="0" /></div>
+      <div class="field"><label>Publisher / Author (optional)</label>
+        <input id="inv-publisher" value="${i.publisher||""}" placeholder="e.g. Longman, Macmillan…" /></div>
+      <div class="field"><label>Distributor / Supplier (optional)</label>
+        <input id="inv-distributor" value="${i.distributor||""}" placeholder="e.g. Ade Print Supply" /></div>
       <div class="field"><label>Low-stock alert threshold</label>
         <input type="number" id="inv-thresh" value="${i.low_stock_threshold!=null?i.low_stock_threshold:5}" min="0" /></div>
-      <div class="field"><label>Notes (optional)</label>
+      <div class="field" style="grid-column:1/-1"><label>Notes (optional)</label>
         <input id="inv-notes" value="${i.notes||""}" placeholder="Any additional info…" /></div>
     </div>`;
 }
@@ -5180,7 +5245,11 @@ function readInventoryItemForm(){
   return{
     item_name:document.getElementById("inv-name")?.value?.trim(),
     category:document.getElementById("inv-cat")?.value,
+    class_group:document.getElementById("inv-class")?.value||null,
+    cost_price:parseFloat(document.getElementById("inv-cost")?.value)||0,
     unit_price:parseFloat(document.getElementById("inv-price")?.value)||0,
+    publisher:document.getElementById("inv-publisher")?.value?.trim()||null,
+    distributor:document.getElementById("inv-distributor")?.value?.trim()||null,
     low_stock_threshold:parseInt(document.getElementById("inv-thresh")?.value)||5,
     notes:document.getElementById("inv-notes")?.value?.trim()||null,
   };
@@ -5292,9 +5361,11 @@ async function submitSale(itemId){
   if(!qty||qty<=0){alert("Enter a valid quantity");return;}
   const currentQty=stockCurrentQty(itemId);
   if(currentQty>0&&qty>currentQty){if(!confirm(`Only ${currentQty} in stock. Record sale anyway?`))return;}
+  const item=inventoryItems.find(i=>i.id===itemId);
   const{error}=await dbClient.from("inventory_transactions").insert({
     item_id:itemId, transaction_type:"sale", quantity:-qty,
-    unit_price:price, total_value:qty*price, student_name:studentName, note,
+    unit_price:price, cost_price:parseFloat(item?.cost_price||0),
+    total_value:qty*price, student_name:studentName, note,
     transaction_date:date, term:currentTerm, session:currentSession,
   });
   if(error){alert("Error: "+error.message);return;}

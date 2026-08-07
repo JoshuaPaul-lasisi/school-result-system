@@ -160,6 +160,30 @@ DO $$ BEGIN
   THEN ALTER TABLE admin_config ADD COLUMN owner_pin_hash TEXT; END IF;
 END $$;
 
+-- Add stock metadata fields to inventory_items
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory_items' AND column_name='class_group')
+  THEN ALTER TABLE inventory_items ADD COLUMN class_group TEXT; END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory_items' AND column_name='publisher')
+  THEN ALTER TABLE inventory_items ADD COLUMN publisher TEXT; END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory_items' AND column_name='distributor')
+  THEN ALTER TABLE inventory_items ADD COLUMN distributor TEXT; END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory_items' AND column_name='cost_price')
+  THEN ALTER TABLE inventory_items ADD COLUMN cost_price NUMERIC(10,2) DEFAULT 0; END IF;
+END $$;
+
+-- Store cost price on each sale transaction for accurate historical profit tracking
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory_transactions' AND column_name='cost_price')
+  THEN ALTER TABLE inventory_transactions ADD COLUMN cost_price NUMERIC(10,2); END IF;
+END $$;
+
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
 ALTER TABLE scores            ENABLE ROW LEVEL SECURITY;
