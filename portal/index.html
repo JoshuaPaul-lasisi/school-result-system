@@ -5204,7 +5204,7 @@ function stockQtyBadge(qty,threshold){
 function renderInventory(){
   document.getElementById("page-title").textContent="Stock & Sales";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
-  document.getElementById("topbar-actions").innerHTML=canDo('ops')
+  document.getElementById("topbar-actions").innerHTML=canDo('admin')
     ?`<button class="btn btn-primary btn-sm" onclick="openAddInventoryItem()"><i class="ti ti-plus"></i> Add Item</button>`:"";
 
   const lowStock=inventoryItems.filter(i=>{const q=stockCurrentQty(i.id);return q<=i.low_stock_threshold&&q>0;});
@@ -5250,6 +5250,7 @@ function renderInventory(){
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openStockIn(${item.id})"><i class="ti ti-package-import"></i> Stock In</button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openAdjustStock(${item.id})"><i class="ti ti-adjustments"></i> Adjust</button>
               ${canDo('ops')?`
+              <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;color:#1d4ed8" onclick="openAdjustItemPrice(${item.id})"><i class="ti ti-tag"></i> Price</button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;margin-left:auto" onclick="openEditInventoryItem(${item.id})"><i class="ti ti-pencil"></i></button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;color:var(--tx-err)" onclick="deleteInventoryItem(${item.id},'${item.item_name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
               `:""}
@@ -5311,7 +5312,7 @@ function inventoryItemForm(i={}){
     </div>`;
 }
 function openAddInventoryItem(){
-  if(!canDo('ops')){alert("Operations or Director access required");return;}
+  if(!canDo('admin')){alert("Sign in to add stock items");return;}
   openModal("Add Stock Item",inventoryItemForm()+`
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitAddInventoryItem()"><i class="ti ti-check"></i> Save</button>
@@ -5328,6 +5329,30 @@ function openEditInventoryItem(id){
       <button class="btn" onclick="closeModal()">Cancel</button>
     </div>`);
   setTimeout(()=>document.getElementById("inv-name")?.focus(),50);
+}
+function openAdjustItemPrice(id){
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
+  const item=inventoryItems.find(i=>i.id===id);if(!item)return;
+  openModal(`Adjust Price — ${item.item_name}`,`
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Update cost and/or selling price. Transaction history is not affected.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Cost price / unit (₦)</label>
+        <input type="number" id="adj-cost" value="${item.cost_price||0}" min="0" /></div>
+      <div class="field"><label>Selling price / unit (₦)</label>
+        <input type="number" id="adj-price" value="${item.unit_price||0}" min="0" /></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="submitAdjustItemPrice(${id})"><i class="ti ti-check"></i> Save Prices</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("adj-cost")?.focus(),50);
+}
+async function submitAdjustItemPrice(id){
+  const costPrice=parseFloat(document.getElementById("adj-cost")?.value)||0;
+  const unitPrice=parseFloat(document.getElementById("adj-price")?.value)||0;
+  const{error}=await dbClient.from("inventory_items").update({cost_price:costPrice,unit_price:unitPrice}).eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadInventoryItems(); renderInventory();
 }
 function readInventoryItemForm(){
   return{
@@ -8224,7 +8249,7 @@ function _calcPayrollEntry(staff, runWorkingDays, monthPrefix){
   const daysPresent=monthLogs.filter(a=>a.status==='present').length;
   const workingDays=runWorkingDays||22;
   const dailyRate=monthlySalary/workingDays;
-  const deductibleAbsences=Math.max(0,absentUnrep-2);
+  const deductibleAbsences=Math.max(0,absentUnrep-1);
   const deductibleLates=Math.max(0,lateCount-2);
   const absenceDeduction=deductibleAbsences*dailyRate;
   const lateDeduction=deductibleLates*0.5*dailyRate;
