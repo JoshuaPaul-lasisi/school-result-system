@@ -188,6 +188,84 @@ ALTER TABLE prospects       ENABLE ROW LEVEL SECURITY;
 CREATE POLICY IF NOT EXISTS "anon_all_prospect_groups" ON prospect_groups FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY IF NOT EXISTS "anon_all_prospects"       ON prospects       FOR ALL TO anon USING (true) WITH CHECK (true);
 
+-- ── Staff payroll fields ─────────────────────────────────────────────────────
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='monthly_salary')
+  THEN ALTER TABLE staff ADD COLUMN monthly_salary NUMERIC(12,2); END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='bank_name')
+  THEN ALTER TABLE staff ADD COLUMN bank_name TEXT; END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='account_number')
+  THEN ALTER TABLE staff ADD COLUMN account_number TEXT; END IF;
+END $$;
+
+-- ── School timing config ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS school_timing (
+  id                  INTEGER PRIMARY KEY DEFAULT 1,
+  resumption_time     TEXT DEFAULT '07:30',
+  closing_time        TEXT DEFAULT '14:30',
+  late_grace_minutes  INTEGER DEFAULT 15
+);
+INSERT INTO school_timing (id) VALUES (1) ON CONFLICT DO NOTHING;
+ALTER TABLE school_timing ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "anon_all_school_timing" ON school_timing FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ── Staff attendance ──────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS staff_attendance (
+  id          SERIAL PRIMARY KEY,
+  staff_id    INTEGER REFERENCES staff(id) ON DELETE CASCADE,
+  date        DATE NOT NULL,
+  time_in     TEXT,
+  status      TEXT NOT NULL DEFAULT 'present',
+  note        TEXT,
+  term        TEXT,
+  session     TEXT,
+  UNIQUE(staff_id, date)
+);
+ALTER TABLE staff_attendance ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "anon_all_staff_attendance" ON staff_attendance FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ── Payroll ───────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS payroll_runs (
+  id            SERIAL PRIMARY KEY,
+  period_label  TEXT NOT NULL,
+  month_year    TEXT NOT NULL,
+  working_days  INTEGER NOT NULL,
+  payment_date  DATE,
+  status        TEXT DEFAULT 'draft',
+  notes         TEXT,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS payroll_entries (
+  id                   SERIAL PRIMARY KEY,
+  run_id               INTEGER REFERENCES payroll_runs(id) ON DELETE CASCADE,
+  staff_id             INTEGER,
+  staff_name           TEXT,
+  monthly_salary       NUMERIC(12,2),
+  working_days         INTEGER,
+  days_present         INTEGER DEFAULT 0,
+  late_count           INTEGER DEFAULT 0,
+  absences_unreported  INTEGER DEFAULT 0,
+  absences_reported    INTEGER DEFAULT 0,
+  deductible_absences  INTEGER DEFAULT 0,
+  deductible_lates     INTEGER DEFAULT 0,
+  absence_deduction    NUMERIC(12,2) DEFAULT 0,
+  late_deduction       NUMERIC(12,2) DEFAULT 0,
+  net_salary           NUMERIC(12,2),
+  notes                TEXT
+);
+ALTER TABLE payroll_runs    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payroll_entries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "anon_all_payroll_runs"    ON payroll_runs    FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "anon_all_payroll_entries" ON payroll_entries FOR ALL TO anon USING (true) WITH CHECK (true);
+
 -- Add stock metadata fields to inventory_items
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory_items' AND column_name='class_group')
