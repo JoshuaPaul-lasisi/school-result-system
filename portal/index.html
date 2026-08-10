@@ -651,6 +651,10 @@ let inventoryTxns = [];     // all transactions (all time, for stock levels)
 let prospectGroups = [];
 let prospectsList  = [];
 let _prospectGroupFilter = null;
+let staffAttendanceLog = [];
+let payrollRuns = [];
+let payrollEntries = [];
+let schoolTiming = {resumption_time:'07:30', closing_time:'14:30', late_grace_minutes:15};
 let _curPage = "dashboard", _curArg = null;
 let examPapersStore = [];
 let _paperFilterCls = "", _paperFilterType = "";
@@ -862,6 +866,7 @@ function renderSidebar(section){
       <div class="nav-section">
         <div class="nav-label">Staff</div>
         <div class="nav-item" onclick="nav('staff',null,this)"><i class="ti ti-users"></i>Staff Directory</div>
+        ${canDo('admin')?`<div class="nav-item" onclick="nav('staff-attendance',null,this)"><i class="ti ti-calendar-check"></i>Attendance</div>`:''}
       </div>`,
     entrance:`
       <div class="nav-section">
@@ -931,6 +936,10 @@ function renderSidebar(section){
         <div class="nav-label">Communications</div>
         <div class="nav-item" onclick="nav('broadcast-sms',null,this)"><i class="ti ti-speakerphone"></i>Broadcast SMS</div>
       </div>
+      ${canDo('ops')?`<div class="nav-section">
+        <div class="nav-label">Payroll</div>
+        <div class="nav-item" onclick="nav('payroll',null,this)"><i class="ti ti-wallet"></i>Payroll Runs</div>
+      </div>`:''}
       <div class="nav-section">
         <div class="nav-label">Records</div>
         <div class="nav-item" onclick="nav('assets',null,this)"><i class="ti ti-package"></i>Asset Register</div>
@@ -1174,11 +1183,31 @@ async function loadProspects(){
   const{data}=await dbClient.from("prospects").select("*").order("created_at",{ascending:false});
   if(data)prospectsList=data;
 }
+async function loadSchoolTiming(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("school_timing").select("*").eq("id",1).single();
+  if(data)schoolTiming=data;
+}
+async function loadStaffAttendance(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("staff_attendance").select("*").order("date",{ascending:false});
+  if(data)staffAttendanceLog=data;
+}
+async function loadPayrollRuns(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("payroll_runs").select("*").order("created_at",{ascending:false});
+  if(data)payrollRuns=data;
+}
+async function loadPayrollEntries(){
+  if(!dbClient)return;
+  const{data}=await dbClient.from("payroll_entries").select("*");
+  if(data)payrollEntries=data;
+}
 
 async function loadFromSupabase() {
   if (!dbClient) return false;
   try {
-    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadOwnerLoans(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments(), loadTeacherObsLog(), loadParentContacts(), loadExternalResults(), loadProspectGroups(), loadProspects()]);
+    await Promise.all([loadAnnexes(), loadRoster(), loadAllStudentsDb(), loadStaff(), loadAdminPin(), loadExamPapers(), loadEdgeTests(), loadStudentProfiles(), loadGuardians(), loadFeeStructure(), loadPaymentLog(), loadExpenseLog(), loadAssets(), loadIncidentLog(), loadOwnerLoans(), loadSchemes(), loadHolidays(), loadInventoryItems(), loadInventoryTxns(), loadFeederSchools(), loadExternalCandidates(), loadCandidateScores(), loadActivityMemberships(), loadActivitySessions(), loadActivityCompetitions(), loadSchoolEvents(), loadTimetableTeachers(), loadTimetableSlots(), loadSubjectConfig(), loadTrackDocuments(), loadTeacherObsLog(), loadParentContacts(), loadExternalResults(), loadProspectGroups(), loadProspects(), loadSchoolTiming(), loadStaffAttendance(), loadPayrollRuns(), loadPayrollEntries()]);
     const [sr, ar, or_] = await Promise.all([
       dbClient.from("scores").select("*").eq("term",currentTerm).eq("session",currentSession),
       dbClient.from("attendance").select("*").eq("term",currentTerm).eq("session",currentSession),
@@ -1298,6 +1327,8 @@ function nav(page,arg,el){
   else if(page==="incidents")renderIncidentLog();
   else if(page==="stock")renderInventory();
   else if(page==="prospects")renderProspects();
+  else if(page==="staff-attendance")renderStaffAttendance();
+  else if(page==="payroll")renderPayroll();
   else if(page==="candidates")renderCandidates();
   else if(page==="entrance-scores")renderEntranceScores();
   else if(page==="feeder-schools")renderFeederSchools();
@@ -2243,6 +2274,11 @@ function openAddStaff(){
       <div class="field"><label>Next of Kin</label><input id="m-nok" placeholder="Name" /></div>
       <div class="field"><label>Next of Kin Phone</label><input id="m-nokph" type="tel" placeholder="08012345678" /></div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Monthly salary (₦)</label><input type="number" id="m-salary" placeholder="e.g. 85000" min="0" /></div>
+      <div class="field"><label>Bank name</label><input id="m-bank" placeholder="e.g. Access Bank" /></div>
+    </div>
+    <div class="field"><label>Account number</label><input id="m-acct" placeholder="10-digit account number" maxlength="10" /></div>
     <div class="field"><label>Notes (optional)</label><textarea id="m-notes" rows="2" placeholder="Any agreements, probation notes…"></textarea></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitAddStaff()"><i class="ti ti-check"></i> Add</button>
@@ -2261,8 +2297,11 @@ async function submitAddStaff(){
   const nok=document.getElementById("m-nok")?.value?.trim()||null;
   const nokPh=document.getElementById("m-nokph")?.value?.trim()||null;
   const notes=document.getElementById("m-notes")?.value?.trim()||null;
+  const monthlySalary=parseFloat(document.getElementById("m-salary")?.value)||null;
+  const bankName=document.getElementById("m-bank")?.value?.trim()||null;
+  const accountNumber=document.getElementById("m-acct")?.value?.trim()||null;
   if(!name){alert("Enter staff name");return;}
-  const {data,error}=await dbClient.from("staff").insert({name,gender,staff_type:staffType,role,phone,annex_id:annexId,start_date:startDate,next_of_kin:nok,nok_phone:nokPh,notes}).select();
+  const {data,error}=await dbClient.from("staff").insert({name,gender,staff_type:staffType,role,phone,annex_id:annexId,start_date:startDate,next_of_kin:nok,nok_phone:nokPh,notes,monthly_salary:monthlySalary,bank_name:bankName,account_number:accountNumber}).select();
   if(error||!data?.[0]){alert("Error: "+(error?.message||"unknown"));return;}
   await dbClient.from("staff_assignments").insert({staff_id:data[0].id,annex_id:annexId,term:currentTerm,session:currentSession,status:"active"});
   closeModal(); await loadStaff(); renderAdmin();
@@ -2289,6 +2328,11 @@ function openEditStaff(staffId){
       <div class="field"><label>Next of Kin</label><input id="m-nok" value="${s.next_of_kin||""}" placeholder="Name" /></div>
       <div class="field"><label>Next of Kin Phone</label><input id="m-nokph" type="tel" value="${s.nok_phone||""}" placeholder="08012345678" /></div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Monthly salary (₦)</label><input type="number" id="m-salary" value="${s.monthly_salary||''}" placeholder="e.g. 85000" min="0" /></div>
+      <div class="field"><label>Bank name</label><input id="m-bank" value="${s.bank_name||''}" placeholder="e.g. Access Bank" /></div>
+    </div>
+    <div class="field"><label>Account number</label><input id="m-acct" value="${s.account_number||''}" placeholder="10-digit account number" maxlength="10" /></div>
     <div class="field"><label>Notes</label><textarea id="m-notes" rows="2">${s.notes||""}</textarea></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitEditStaff(${staffId})"><i class="ti ti-check"></i> Save</button>
@@ -2304,7 +2348,10 @@ async function submitEditStaff(staffId){
   const nok=document.getElementById("m-nok")?.value?.trim()||null;
   const nokPh=document.getElementById("m-nokph")?.value?.trim()||null;
   const notes=document.getElementById("m-notes")?.value?.trim()||null;
-  await dbClient.from("staff").update({role,phone,staff_type:staffType,start_date:startDate,next_of_kin:nok,nok_phone:nokPh,notes}).eq("id",staffId);
+  const monthlySalary=parseFloat(document.getElementById("m-salary")?.value)||null;
+  const bankName=document.getElementById("m-bank")?.value?.trim()||null;
+  const accountNumber=document.getElementById("m-acct")?.value?.trim()||null;
+  await dbClient.from("staff").update({role,phone,staff_type:staffType,start_date:startDate,next_of_kin:nok,nok_phone:nokPh,notes,monthly_salary:monthlySalary,bank_name:bankName,account_number:accountNumber}).eq("id",staffId);
   await dbClient.from("staff_assignments").update({annex_id:annexId}).eq("staff_id",staffId).eq("term",currentTerm).eq("session",currentSession);
   closeModal(); await loadStaff(); renderAdmin();
 }
@@ -3845,6 +3892,18 @@ function renderSettings(){
       <button class="btn btn-primary" onclick="switchTermSession()"><i class="ti ti-refresh"></i> Switch</button>
       <p style="font-size:11px;color:var(--tx2);margin-top:8px">Previous terms remain in the database and are accessible by switching back. "Summer Coaching" covers the paid coaching period between Third Term of one session and First Term of the next — use it to log its own fees, payments, and expenses (e.g. staff pay) separately from either session's terms.</p>
     </div>
+    ${canDo('admin')?`
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="ti ti-clock"></i> School Timing</span></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Used to compute attendance status. Staff arriving after the grace window are marked Late.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div class="field"><label>Resumption time</label><input type="time" id="st-res" value="${schoolTiming.resumption_time||'07:30'}" /></div>
+        <div class="field"><label>Closing time</label><input type="time" id="st-cls" value="${schoolTiming.closing_time||'14:30'}" /></div>
+        <div class="field"><label>Late grace (minutes)</label><input type="number" id="st-grace" value="${schoolTiming.late_grace_minutes||15}" min="0" max="120" /></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSchoolTiming()"><i class="ti ti-device-floppy"></i> Save Timing</button>
+      <div id="timing-status" style="margin-top:8px;font-size:12px"></div>
+    </div>`:''}
     ${canDo('director')?`
     <div class="card">
       <div class="card-head"><span class="card-title"><i class="ti ti-key" style="color:var(--burg)"></i> PIN Management</span><span class="badge badge-neutral">Director only</span></div>
@@ -3896,6 +3955,17 @@ async function savePinFor(id, col){
   renderSettings();
 }
 async function saveAdminPin(){ savePinFor('admin','admin_pin_hash'); }
+async function saveSchoolTiming(){
+  const st=document.getElementById("timing-status");
+  const res=document.getElementById("st-res")?.value?.trim();
+  const cls=document.getElementById("st-cls")?.value?.trim();
+  const grace=parseInt(document.getElementById("st-grace")?.value)||15;
+  if(!res||!cls){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Fill all fields</span>`;return;}
+  const{error}=await dbClient.from("school_timing").upsert({id:1,resumption_time:res,closing_time:cls,late_grace_minutes:grace},{onConflict:"id"});
+  if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
+  schoolTiming={resumption_time:res,closing_time:cls,late_grace_minutes:grace};
+  if(st)st.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Timing saved</span>`;
+}
 async function retryConnect(){
   dbStatus="loading"; updateDbIndicator(); renderSettings();
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -5134,7 +5204,7 @@ function stockQtyBadge(qty,threshold){
 function renderInventory(){
   document.getElementById("page-title").textContent="Stock & Sales";
   document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
-  document.getElementById("topbar-actions").innerHTML=canDo('ops')
+  document.getElementById("topbar-actions").innerHTML=canDo('admin')
     ?`<button class="btn btn-primary btn-sm" onclick="openAddInventoryItem()"><i class="ti ti-plus"></i> Add Item</button>`:"";
 
   const lowStock=inventoryItems.filter(i=>{const q=stockCurrentQty(i.id);return q<=i.low_stock_threshold&&q>0;});
@@ -5180,6 +5250,7 @@ function renderInventory(){
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openStockIn(${item.id})"><i class="ti ti-package-import"></i> Stock In</button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openAdjustStock(${item.id})"><i class="ti ti-adjustments"></i> Adjust</button>
               ${canDo('ops')?`
+              <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;color:#1d4ed8" onclick="openAdjustItemPrice(${item.id})"><i class="ti ti-tag"></i> Price</button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;margin-left:auto" onclick="openEditInventoryItem(${item.id})"><i class="ti ti-pencil"></i></button>
               <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;color:var(--tx-err)" onclick="deleteInventoryItem(${item.id},'${item.item_name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
               `:""}
@@ -5241,7 +5312,7 @@ function inventoryItemForm(i={}){
     </div>`;
 }
 function openAddInventoryItem(){
-  if(!canDo('ops')){alert("Operations or Director access required");return;}
+  if(!canDo('admin')){alert("Sign in to add stock items");return;}
   openModal("Add Stock Item",inventoryItemForm()+`
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" onclick="submitAddInventoryItem()"><i class="ti ti-check"></i> Save</button>
@@ -5258,6 +5329,30 @@ function openEditInventoryItem(id){
       <button class="btn" onclick="closeModal()">Cancel</button>
     </div>`);
   setTimeout(()=>document.getElementById("inv-name")?.focus(),50);
+}
+function openAdjustItemPrice(id){
+  if(!canDo('ops')){alert("Operations or Director access required");return;}
+  const item=inventoryItems.find(i=>i.id===id);if(!item)return;
+  openModal(`Adjust Price — ${item.item_name}`,`
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Update cost and/or selling price. Transaction history is not affected.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Cost price / unit (₦)</label>
+        <input type="number" id="adj-cost" value="${item.cost_price||0}" min="0" /></div>
+      <div class="field"><label>Selling price / unit (₦)</label>
+        <input type="number" id="adj-price" value="${item.unit_price||0}" min="0" /></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="submitAdjustItemPrice(${id})"><i class="ti ti-check"></i> Save Prices</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("adj-cost")?.focus(),50);
+}
+async function submitAdjustItemPrice(id){
+  const costPrice=parseFloat(document.getElementById("adj-cost")?.value)||0;
+  const unitPrice=parseFloat(document.getElementById("adj-price")?.value)||0;
+  const{error}=await dbClient.from("inventory_items").update({cost_price:costPrice,unit_price:unitPrice}).eq("id",id);
+  if(error){alert("Error: "+error.message);return;}
+  closeModal(); await loadInventoryItems(); renderInventory();
 }
 function readInventoryItemForm(){
   return{
@@ -7993,6 +8088,306 @@ async function sendBroadcastSMS(){
     if(errEl){errEl.textContent="Network error — could not reach the server. Try again.";errEl.style.display="block";}
     if(sendBtn){sendBtn.innerHTML=origHtml;sendBtn.disabled=false;}
   }
+}
+
+/* ── Staff Attendance ── */
+let _attFilterDate = '';
+let _attFilterStaff = '';
+
+function renderStaffAttendance(){
+  if(!canDo('admin')){document.getElementById("content").innerHTML=`<div class="card"><p>Access denied.</p></div>`;return;}
+  document.getElementById("page-title").textContent="Staff Attendance";
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("topbar-actions").innerHTML=`
+    <button class="btn btn-primary btn-sm" onclick="openMarkAttendance()"><i class="ti ti-calendar-plus"></i> Mark Today</button>`;
+
+  // default filter to today
+  if(!_attFilterDate) _attFilterDate=new Date().toISOString().slice(0,10);
+
+  const activeStaff=staffList.filter(s=>s.assignment?.status==='active');
+  const staffOpts=activeStaff.map(s=>`<option value="${s.id}" ${String(s.id)===_attFilterStaff?'selected':''}>${s.name}</option>`).join('');
+
+  // build attendance table for selected date
+  const dayLogs=staffAttendanceLog.filter(a=>a.date===_attFilterDate);
+  const statusBadge=st=>{
+    const map={present:`<span class="badge badge-ok">Present</span>`,late:`<span class="badge" style="background:#fef3c7;color:#92400e">Late</span>`,absent_unreported:`<span class="badge badge-err">Absent (unreported)</span>`,absent_reported:`<span class="badge" style="background:#ede9fe;color:#6d28d9">Absent (reported)</span>`,leave:`<span class="badge badge-neutral">Leave</span>`};
+    return map[st]||`<span class="badge badge-neutral">${st}</span>`;
+  };
+
+  const rows=activeStaff.map(s=>{
+    const log=dayLogs.find(a=>a.staff_id===s.id);
+    return`<tr>
+      <td>${s.name}</td>
+      <td>${s.role||''}</td>
+      <td>${log?statusBadge(log.status):`<span style="color:var(--tx3);font-size:12px">Not marked</span>`}</td>
+      <td>${log?.time_in||''}</td>
+      <td>${log?.note||''}</td>
+      <td><button class="btn btn-sm" onclick="openMarkOneAttendance(${s.id},'${s.name.replace(/'/g,"\\'")}','${_attFilterDate}')"><i class="ti ti-edit"></i></button></td>
+    </tr>`;
+  }).join('');
+
+  // monthly summary per staff
+  const monthPrefix=_attFilterDate.slice(0,7); // YYYY-MM
+  const monthLogs=staffAttendanceLog.filter(a=>a.date&&a.date.startsWith(monthPrefix));
+
+  const summaryRows=activeStaff.map(s=>{
+    const sl=monthLogs.filter(a=>a.staff_id===s.id);
+    const present=sl.filter(a=>a.status==='present').length;
+    const late=sl.filter(a=>a.status==='late').length;
+    const absentUnrep=sl.filter(a=>a.status==='absent_unreported').length;
+    const absentRep=sl.filter(a=>a.status==='absent_reported'||a.status==='leave').length;
+    return`<tr>
+      <td>${s.name}</td>
+      <td style="text-align:center">${present}</td>
+      <td style="text-align:center">${late}</td>
+      <td style="text-align:center">${absentUnrep}</td>
+      <td style="text-align:center">${absentRep}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById("content").innerHTML=`
+    <div class="card">
+      <div class="card-head"><span class="card-title">Daily Register</span></div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        <input type="date" value="${_attFilterDate}" onchange="_attFilterDate=this.value;renderStaffAttendance()" style="min-width:150px" />
+        <button class="btn btn-primary btn-sm" onclick="openMarkAttendance('${_attFilterDate}')"><i class="ti ti-calendar-check"></i> Mark All for This Day</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Time In</th><th>Note</th><th></th></tr></thead>
+        <tbody>${rows||`<tr><td colspan="6" style="text-align:center;color:var(--tx3)">No active staff</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Monthly Summary — ${monthPrefix}</span></div>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th style="text-align:center">Present</th><th style="text-align:center">Late</th><th style="text-align:center">Absent (unrpt)</th><th style="text-align:center">Absent (rpt)/Leave</th></tr></thead>
+        <tbody>${summaryRows||`<tr><td colspan="5" style="text-align:center;color:var(--tx3)">No data</td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+
+function openMarkAttendance(dateOverride){
+  if(!canDo('admin')){alert("Admin access required");return;}
+  const date=dateOverride||new Date().toISOString().slice(0,10);
+  const activeStaff=staffList.filter(s=>s.assignment?.status==='active');
+  const dayLogs=staffAttendanceLog.filter(a=>a.date===date);
+  const STATUS_OPTS=['present','late','absent_unreported','absent_reported','leave'];
+  const rows=activeStaff.map(s=>{
+    const log=dayLogs.find(a=>a.staff_id===s.id);
+    const cur=log?.status||'present';
+    const opts=STATUS_OPTS.map(st=>`<option value="${st}" ${cur===st?'selected':''}>${{present:'Present',late:'Late',absent_unreported:'Absent (unreported)',absent_reported:'Absent (reported)',leave:'Leave'}[st]}</option>`).join('');
+    return`<tr>
+      <td style="padding:6px 8px">${s.name}</td>
+      <td style="padding:6px 8px"><select id="att-status-${s.id}" style="width:100%">${opts}</select></td>
+      <td style="padding:6px 8px"><input type="time" id="att-time-${s.id}" value="${log?.time_in||schoolTiming.resumption_time||''}" style="width:100%" /></td>
+      <td style="padding:6px 8px"><input type="text" id="att-note-${s.id}" value="${log?.note||''}" placeholder="Note…" style="width:100%" /></td>
+    </tr>`;
+  }).join('');
+  openModal('Mark Attendance — '+date,`
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:10px">Resumption: <strong>${schoolTiming.resumption_time}</strong> · Grace: <strong>${schoolTiming.late_grace_minutes} min</strong></p>
+    <div style="overflow-x:auto;max-height:60vh;overflow-y:auto">
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Status</th><th>Time In</th><th>Note</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="submitMarkAttendance('${date}')"><i class="ti ti-check"></i> Save All</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function openMarkOneAttendance(staffId,staffName,date){
+  if(!canDo('admin')){alert("Admin access required");return;}
+  const log=staffAttendanceLog.find(a=>a.staff_id===staffId&&a.date===date);
+  const cur=log?.status||'present';
+  const STATUS_OPTS=['present','late','absent_unreported','absent_reported','leave'];
+  const opts=STATUS_OPTS.map(st=>`<option value="${st}" ${cur===st?'selected':''}>${{present:'Present',late:'Late',absent_unreported:'Absent (unreported)',absent_reported:'Absent (reported)',leave:'Leave'}[st]}</option>`).join('');
+  openModal(`Attendance — ${staffName}`,`
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">${date}</p>
+    <div class="field"><label>Status</label><select id="one-att-status">${opts}</select></div>
+    <div class="field"><label>Time In</label><input type="time" id="one-att-time" value="${log?.time_in||schoolTiming.resumption_time||''}" /></div>
+    <div class="field"><label>Note</label><input id="one-att-note" value="${log?.note||''}" placeholder="Optional note…" /></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="submitOneAttendance(${staffId},'${date}')"><i class="ti ti-check"></i> Save</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+async function submitMarkAttendance(date){
+  const activeStaff=staffList.filter(s=>s.assignment?.status==='active');
+  const records=activeStaff.map(s=>({
+    staff_id:s.id,date,
+    status:document.getElementById(`att-status-${s.id}`)?.value||'present',
+    time_in:document.getElementById(`att-time-${s.id}`)?.value||null,
+    note:document.getElementById(`att-note-${s.id}`)?.value?.trim()||null,
+    term:currentTerm,session:currentSession
+  }));
+  const{error}=await dbClient.from("staff_attendance").upsert(records,{onConflict:"staff_id,date"});
+  if(error){alert("Error: "+error.message);return;}
+  await loadStaffAttendance();
+  closeModal(); _attFilterDate=date; renderStaffAttendance();
+}
+
+async function submitOneAttendance(staffId,date){
+  const status=document.getElementById("one-att-status")?.value||'present';
+  const time_in=document.getElementById("one-att-time")?.value||null;
+  const note=document.getElementById("one-att-note")?.value?.trim()||null;
+  const{error}=await dbClient.from("staff_attendance").upsert({staff_id:staffId,date,status,time_in,note,term:currentTerm,session:currentSession},{onConflict:"staff_id,date"});
+  if(error){alert("Error: "+error.message);return;}
+  await loadStaffAttendance();
+  closeModal(); _attFilterDate=date; renderStaffAttendance();
+}
+
+/* ── Payroll ── */
+function _calcPayrollEntry(staff, runWorkingDays, monthPrefix){
+  const monthlySalary=parseFloat(staff.monthly_salary)||0;
+  if(!monthlySalary) return null;
+  const monthLogs=staffAttendanceLog.filter(a=>a.staff_id===staff.id&&a.date&&a.date.startsWith(monthPrefix));
+  const lateCount=monthLogs.filter(a=>a.status==='late').length;
+  const absentUnrep=monthLogs.filter(a=>a.status==='absent_unreported').length;
+  const absentRep=monthLogs.filter(a=>a.status==='absent_reported'||a.status==='leave').length;
+  const daysPresent=monthLogs.filter(a=>a.status==='present').length;
+  const workingDays=runWorkingDays||22;
+  const dailyRate=monthlySalary/workingDays;
+  const deductibleAbsences=Math.max(0,absentUnrep-1);
+  const deductibleLates=Math.max(0,lateCount-2);
+  const absenceDeduction=deductibleAbsences*dailyRate;
+  const lateDeduction=deductibleLates*0.5*dailyRate;
+  const netSalary=Math.max(0,monthlySalary-absenceDeduction-lateDeduction);
+  return{
+    staff_id:staff.id,staff_name:staff.name,monthly_salary:monthlySalary,
+    working_days:workingDays,days_present:daysPresent,late_count:lateCount,
+    absences_unreported:absentUnrep,absences_reported:absentRep,
+    deductible_absences:deductibleAbsences,deductible_lates:deductibleLates,
+    absence_deduction:Math.round(absenceDeduction*100)/100,
+    late_deduction:Math.round(lateDeduction*100)/100,
+    net_salary:Math.round(netSalary*100)/100
+  };
+}
+
+function renderPayroll(){
+  if(!canDo('ops')){document.getElementById("content").innerHTML=`<div class="card"><p>Access denied.</p></div>`;return;}
+  document.getElementById("page-title").textContent="Payroll";
+  document.getElementById("page-meta").textContent="Staff salary & deductions";
+  document.getElementById("topbar-actions").innerHTML=`
+    <button class="btn btn-primary btn-sm" onclick="openNewPayrollRun()"><i class="ti ti-plus"></i> New Payroll Run</button>`;
+
+  const fmt=n=>n!=null?`₦${Number(n).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
+
+  const runCards=payrollRuns.length===0
+    ?`<div class="card"><p style="color:var(--tx3);text-align:center">No payroll runs yet. Create one to get started.</p></div>`
+    :payrollRuns.map(run=>{
+        const entries=payrollEntries.filter(e=>e.run_id===run.id);
+        const totalNet=entries.reduce((s,e)=>s+parseFloat(e.net_salary||0),0);
+        const totalDeductions=entries.reduce((s,e)=>s+parseFloat(e.absence_deduction||0)+parseFloat(e.late_deduction||0),0);
+        const statusBadge=run.status==='paid'
+          ?`<span class="badge badge-ok">Paid</span>`
+          :run.status==='approved'
+          ?`<span class="badge" style="background:#dbeafe;color:#1d4ed8">Approved</span>`
+          :`<span class="badge badge-neutral">Draft</span>`;
+        const entryRows=entries.map(e=>`
+          <tr>
+            <td>${e.staff_name}</td>
+            <td style="text-align:right">${fmt(e.monthly_salary)}</td>
+            <td style="text-align:center">${e.working_days}</td>
+            <td style="text-align:center">${e.days_present}</td>
+            <td style="text-align:center">${e.late_count} <small style="color:var(--tx3)">(${e.deductible_lates} ded.)</small></td>
+            <td style="text-align:center">${e.absences_unreported} <small style="color:var(--tx3)">(${e.deductible_absences} ded.)</small></td>
+            <td style="text-align:right;color:var(--tx-err)">${e.absence_deduction>0||e.late_deduction>0?fmt(parseFloat(e.absence_deduction)+parseFloat(e.late_deduction)):'-'}</td>
+            <td style="text-align:right;font-weight:600">${fmt(e.net_salary)}</td>
+          </tr>`).join('');
+        return`
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">${run.period_label}</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              ${statusBadge}
+              ${run.status==='draft'?`<button class="btn btn-sm btn-primary" onclick="approvePayrollRun(${run.id})"><i class="ti ti-check"></i> Approve</button>`:''}
+              ${run.status==='approved'?`<button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="markPayrollPaid(${run.id})"><i class="ti ti-wallet"></i> Mark Paid</button>`:''}
+            </div>
+          </div>
+          <div style="display:flex;gap:20px;margin-bottom:12px;flex-wrap:wrap">
+            <div><span style="font-size:11px;color:var(--tx2)">Period</span><div style="font-weight:600">${run.month_year}</div></div>
+            <div><span style="font-size:11px;color:var(--tx2)">Working days</span><div style="font-weight:600">${run.working_days}</div></div>
+            ${run.payment_date?`<div><span style="font-size:11px;color:var(--tx2)">Payment date</span><div style="font-weight:600">${run.payment_date}</div></div>`:''}
+            <div><span style="font-size:11px;color:var(--tx2)">Total deductions</span><div style="font-weight:600;color:var(--tx-err)">${fmt(totalDeductions)}</div></div>
+            <div><span style="font-size:11px;color:var(--tx2)">Total net pay</span><div style="font-weight:600;font-size:16px">${fmt(totalNet)}</div></div>
+          </div>
+          ${entries.length>0?`
+          <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>Name</th><th style="text-align:right">Gross</th><th style="text-align:center">Work days</th><th style="text-align:center">Present</th><th style="text-align:center">Late</th><th style="text-align:center">Absent (unrpt)</th><th style="text-align:right">Deductions</th><th style="text-align:right">Net Pay</th></tr></thead>
+            <tbody>${entryRows}</tbody>
+          </table></div>`:`<p style="font-size:12px;color:var(--tx3)">No entries. Regenerate run to recompute.</p>`}
+          ${run.notes?`<p style="font-size:12px;color:var(--tx2);margin-top:8px">${run.notes}</p>`:''}
+        </div>`;
+      }).join('');
+
+  document.getElementById("content").innerHTML=runCards;
+}
+
+function openNewPayrollRun(){
+  const now=new Date();
+  const defaultMonth=now.toISOString().slice(0,7);
+  const defaultLabel=now.toLocaleString('default',{month:'long',year:'numeric'});
+  openModal('New Payroll Run',`
+    <div class="field"><label>Period label (e.g. "August 2026 Salary")</label><input id="pr-label" value="${defaultLabel} Salary" /></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Month (YYYY-MM)</label><input id="pr-month" value="${defaultMonth}" placeholder="2026-08" /></div>
+      <div class="field"><label>Working days this month</label><input type="number" id="pr-wdays" value="22" min="1" max="31" /></div>
+    </div>
+    <div class="field"><label>Expected payment date</label><input type="date" id="pr-paydate" /></div>
+    <div class="field"><label>Notes (optional)</label><textarea id="pr-notes" rows="2"></textarea></div>
+    <p style="font-size:11px;color:var(--tx2);margin-top:4px">Attendance data for the selected month will be used to compute deductions automatically.</p>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="submitNewPayrollRun()"><i class="ti ti-calculator"></i> Generate Run</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+async function submitNewPayrollRun(){
+  const label=document.getElementById("pr-label")?.value?.trim();
+  const monthYear=document.getElementById("pr-month")?.value?.trim();
+  const workingDays=parseInt(document.getElementById("pr-wdays")?.value)||22;
+  const paymentDate=document.getElementById("pr-paydate")?.value||null;
+  const notes=document.getElementById("pr-notes")?.value?.trim()||null;
+  if(!label||!monthYear){alert("Enter period label and month");return;}
+
+  // create the run
+  const{data:run,error:runErr}=await dbClient.from("payroll_runs").insert({
+    period_label:label,month_year:monthYear,working_days:workingDays,
+    payment_date:paymentDate,notes,status:'draft'
+  }).select().single();
+  if(runErr){alert("Error: "+runErr.message);return;}
+
+  // compute entries for all active staff with a salary
+  const activeStaff=staffList.filter(s=>s.assignment?.status==='active'&&s.monthly_salary);
+  const entries=activeStaff.map(s=>{
+    const e=_calcPayrollEntry(s,workingDays,monthYear);
+    if(!e)return null;
+    return{...e,run_id:run.id};
+  }).filter(Boolean);
+
+  if(entries.length){
+    const{error:entErr}=await dbClient.from("payroll_entries").insert(entries);
+    if(entErr){alert("Entries error: "+entErr.message);return;}
+  }
+
+  await loadPayrollRuns(); await loadPayrollEntries();
+  closeModal(); renderPayroll();
+}
+
+async function approvePayrollRun(runId){
+  if(!confirm("Approve this payroll run?"))return;
+  await dbClient.from("payroll_runs").update({status:'approved'}).eq("id",runId);
+  await loadPayrollRuns(); renderPayroll();
+}
+
+async function markPayrollPaid(runId){
+  const today=new Date().toISOString().slice(0,10);
+  if(!confirm(`Mark run as paid on ${today}?`))return;
+  await dbClient.from("payroll_runs").update({status:'paid',payment_date:today}).eq("id",runId);
+  await loadPayrollRuns(); renderPayroll();
 }
 
 /* ── boot ── */
