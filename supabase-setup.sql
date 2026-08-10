@@ -185,8 +185,10 @@ CREATE TABLE IF NOT EXISTS prospects (
 
 ALTER TABLE prospect_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE prospects       ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "anon_all_prospect_groups" ON prospect_groups FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "anon_all_prospects"       ON prospects       FOR ALL TO anon USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='prospect_groups' AND policyname='anon_all_prospect_groups') THEN CREATE POLICY "anon_all_prospect_groups" ON prospect_groups FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='prospects'       AND policyname='anon_all_prospects')       THEN CREATE POLICY "anon_all_prospects"       ON prospects       FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
 
 -- ── Staff payroll fields ─────────────────────────────────────────────────────
 
@@ -213,7 +215,9 @@ CREATE TABLE IF NOT EXISTS school_timing (
 );
 INSERT INTO school_timing (id) VALUES (1) ON CONFLICT DO NOTHING;
 ALTER TABLE school_timing ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "anon_all_school_timing" ON school_timing FOR ALL TO anon USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='school_timing' AND policyname='anon_all_school_timing') THEN CREATE POLICY "anon_all_school_timing" ON school_timing FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
 
 -- ── Staff attendance ──────────────────────────────────────────────────────────
 
@@ -229,7 +233,9 @@ CREATE TABLE IF NOT EXISTS staff_attendance (
   UNIQUE(staff_id, date)
 );
 ALTER TABLE staff_attendance ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "anon_all_staff_attendance" ON staff_attendance FOR ALL TO anon USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='staff_attendance' AND policyname='anon_all_staff_attendance') THEN CREATE POLICY "anon_all_staff_attendance" ON staff_attendance FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
 
 -- ── Payroll ───────────────────────────────────────────────────────────────────
 
@@ -263,8 +269,10 @@ CREATE TABLE IF NOT EXISTS payroll_entries (
 );
 ALTER TABLE payroll_runs    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payroll_entries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "anon_all_payroll_runs"    ON payroll_runs    FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "anon_all_payroll_entries" ON payroll_entries FOR ALL TO anon USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='payroll_runs'    AND policyname='anon_all_payroll_runs')    THEN CREATE POLICY "anon_all_payroll_runs"    ON payroll_runs    FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='payroll_entries' AND policyname='anon_all_payroll_entries') THEN CREATE POLICY "anon_all_payroll_entries" ON payroll_entries FOR ALL TO anon USING (true) WITH CHECK (true); END IF;
+END $$;
 
 -- Add stock metadata fields to inventory_items
 DO $$ BEGIN
