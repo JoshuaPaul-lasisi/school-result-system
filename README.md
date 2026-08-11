@@ -21,12 +21,18 @@ A "Staff Portal" link in the website's nav and footer leads to `/portal`.
 - Timetable auto-generation with teacher-availability and subject-priority constraints
 - All data saves automatically in the browser (localStorage) and syncs with Supabase
 
+## Access control
+
+Staff sections require signing in with a role PIN (Director / Head of Operations / Owner / Office Admin). The PIN itself is only ever checked server-side, in `api/auth-pin.js` — the browser never holds a PIN hash. On a correct PIN, that endpoint signs the role into a real Supabase Auth session, and the database's row-level security policies (see the "SECURITY HARDENING" block at the end of `supabase-setup.sql`) require that session for every staff-only table. Signing in is what grants real data access, not just what unlocks the UI.
+
 ## Hosting on Vercel
 
 1. Push this repo to GitHub
 2. Go to vercel.com → New Project → Import the repo
 3. No build settings needed — deploy as-is (`vercel.json` routes `/portal/*` to the operational system and clean URLs like `/about` to their `.html` files)
-4. Share the root URL for the public website, and `/portal` with staff
+4. In Vercel → Project → Settings → Environment Variables, add `SUPABASE_SERVICE_ROLE_KEY` (Supabase dashboard → Settings → API → `service_role` key — keep this secret, never put it in this repo or the browser)
+5. Run the SQL in `supabase-setup.sql` in the Supabase SQL editor (safe to re-run — every statement is idempotent)
+6. Share the root URL for the public website, and `/portal` with staff
 
 ## Term / session
 
