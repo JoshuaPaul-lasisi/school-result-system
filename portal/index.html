@@ -651,6 +651,7 @@ let inventoryTxns = [];     // all transactions (all time, for stock levels)
 let prospectGroups = [];
 let prospectsList  = [];
 let _prospectGroupFilter = null;
+let _invSearch = '';
 let staffAttendanceLog = [];
 let payrollRuns = [];
 let payrollEntries = [];
@@ -5213,6 +5214,37 @@ function renderInventory(){
   const termProfit=canDo('ops')?stockTermProfit():null;
   const termTxns=inventoryTxns.filter(t=>t.term===currentTerm&&t.session===currentSession);
 
+  // sort alphabetically, then filter by search
+  const q=(_invSearch||'').toLowerCase().trim();
+  const sorted=[...inventoryItems].sort((a,b)=>a.item_name.localeCompare(b.item_name));
+  const visible=q
+    ?sorted.filter(i=>[i.item_name,i.category,i.class_group,i.publisher,i.distributor].some(v=>v&&v.toLowerCase().includes(q)))
+    :sorted;
+
+  const itemRows=visible.map(item=>{
+    const qty=stockCurrentQty(item.id);
+    const nameSafe=item.item_name.replace(/'/g,"\\'");
+    return`<tr>
+      <td>
+        <div style="font-weight:600;font-size:13px">${item.item_name}</div>
+        <div style="font-size:11px;color:var(--tx3)">${item.category}${item.class_group?` · ${item.class_group}`:''}${item.publisher?` · ${item.publisher}`:''}${item.distributor?` · ${item.distributor}`:''}</div>
+      </td>
+      <td style="white-space:nowrap">${stockQtyBadge(qty,item.low_stock_threshold)}</td>
+      <td style="white-space:nowrap">₦${parseFloat(item.unit_price).toLocaleString()}${canDo('ops')&&item.cost_price?`<div style="font-size:10px;color:var(--tx3)">Cost ₦${parseFloat(item.cost_price).toLocaleString()}</div>`:''}</td>
+      ${canDo('admin')?`<td style="white-space:nowrap">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 8px" onclick="openSaleModal(${item.id})"><i class="ti ti-shopping-cart"></i> Sell</button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openStockIn(${item.id})"><i class="ti ti-package-import"></i> In</button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openAdjustStock(${item.id})"><i class="ti ti-adjustments"></i> Adj</button>
+          ${canDo('ops')?`
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px;color:#1d4ed8" onclick="openAdjustItemPrice(${item.id})"><i class="ti ti-tag"></i></button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openEditInventoryItem(${item.id})"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px;color:var(--tx-err)" onclick="deleteInventoryItem(${item.id},'${nameSafe}')"><i class="ti ti-trash"></i></button>`:''}
+        </div>
+      </td>`:`<td></td>`}
+    </tr>`;
+  }).join('');
+
   document.getElementById("content").innerHTML=`
     ${(outOfStock.length||lowStock.length)?`
     <div class="card" style="border-color:var(--tx-warn);margin-bottom:14px">
@@ -5229,35 +5261,25 @@ function renderInventory(){
       <div class="stat"><div class="stat-label">Transactions this term</div><div class="stat-val">${termTxns.length}</div></div>
     </div>
     ${!canDo('admin')?signInNotice('record sales and stock movements'):""}
-    ${inventoryItems.length===0
-      ?`<div class="card"><div class="empty"><i class="ti ti-package-off"></i>No items yet${canDo('ops')?" — click Add Item to start":""}</div></div>`
-      :`<div class="stock-grid">
-        ${inventoryItems.map(item=>{
-          const qty=stockCurrentQty(item.id);
-          return`<div class="stock-card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-              <div>
-                <div style="font-weight:600;font-size:13px">${item.item_name}</div>
-                <div style="font-size:11px;color:var(--tx3);margin-top:2px">${item.category}${item.class_group?` · ${item.class_group}`:''}</div>
-                ${item.publisher||item.distributor?`<div style="font-size:10px;color:var(--tx3);margin-top:1px">${[item.publisher,item.distributor].filter(Boolean).join(' · ')}</div>`:''}
-              </div>
-              ${stockQtyBadge(qty,item.low_stock_threshold)}
-            </div>
-            <div style="font-size:12px;color:var(--tx2)">Sell ₦${parseFloat(item.unit_price).toLocaleString()}${canDo('ops')&&item.cost_price?` <span style="color:var(--tx3)">· Cost ₦${parseFloat(item.cost_price).toLocaleString()}</span>`:''}</div>
-            ${canDo('admin')?`
-            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">
-              <button class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 9px" onclick="openSaleModal(${item.id})"><i class="ti ti-shopping-cart"></i> Sell</button>
-              <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openStockIn(${item.id})"><i class="ti ti-package-import"></i> Stock In</button>
-              <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="openAdjustStock(${item.id})"><i class="ti ti-adjustments"></i> Adjust</button>
-              ${canDo('ops')?`
-              <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;color:#1d4ed8" onclick="openAdjustItemPrice(${item.id})"><i class="ti ti-tag"></i> Price</button>
-              <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;margin-left:auto" onclick="openEditInventoryItem(${item.id})"><i class="ti ti-pencil"></i></button>
-              <button class="btn btn-sm" style="font-size:11px;padding:4px 9px;color:var(--tx-err)" onclick="deleteInventoryItem(${item.id},'${item.item_name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
-              `:""}
-            </div>`:""}
-          </div>`;
-        }).join("")}
-      </div>`}
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head" style="gap:10px;flex-wrap:wrap">
+        <span class="card-title">Stock Items</span>
+        <div style="flex:1;min-width:180px;max-width:320px">
+          <input id="inv-search" type="search" placeholder="Search by name, category, class, publisher…"
+            value="${_invSearch}" oninput="_invSearch=this.value;renderInventoryList()"
+            style="width:100%;padding:6px 10px;border:1px solid var(--bd3);border-radius:var(--r);background:var(--bg-input,var(--bg));color:var(--tx);font-size:13px" />
+        </div>
+        <span style="font-size:11px;color:var(--tx3)">${visible.length} of ${inventoryItems.length}</span>
+      </div>
+      ${inventoryItems.length===0
+        ?`<div class="empty"><i class="ti ti-package-off"></i>No items yet${canDo('admin')?" — click Add Item to start":""}</div>`
+        :visible.length===0
+        ?`<div style="padding:16px;text-align:center;color:var(--tx3);font-size:13px">No items match "${_invSearch}"</div>`
+        :`<div style="overflow-x:auto"><table class="data-table" id="inv-list-table">
+          <thead><tr><th>Item</th><th>Stock</th><th>Price</th><th>Actions</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table></div>`}
+    </div>
     <div class="card">
       <div class="card-head">
         <span class="card-title">Transactions — ${currentTerm}</span>
@@ -5265,7 +5287,7 @@ function renderInventory(){
       </div>
       ${termTxns.length===0
         ?`<div class="empty"><i class="ti ti-list-search"></i>No transactions this term</div>`
-        :`<div style="overflow-x:auto"><table>
+        :`<div style="overflow-x:auto"><table class="data-table">
           <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Unit ₦</th><th>Total</th><th>Note</th>${canDo('ops')?'<th></th>':''}</tr></thead>
           <tbody>${termTxns.map(t=>{
             const item=inventoryItems.find(i=>i.id===t.item_id);
@@ -5285,6 +5307,46 @@ function renderInventory(){
             </tr>`;}).join("")}
           </tbody></table></div>`}
     </div>`;
+}
+
+function renderInventoryList(){
+  // live-update just the stock list without redrawing the whole page
+  const q=(_invSearch||'').toLowerCase().trim();
+  const sorted=[...inventoryItems].sort((a,b)=>a.item_name.localeCompare(b.item_name));
+  const visible=q
+    ?sorted.filter(i=>[i.item_name,i.category,i.class_group,i.publisher,i.distributor].some(v=>v&&v.toLowerCase().includes(q)))
+    :sorted;
+  const counter=document.querySelector('#inv-list-table')?.closest('.card')?.querySelector('span[style*="tx3"]');
+  if(counter) counter.textContent=`${visible.length} of ${inventoryItems.length}`;
+  const tbody=document.querySelector('#inv-list-table tbody');
+  if(!tbody){renderInventory();return;}
+  if(visible.length===0){
+    tbody.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--tx3);padding:16px">No items match "${_invSearch}"</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=visible.map(item=>{
+    const qty=stockCurrentQty(item.id);
+    const nameSafe=item.item_name.replace(/'/g,"\\'");
+    return`<tr>
+      <td>
+        <div style="font-weight:600;font-size:13px">${item.item_name}</div>
+        <div style="font-size:11px;color:var(--tx3)">${item.category}${item.class_group?` · ${item.class_group}`:''}${item.publisher?` · ${item.publisher}`:''}${item.distributor?` · ${item.distributor}`:''}</div>
+      </td>
+      <td style="white-space:nowrap">${stockQtyBadge(qty,item.low_stock_threshold)}</td>
+      <td style="white-space:nowrap">₦${parseFloat(item.unit_price).toLocaleString()}${canDo('ops')&&item.cost_price?`<div style="font-size:10px;color:var(--tx3)">Cost ₦${parseFloat(item.cost_price).toLocaleString()}</div>`:''}</td>
+      ${canDo('admin')?`<td style="white-space:nowrap">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 8px" onclick="openSaleModal(${item.id})"><i class="ti ti-shopping-cart"></i> Sell</button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openStockIn(${item.id})"><i class="ti ti-package-import"></i> In</button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openAdjustStock(${item.id})"><i class="ti ti-adjustments"></i> Adj</button>
+          ${canDo('ops')?`
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px;color:#1d4ed8" onclick="openAdjustItemPrice(${item.id})"><i class="ti ti-tag"></i></button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openEditInventoryItem(${item.id})"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px;color:var(--tx-err)" onclick="deleteInventoryItem(${item.id},'${nameSafe}')"><i class="ti ti-trash"></i></button>`:''}
+        </div>
+      </td>`:`<td></td>`}
+    </tr>`;
+  }).join('');
 }
 
 function inventoryItemForm(i={}){
