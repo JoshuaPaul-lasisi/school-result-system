@@ -638,10 +638,14 @@ let staffList = [];
 let annexList = [{id:1,name:"Mushin",address:"12, Bamgboye Street, Off Alafia Street, Mushin, Lagos"},{id:2,name:"Obafemi-Owode",address:"9, Assemblies of God Road, Obafemi-Owode, Ogun"}];
 let currentAnnexFilter = "";
 let adminUnlocked = false;
-let storedPinHash = null;        // director
-let storedAdminPinHash = null;   // office admin
-let storedOpsPinHash = null;     // head of operations
-let storedOwnerPinHash = null;   // owner / family
+// Whether each role has claimed a PIN (booleans, from /api/auth-pin — the actual
+// hashes never reach the browser). Sign-in itself is verified server-side.
+let storedPinHash = false;        // director
+let storedAdminPinHash = false;   // office admin
+let storedOpsPinHash = false;     // head of operations
+let storedOwnerPinHash = false;   // owner / family
+let _sessionToken = null;   // current signed-in access_token (in-memory only, lost on reload — same as before)
+let _refreshToken = null;
 let _role = null;           // null | 'admin' | 'operations' | 'owner' | 'director'
 const _ROLE_LABELS  = {admin:'Office Admin', operations:'Head of Operations', owner:'Owner', director:'Director'};
 const _ROLE_ICONS   = {admin:'ti-user', operations:'ti-briefcase', owner:'ti-home-2', director:'ti-crown'};
@@ -742,15 +746,15 @@ function renderHub(){
       </div>
       <div class="hub-tiles">
         ${[
-          {id:"academic",        icCls:"tile-ic-academic",   icon:"ti-certificate", label:"Academic",         desc:"Classes, scores, exam papers & EDGE tests"},
+          {id:"academic",        icCls:"tile-ic-academic",   icon:"ti-certificate", label:"Academic",         desc:"Classes, scores, exam papers & EDGE tests", needsAuth:true},
           {id:"finance",         icCls:"tile-ic-finance",    icon:"ti-cash",        label:"Finance",          desc:"Fee structure, payments & ledger",            needsAuth:true},
-          {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:"Student records & report cards"},
-          {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:"Staff directory & assignments"},
+          {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:"Student records & report cards", needsAuth:true},
+          {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:"Staff directory & assignments", needsAuth:true},
           {id:"entrance",        icCls:"tile-ic-entrance",   icon:"ti-id-badge",    label:"Entrance & Transfer", desc:"External candidates, feeder schools & results", needsAuth:true},
-          {id:"attendance",  icCls:"tile-ic-attendance", icon:"ti-calendar-check", label:"Attendance",        desc:"Daily register & term attendance records"},
-          {id:"activities",  icCls:"tile-ic-activities", icon:"ti-trophy",          label:"Activities (EDGE)", desc:"Tracks, memberships, sessions & competitions"},
-          {id:"calendar",    icCls:"tile-ic-calendar",   icon:"ti-calendar-event",  label:"School Calendar",   desc:"Events, competition dates & term schedule"},
-          {id:"timetable",   icCls:"tile-ic-timetable",  icon:"ti-calendar-time",   label:"Timetable",         desc:"JSS–SS class schedules & teacher assignments"},
+          {id:"attendance",  icCls:"tile-ic-attendance", icon:"ti-calendar-check", label:"Attendance",        desc:"Daily register & term attendance records", needsAuth:true},
+          {id:"activities",  icCls:"tile-ic-activities", icon:"ti-trophy",          label:"Activities (EDGE)", desc:"Tracks, memberships, sessions & competitions", needsAuth:true},
+          {id:"calendar",    icCls:"tile-ic-calendar",   icon:"ti-calendar-event",  label:"School Calendar",   desc:"Events, competition dates & term schedule", needsAuth:true},
+          {id:"timetable",   icCls:"tile-ic-timetable",  icon:"ti-calendar-time",   label:"Timetable",         desc:"JSS–SS class schedules & teacher assignments", needsAuth:true},
           {id:"website",     icCls:"tile-ic-website",    icon:"ti-world",           label:"Website",           desc:"Public site news, gallery & enquiries", needsAuth:true},
           {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", needsOps:true},
         ].map(t=>`
@@ -767,8 +771,9 @@ function renderHub(){
 
 function navToHub(){ renderHub(); closeSidebar(); }
 
+const SECTIONS_NEEDING_AUTH=["academic","finance","students","staff","entrance","attendance","activities","calendar","timetable","website"];
 function enterSection(name){
-  if((name==="finance"||name==="entrance"||name==="website")&&!_role){
+  if(SECTIONS_NEEDING_AUTH.includes(name)&&!_role){
     openLoginModal(); return;
   }
   if(name==="principals-desk"){
@@ -799,22 +804,6 @@ function enterSection(name){
   },0);
 }
 
-async function submitHubPin(){
-  if(!dbClient){alert("Database not connected");return;}
-  const pin=document.getElementById("hub-pin")?.value?.trim();
-  if(!pin){alert("Enter a PIN");return;}
-  const hash=await sha256(pin);
-  if(storedPinHash===null){
-    const pin2=document.getElementById("hub-pin2")?.value?.trim();
-    if(pin!==pin2){alert("PINs do not match");return;}
-    const{error}=await dbClient.from("admin_config").upsert({id:1,pin_hash:hash},{onConflict:"id"});
-    if(error){alert("Error saving PIN: "+error.message);return;}
-    storedPinHash=hash;
-  }else if(hash!==storedPinHash){alert("Incorrect PIN");return;}
-  adminUnlocked=true; _role='principal';
-  closeModal();
-  enterSection("principals-desk");
-}
 
 function renderSidebar(section){
   const meta=SECTION_META[section]||{};
@@ -985,12 +974,6 @@ function openModal(title, html) {
 }
 function closeModal() { document.getElementById("modal-overlay").style.display = "none"; }
 
-/* ── sha256 ── */
-async function sha256(str) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-
 /* ── supabase ── */
 function initSupabase(url, key) {
   try { if (window.supabase && url && key) dbClient = window.supabase.createClient(url, key); }
@@ -1041,14 +1024,16 @@ async function loadStaff() {
 }
 
 async function loadAdminPin() {
-  if (!dbClient) return;
-  const {data} = await dbClient.from("admin_config").select("pin_hash,admin_pin_hash,operations_pin_hash,owner_pin_hash").eq("id",1).single();
-  if (data) {
-    storedPinHash      = data.pin_hash||null;
-    storedAdminPinHash = data.admin_pin_hash||null;
-    storedOpsPinHash   = data.operations_pin_hash||null;
-    storedOwnerPinHash = data.owner_pin_hash||null;
-  } else { storedPinHash=null; storedAdminPinHash=null; storedOpsPinHash=null; storedOwnerPinHash=null; }
+  try {
+    const res = await fetch('/api/auth-pin', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'status'})});
+    const data = await res.json();
+    if (data.ok) {
+      storedPinHash      = !!data.claimed.director;
+      storedAdminPinHash = !!data.claimed.admin;
+      storedOpsPinHash   = !!data.claimed.operations;
+      storedOwnerPinHash = !!data.claimed.owner;
+    }
+  } catch(e) { /* status check only — sign-in itself still works if this fails */ }
 }
 
 async function loadExamPapers() {
@@ -1850,19 +1835,6 @@ function switchAdminTab(tab){ _adminTab=tab; _adminClassFilter=""; renderAdmin()
 function lockAdmin(){ signOut(); }
 function setAdminClassFilter(val){ _adminClassFilter=val; renderAdminTab(); }
 
-async function submitAdminPin(){
-  const pin=document.getElementById("admin-pin")?.value?.trim();
-  if(!pin){alert("Enter a PIN");return;}
-  const hash=await sha256(pin);
-  if(storedPinHash===null){
-    const pin2=document.getElementById("admin-pin2")?.value?.trim();
-    if(pin!==pin2){alert("PINs do not match");return;}
-    const {error}=await dbClient.from("admin_config").upsert({id:1,pin_hash:hash},{onConflict:"id"});
-    if(error){alert("Error saving PIN: "+error.message);return;}
-    storedPinHash=hash;
-  }else if(hash!==storedPinHash){alert("Incorrect PIN");return;}
-  adminUnlocked=true; _role='principal'; renderAdmin();
-}
 
 function renderAdminTab(){
   const el=document.getElementById("admin-tab-content"); if(!el)return;
@@ -2399,11 +2371,10 @@ async function runChangePin(){
   const confirmPin=document.getElementById("sec-confirm-pin")?.value?.trim();
   if(!oldPin||!newPin||!confirmPin){alert("Fill all fields");return;}
   if(newPin!==confirmPin){alert("New PINs do not match");return;}
-  const oldHash=await sha256(oldPin);
-  if(oldHash!==storedPinHash){alert("Current PIN is incorrect");return;}
-  const newHash=await sha256(newPin);
-  await dbClient.from("admin_config").upsert({id:1,pin_hash:newHash},{onConflict:"id"});
-  storedPinHash=newHash;
+  if(!_role||!_sessionToken){alert("Sign in again first");return;}
+  const res=await fetch('/api/auth-pin',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_sessionToken},body:JSON.stringify({action:'change',role:_role,oldPin,newPin})});
+  const data=await res.json();
+  if(!data.ok){alert(data.error||"Could not change PIN");return;}
   alert("PIN changed successfully");
 }
 
@@ -3943,15 +3914,15 @@ async function savePinFor(id, col){
   const st=document.getElementById(`pin-status-${id}`);
   if(!pin){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Enter a PIN</span>`;return;}
   if(pin!==pin2){if(st)st.innerHTML=`<span style="color:var(--tx-err)">PINs do not match</span>`;return;}
-  const hash=await sha256(pin);
-  const{error}=col==='pin_hash'
-    ?await dbClient.from("admin_config").upsert({id:1,[col]:hash},{onConflict:"id"})
-    :await dbClient.from("admin_config").update({[col]:hash}).eq("id",1);
-  if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
-  if(col==='pin_hash')          storedPinHash=hash;
-  else if(col==='admin_pin_hash') storedAdminPinHash=hash;
-  else if(col==='operations_pin_hash') storedOpsPinHash=hash;
-  else if(col==='owner_pin_hash') storedOwnerPinHash=hash;
+  if(!_sessionToken){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Sign in again first</span>`;return;}
+  const colToRole={pin_hash:'director',admin_pin_hash:'admin',operations_pin_hash:'operations',owner_pin_hash:'owner'};
+  const res=await fetch('/api/auth-pin',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_sessionToken},body:JSON.stringify({action:'setRolePin',targetRole:colToRole[col],newPin:pin})});
+  const data=await res.json();
+  if(!data.ok){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${data.error}</span>`;return;}
+  if(col==='pin_hash')          storedPinHash=true;
+  else if(col==='admin_pin_hash') storedAdminPinHash=true;
+  else if(col==='operations_pin_hash') storedOpsPinHash=true;
+  else if(col==='owner_pin_hash') storedOwnerPinHash=true;
   if(st)st.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> PIN saved</span>`;
   renderSettings();
 }
@@ -3970,6 +3941,7 @@ async function saveSchoolTiming(){
 async function retryConnect(){
   dbStatus="loading"; updateDbIndicator(); renderSettings();
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
+  if(_sessionToken&&_refreshToken&&dbClient) await dbClient.auth.setSession({access_token:_sessionToken,refresh_token:_refreshToken});
   const ok=await loadFromSupabase();
   dbStatus=ok?"connected":"error"; updateDbIndicator(); renderSettings();
   if(ok) renderDashboard();
@@ -5142,34 +5114,29 @@ async function submitRoleLogin(){
   const errEl=document.getElementById("login-err");
   const pin=document.getElementById("login-pin")?.value?.trim();
   if(!pin){if(errEl)errEl.textContent="Enter your PIN";return;}
-  const hash=await sha256(pin);
-  if(_loginRole==='director'){
-    if(!storedPinHash){
-      const pin2=document.getElementById("login-pin2")?.value?.trim();
-      if(pin!==pin2){if(errEl)errEl.textContent="PINs do not match";return;}
-      const{error}=await dbClient.from("admin_config").upsert({id:1,pin_hash:hash},{onConflict:"id"});
-      if(error){if(errEl)errEl.textContent="Error saving PIN: "+error.message;return;}
-      storedPinHash=hash;
-    } else {
-      if(hash!==storedPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
-    }
-    _role='director'; adminUnlocked=true;
-  } else if(_loginRole==='operations'){
-    if(!storedOpsPinHash){if(errEl)errEl.textContent="No Operations PIN set yet. Ask the Director to set one in Security Settings.";return;}
-    if(hash!==storedOpsPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
-    _role='operations'; adminUnlocked=true;
-  } else if(_loginRole==='owner'){
-    if(!storedOwnerPinHash){if(errEl)errEl.textContent="No Owner PIN set yet. Ask the Director to set one in Security Settings.";return;}
-    if(hash!==storedOwnerPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
-    _role='owner'; adminUnlocked=false;
-  } else if(_loginRole==='admin'){
-    if(!storedAdminPinHash){if(errEl)errEl.textContent="No Admin PIN set yet. Ask the Director to set one in Security Settings.";return;}
-    if(hash!==storedAdminPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
-    _role='admin'; adminUnlocked=false;
+  if(_loginRole==='director'&&!storedPinHash){
+    const pin2=document.getElementById("login-pin2")?.value?.trim();
+    if(pin!==pin2){if(errEl)errEl.textContent="PINs do not match";return;}
   }
+  if(errEl)errEl.textContent="Signing in…";
+  let data;
+  try{
+    const res=await fetch('/api/auth-pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'signin',role:_loginRole,pin})});
+    data=await res.json();
+  }catch(e){ if(errEl)errEl.textContent="Could not reach the server"; return; }
+  if(!data.ok){ if(errEl)errEl.textContent=data.error||"Sign in failed"; return; }
+  _sessionToken=data.access_token; _refreshToken=data.refresh_token;
+  if(dbClient) await dbClient.auth.setSession({access_token:data.access_token,refresh_token:data.refresh_token});
+  _role=_loginRole;
+  adminUnlocked=(_loginRole==='director'||_loginRole==='operations');
+  if(_loginRole==='director') storedPinHash=true;
   closeModal(); renderHub();
 }
-function signOut(){ _role=null; adminUnlocked=false; renderHub(); }
+async function signOut(){
+  _role=null; adminUnlocked=false; _sessionToken=null; _refreshToken=null;
+  if(dbClient) await dbClient.auth.signOut();
+  renderHub();
+}
 
 /* ── inventory / stock helpers ── */
 function stockCurrentQty(itemId){

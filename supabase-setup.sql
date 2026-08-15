@@ -1035,3 +1035,160 @@ DO $$ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS owner_loans_date ON owner_loans(entry_date DESC);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SECURITY HARDENING — run this once, after everything above
+-- ════════════════════════════════════════════════════════════════════════════
+-- Every policy above was `FOR ALL TO anon USING (true)`. The anon key is
+-- embedded in portal/index.html and site.js and readable by anyone (view
+-- source), so in practice every table had full public read+write over the
+-- internet — the in-app PIN screens were a UI nicety, not real access control.
+--
+-- This block:
+--  - Moves every staff-only table from `anon` to `authenticated`. Only
+--    requests carrying a real session — issued by /api/auth-pin.js after a
+--    correct PIN — are accepted from here on.
+--  - Locks admin_config (PIN hashes + auth secrets) to the service_role key
+--    only (no anon or authenticated policy at all) — the browser can no
+--    longer read PIN hashes off it.
+--  - Leaves published news, gallery images, and the public contact/admissions
+--    form working exactly as before (they were already correctly scoped).
+--
+-- Run this AFTER deploying /api/auth-pin.js and its SUPABASE_SERVICE_ROLE_KEY
+-- env var, or staff will be locked out of everything until they can sign in
+-- through it.
+
+-- ── admin_config: service_role only ──────────────────────────────────────────
+DROP POLICY IF EXISTS "anon_all" ON admin_config;
+
+-- Per-role secret /api/auth-pin.js uses to sign staff into Supabase Auth after
+-- a correct PIN. Generated once per role on first sign-in. Never sent to the
+-- browser.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_config' AND column_name='director_auth_secret')
+  THEN ALTER TABLE admin_config ADD COLUMN director_auth_secret TEXT; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_config' AND column_name='admin_auth_secret')
+  THEN ALTER TABLE admin_config ADD COLUMN admin_auth_secret TEXT; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_config' AND column_name='operations_auth_secret')
+  THEN ALTER TABLE admin_config ADD COLUMN operations_auth_secret TEXT; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_config' AND column_name='owner_auth_secret')
+  THEN ALTER TABLE admin_config ADD COLUMN owner_auth_secret TEXT; END IF;
+END $$;
+
+-- ── Staff-only tables: anon → authenticated ──────────────────────────────────
+DROP POLICY IF EXISTS "anon_all_prospect_groups" ON prospect_groups;
+DROP POLICY IF EXISTS "anon_all_prospects" ON prospects;
+DROP POLICY IF EXISTS "anon_all_school_timing" ON school_timing;
+DROP POLICY IF EXISTS "anon_all_staff_attendance" ON staff_attendance;
+DROP POLICY IF EXISTS "anon_all_payroll_runs" ON payroll_runs;
+DROP POLICY IF EXISTS "anon_all_payroll_entries" ON payroll_entries;
+DROP POLICY IF EXISTS "anon_all" ON scores;
+DROP POLICY IF EXISTS "anon_all" ON attendance;
+DROP POLICY IF EXISTS "anon_all" ON observations;
+DROP POLICY IF EXISTS "anon_all" ON annexes;
+DROP POLICY IF EXISTS "anon_all" ON students;
+DROP POLICY IF EXISTS "anon_all" ON enrollments;
+DROP POLICY IF EXISTS "anon_all" ON staff;
+DROP POLICY IF EXISTS "anon_all" ON staff_assignments;
+DROP POLICY IF EXISTS "anon_all" ON exam_papers;
+DROP POLICY IF EXISTS "anon_all" ON student_profiles;
+DROP POLICY IF EXISTS "anon_all" ON guardians;
+DROP POLICY IF EXISTS "anon_all" ON fee_structure;
+DROP POLICY IF EXISTS "anon_all" ON payment_log;
+DROP POLICY IF EXISTS "anon_all" ON edge_tests;
+DROP POLICY IF EXISTS "anon_all" ON edge_scores;
+DROP POLICY IF EXISTS "anon_all" ON schemes;
+DROP POLICY IF EXISTS "anon_all" ON daily_attendance;
+DROP POLICY IF EXISTS "anon_all" ON school_holidays;
+DROP POLICY IF EXISTS "anon_all" ON expense_log;
+DROP POLICY IF EXISTS "anon_all" ON assets;
+DROP POLICY IF EXISTS "anon_all" ON incident_log;
+DROP POLICY IF EXISTS "anon_all" ON inventory_items;
+DROP POLICY IF EXISTS "anon_all" ON inventory_transactions;
+DROP POLICY IF EXISTS "anon_all" ON feeder_schools;
+DROP POLICY IF EXISTS "anon_all" ON external_candidates;
+DROP POLICY IF EXISTS "anon_all" ON candidate_scores;
+DROP POLICY IF EXISTS "anon_all" ON activity_memberships;
+DROP POLICY IF EXISTS "anon_all" ON activity_sessions;
+DROP POLICY IF EXISTS "anon_all" ON activity_competitions;
+DROP POLICY IF EXISTS "anon_all" ON school_events;
+DROP POLICY IF EXISTS "anon_all" ON timetable_teachers;
+DROP POLICY IF EXISTS "anon_all" ON timetable_slots;
+DROP POLICY IF EXISTS "anon_all" ON section_subjects;
+DROP POLICY IF EXISTS "anon_all" ON track_documents;
+DROP POLICY IF EXISTS "anon_all" ON teacher_obs_log;
+DROP POLICY IF EXISTS "anon_all" ON parent_contacts;
+DROP POLICY IF EXISTS "anon_all" ON external_results;
+DROP POLICY IF EXISTS "anon_all" ON owner_loans;
+
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'prospect_groups','prospects','school_timing','staff_attendance','payroll_runs','payroll_entries',
+    'scores','attendance','observations','annexes','students','enrollments','staff','staff_assignments',
+    'exam_papers','student_profiles','guardians','fee_structure','payment_log','edge_tests','edge_scores',
+    'schemes','daily_attendance','school_holidays','expense_log','assets','incident_log','inventory_items',
+    'inventory_transactions','feeder_schools','external_candidates','candidate_scores','activity_memberships',
+    'activity_sessions','activity_competitions','school_events','timetable_teachers','timetable_slots',
+    'section_subjects','track_documents','teacher_obs_log','parent_contacts','external_results','owner_loans'
+  ]
+  LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename=t AND policyname='authenticated_all') THEN
+      EXECUTE format('CREATE POLICY "authenticated_all" ON %I FOR ALL TO authenticated USING (true) WITH CHECK (true)', t);
+    END IF;
+  END LOOP;
+END $$;
+
+-- ── Website CMS: staff management moves to authenticated ────────────────────
+-- (public_read_published / public_read_all / public_insert_only are untouched —
+-- those were already correctly scoped to anon for exactly the public actions.)
+DROP POLICY IF EXISTS "staff_manage_all" ON site_news;
+DROP POLICY IF EXISTS "staff_manage_all" ON site_gallery;
+DROP POLICY IF EXISTS "staff_manage_all" ON site_messages;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_news'     AND policyname='staff_manage_all_authenticated') THEN CREATE POLICY "staff_manage_all_authenticated" ON site_news     FOR ALL TO authenticated USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_gallery'  AND policyname='staff_manage_all_authenticated') THEN CREATE POLICY "staff_manage_all_authenticated" ON site_gallery  FOR ALL TO authenticated USING (true) WITH CHECK (true); END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='site_messages' AND policyname='staff_manage_all_authenticated') THEN CREATE POLICY "staff_manage_all_authenticated" ON site_messages FOR ALL TO authenticated USING (true) WITH CHECK (true); END IF;
+END $$;
+
+-- ── Storage: "results" bucket (report card PDFs) — staff only ───────────────
+-- Parents still receive their PDF via a 7-day signed URL, created server-side
+-- by a signed-in staff member via dbClient.storage.from('results').createSignedUrl().
+-- A signed URL is a capability token that bypasses these policies entirely, so
+-- tightening this does NOT break WhatsApp/PDF delivery to parents — it only
+-- stops anyone with the anon key from listing or downloading every student's
+-- report card directly (the previous "select TO anon USING (true)" policy let
+-- anyone read any file in the bucket, signed URL or not).
+DROP POLICY IF EXISTS "results_anon_insert" ON storage.objects;
+DROP POLICY IF EXISTS "results_anon_select" ON storage.objects;
+DROP POLICY IF EXISTS "results_anon_update" ON storage.objects;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='results_authenticated_insert') THEN
+    CREATE POLICY "results_authenticated_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'results');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='results_authenticated_select') THEN
+    CREATE POLICY "results_authenticated_select" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'results');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='results_authenticated_update') THEN
+    CREATE POLICY "results_authenticated_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'results');
+  END IF;
+END $$;
+
+-- ── Storage: "site-media" bucket — public can still view, only staff manage ──
+-- Left as-is: sitemedia_anon_select. These are public gallery images shown on
+-- the public website by design — no PII, no reason to lock down reads.
+DROP POLICY IF EXISTS "sitemedia_anon_insert" ON storage.objects;
+DROP POLICY IF EXISTS "sitemedia_anon_update" ON storage.objects;
+DROP POLICY IF EXISTS "sitemedia_anon_delete" ON storage.objects;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='sitemedia_authenticated_insert') THEN
+    CREATE POLICY "sitemedia_authenticated_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'site-media');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='sitemedia_authenticated_update') THEN
+    CREATE POLICY "sitemedia_authenticated_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'site-media');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='sitemedia_authenticated_delete') THEN
+    CREATE POLICY "sitemedia_authenticated_delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'site-media');
+  END IF;
+END $$;
