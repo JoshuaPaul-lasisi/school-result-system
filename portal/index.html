@@ -427,6 +427,17 @@
     .tt-day-cls{display:flex;align-items:center;gap:6px;padding:8px 0 4px}
     .tt-cell.tt-noteacher{background:#fffbeb}
     [data-theme="dark"] .tt-cell.tt-noteacher{background:#291800}
+
+    /* ── sidebar section switcher ── */
+    .sidebar-switcher{display:flex;gap:6px;flex-wrap:wrap;padding:12px 14px 8px;margin-top:auto;border-top:.5px solid var(--bd3)}
+    .sw-btn{position:relative;width:36px;height:36px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--tx3);font-size:16px;transition:background .12s,color .12s}
+    .sw-btn:hover{background:var(--bg2);color:var(--tx)}
+    .sw-btn-active{background:var(--navy);color:#fff}
+    .sw-btn-active:hover{background:var(--navy);color:#fff}
+    [data-theme="dark"] .sw-btn-active{background:var(--burg)}
+
+    /* ── topbar term chip ── */
+    .topbar-term-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;background:var(--bg2);border:.5px solid var(--bd3);font-size:11px;font-weight:600;color:var(--tx2);cursor:default;white-space:nowrap}
   </style>
 </head>
 <body>
@@ -469,6 +480,7 @@
         </div>
       </div>
       <span class="save-indicator" id="save-indicator"></span>
+      <span class="topbar-term-chip" id="topbar-term-chip"></span>
       <div id="topbar-actions"></div>
     </div>
     <div class="content" id="content"></div>
@@ -677,6 +689,10 @@ let dailyAttDate = new Date().toISOString().split("T")[0];
 let dailyAttCls = "";
 let _schFilter = "";
 let _curSection = null;
+let _pendingSection = null;   // section to redirect to after login
+let _financeDashDate = null;  // admin finance date picker (null = today)
+let _invCatFilter = '';       // stock category filter
+let _activityTimer = null;    // auto sign-out inactivity timer
 let feederSchools = [];
 let externalCandidates = [];
 let candidateScoresMap = {};  // candidateScoresMap[candidate_id][subject] = {id,score,max_score}
@@ -717,6 +733,7 @@ function renderHub(){
   _curSection=null;
   document.getElementById("app").classList.add("hub-mode");
   document.getElementById("sidebar-nav").innerHTML="";
+  const chip=document.getElementById("topbar-term-chip");if(chip)chip.style.display="none";
   document.getElementById("content").innerHTML=`
     <div class="hub-page">
       <div class="hub-brand">
@@ -742,17 +759,17 @@ function renderHub(){
       </div>
       <div class="hub-tiles">
         ${[
-          {id:"academic",        icCls:"tile-ic-academic",   icon:"ti-certificate", label:"Academic",         desc:"Classes, scores, exam papers & EDGE tests"},
-          {id:"finance",         icCls:"tile-ic-finance",    icon:"ti-cash",        label:"Finance",          desc:"Fee structure, payments & ledger",            needsAuth:true},
-          {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:"Student records & report cards"},
-          {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:"Staff directory & assignments"},
+          {id:"academic",        icCls:"tile-ic-academic",   icon:"ti-certificate", label:"Academic",         desc:`Classes, scores & EDGE tests${roster.length?` · ${roster.length} students`:''}`},
+          {id:"finance",         icCls:"tile-ic-finance",    icon:"ti-cash",        label:"Finance",          desc:`Fee payments & ledger${paymentLog.length?` · ${paymentLog.length} payments this term`:''}`,            needsAuth:true},
+          {id:"students",        icCls:"tile-ic-students",   icon:"ti-user-search", label:"Students",         desc:`Student records & report cards${roster.length?` · ${roster.length} enrolled`:''}`},
+          {id:"staff",           icCls:"tile-ic-staff",      icon:"ti-users",       label:"Staff",            desc:`Staff directory${staffList.length?` · ${staffList.length} staff members`:''}`},
           {id:"entrance",        icCls:"tile-ic-entrance",   icon:"ti-id-badge",    label:"Entrance & Transfer", desc:"External candidates, feeder schools & results", needsAuth:true},
           {id:"attendance",  icCls:"tile-ic-attendance", icon:"ti-calendar-check", label:"Attendance",        desc:"Daily register & term attendance records"},
           {id:"activities",  icCls:"tile-ic-activities", icon:"ti-trophy",          label:"Activities (EDGE)", desc:"Tracks, memberships, sessions & competitions"},
           {id:"calendar",    icCls:"tile-ic-calendar",   icon:"ti-calendar-event",  label:"School Calendar",   desc:"Events, competition dates & term schedule"},
           {id:"timetable",   icCls:"tile-ic-timetable",  icon:"ti-calendar-time",   label:"Timetable",         desc:"JSS–SS class schedules & teacher assignments"},
           {id:"website",     icCls:"tile-ic-website",    icon:"ti-world",           label:"Website",           desc:"Public site news, gallery & enquiries", needsAuth:true},
-          {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Principal's Desk", desc:"Settings, enrollment & system admin", needsOps:true},
+          {id:"principals-desk", icCls:"tile-ic-principal",  icon:"ti-shield-lock", label:"Admin & Settings", desc:"New term, enrollment, fee setup, subjects & security", needsOps:true},
         ].map(t=>`
           <div class="hub-tile${(t.needsOps&&!canDo('ops'))||(!_role&&t.needsAuth)?" tile-locked":""}" onclick="enterSection('${t.id}')">
             <div class="hub-tile-icon ${t.icCls}"><i class="ti ${t.icon}"></i></div>
@@ -769,14 +786,15 @@ function navToHub(){ renderHub(); closeSidebar(); }
 
 function enterSection(name){
   if((name==="finance"||name==="entrance"||name==="website")&&!_role){
-    openLoginModal(); return;
+    _pendingSection=name; openLoginModal(); return;
   }
   if(name==="principals-desk"){
-    if(!canDo('ops')){openLoginModal();return;}
+    if(!canDo('ops')){_pendingSection=name; openLoginModal();return;}
     adminUnlocked=true;
   }
   _curSection=name;
   document.getElementById("app").classList.remove("hub-mode");
+  const chip=document.getElementById("topbar-term-chip");if(chip)chip.style.display="";
   renderSidebar(name);
   const defaults={
     academic:        ()=>{ _curPage="dashboard"; renderDashboard(); },
@@ -954,6 +972,24 @@ function renderSidebar(section){
   }[section]||"";
 
   const icCls={'principals-desk':'tile-ic-principal','entrance':'tile-ic-entrance','attendance':'tile-ic-attendance','activities':'tile-ic-activities','calendar':'tile-ic-calendar','timetable':'tile-ic-timetable','website':'tile-ic-website'}[section]||`tile-ic-${section}`;
+  const sectionIcons=[
+    {id:"academic",icon:"ti-certificate",label:"Academic"},
+    {id:"finance",icon:"ti-cash",label:"Finance",needsAuth:true},
+    {id:"students",icon:"ti-user-search",label:"Students"},
+    {id:"staff",icon:"ti-users",label:"Staff"},
+    {id:"attendance",icon:"ti-calendar-check",label:"Attendance"},
+    {id:"principals-desk",icon:"ti-shield-lock",label:"Settings",needsOps:true},
+  ];
+  const switcherHtml=`<div class="sidebar-switcher">
+    ${sectionIcons.map(s=>{
+      const isActive=s.id===section;
+      const locked=(s.needsOps&&!canDo('ops'))||(!_role&&s.needsAuth);
+      return`<div class="sw-btn${isActive?' sw-btn-active':''}" onclick="${isActive?'':(`enterSection('${s.id}')`)}" title="${s.label}${locked?' (sign in required)':''}">
+        <i class="ti ${s.icon}"></i>
+        ${locked?`<i class="ti ti-lock" style="font-size:8px;position:absolute;bottom:2px;right:2px;opacity:.6"></i>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
   document.getElementById("sidebar-nav").innerHTML=`
     <div class="nav-back" onclick="navToHub()"><i class="ti ti-arrow-left"></i> All Sections</div>
     <div class="section-hdr">
@@ -962,7 +998,8 @@ function renderSidebar(section){
       </div>
       <div class="section-hdr-label">${meta.label||""}</div>
     </div>
-    ${navHtml}`;
+    ${navHtml}
+    ${switcherHtml}`;
 }
 
 /* ── sidebar ── */
@@ -1263,16 +1300,19 @@ function saveLocalStore(){try{localStorage.setItem(storeKey(),JSON.stringify(sto
 
 /* ── save indicator ── */
 function markSaving(){pendingSaves++;const el=document.getElementById("save-indicator");if(el)el.textContent="Saving…";}
-function markSaved(){pendingSaves=Math.max(0,pendingSaves-1);if(pendingSaves===0){const el=document.getElementById("save-indicator");if(el){el.textContent="Saved ✓";setTimeout(()=>{if(el)el.textContent=""},2500);}}}
+function markSaved(){pendingSaves=Math.max(0,pendingSaves-1);if(pendingSaves===0){const el=document.getElementById("save-indicator");if(el){el.textContent="Saved ✓";setTimeout(()=>{if(el)el.textContent=""},5000);}}}
 
 /* ── db indicator ── */
 function updateDbIndicator(){
   const dot=document.getElementById("db-dot"),lbl=document.getElementById("db-lbl");
   if(!dot||!lbl)return;
   dot.className="db-dot "+({connected:"dot-ok",error:"dot-err",loading:"dot-spin",offline:"dot-off"}[dbStatus]||"dot-off");
-  lbl.textContent={connected:"Supabase connected",error:"Connection error",loading:"Connecting…",offline:"Local only"}[dbStatus]||"Local only";
+  lbl.textContent={connected:"Online — data saved",error:"Offline — changes not saved",loading:"Connecting…",offline:"No database — local view only"}[dbStatus]||"Local only";
 }
-function updateTermDisplay(){const el=document.getElementById("term-display");if(el)el.textContent=`${currentTerm} · ${currentSession}`;}
+function updateTermDisplay(){
+  const el=document.getElementById("term-display");if(el)el.textContent=`${currentTerm} · ${currentSession}`;
+  const chip=document.getElementById("topbar-term-chip");if(chip)chip.textContent=`${currentTerm} · ${currentSession}`;
+}
 
 /* ── getters / setters ── */
 function getScore(sid,sub){return(store.scores[sid]||{})[sub]||{ca:'',exam:'',test1:'',test2:'',test3:'',test4:'',test5:'',test6:''};}
@@ -1391,14 +1431,21 @@ function renderDashboard(){
     <div class="card">
       <div class="card-head"><span class="card-title">Classes at a glance</span></div>
       <table>
-        <thead><tr><th>Section</th><th>Classes</th><th>Students</th><th>Subjects</th><th></th></tr></thead>
-        <tbody>${secs.map((s,i)=>`
-          <tr class="trow-click" onclick="navToSection('${s}')">
+        <thead><tr><th>Section</th><th>Classes</th><th>Students</th><th>Subjects</th><th>Scores</th><th></th></tr></thead>
+        <tbody>${secs.map((s,i)=>{
+          const secStudents=roster.filter(st=>st.sec===s);
+          const subs=getSubjectsFor(s);
+          const total=secStudents.length*subs.length;
+          const filled=total>0?secStudents.reduce((n,st)=>n+subs.filter(sub=>{const sc=getScore(st.id,sub);return sc.exam!==''||sc.ca!=='';}).length,0):0;
+          const pct=total>0?Math.round(filled/total*100):0;
+          const pctColor=pct>=80?'var(--tx-ok)':pct>=40?'var(--tx-warn)':'var(--tx-err)';
+          return`<tr class="trow-click" onclick="navToSection('${s}')">
             <td>${s}</td>
             <td style="color:var(--tx2);font-size:12px">${(CLASSES[s]||[]).join(", ")}</td>
-            <td>${counts[i]}</td><td>${getSubjectsFor(s).length}</td>
+            <td>${counts[i]}</td><td>${subs.length}</td>
+            <td style="font-weight:600;color:${pctColor}">${total>0?pct+'%':'—'}</td>
             <td><button class="btn btn-sm" onclick="event.stopPropagation();navToSection('${s}')">View <i class="ti ti-arrow-right"></i></button></td>
-          </tr>`).join("")}
+          </tr>`;}).join("")}
         </tbody>
       </table>
     </div>`;
@@ -1804,7 +1851,9 @@ function renderStaffDirectory(){
   const staffTable=(list)=>!list.length?`<div class="empty" style="padding:20px"><i class="ti ti-users-off"></i>None found</div>`
     :`<table><thead><tr><th>Name</th><th>Role</th><th>Annex</th><th class="col-id">Phone</th></tr></thead><tbody>${
       list.map(s=>{const ax=annexList.find(a=>a.id===s.annex_id);
-        return`<tr><td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}</div></td>
+        const noSal=canDo('ops')&&(!s.monthly_salary||parseFloat(s.monthly_salary)===0);
+        return`<tr><td><div style="display:flex;align-items:center;gap:8px">${avatar(s.name)}${s.name}${noSal?`<span title="No salary set — payroll will skip this person" style="background:var(--bg-warn);color:var(--tx-warn);font-size:10px;padding:1px 6px;border-radius:20px;white-space:nowrap"><i class="ti ti-alert-triangle" style="font-size:9px"></i> No salary</span>`:''}
+          </div></td>
           <td style="color:var(--tx2);font-size:12px">${s.role||"—"}</td>
           <td><span class="annex-pill">${ax?ax.name:"—"}</span></td>
           <td class="col-id" style="color:var(--tx2)">${s.phone||"—"}</td></tr>`;}).join("")
@@ -2661,11 +2710,12 @@ function viewPaperAdmin(id){
     </div>`);
 }
 
-async function deleteExamPaper(id,subject,cls,paperType){
-  if(!confirm(`Delete ${subject} ${paperType} for ${cls}? This cannot be undone.`))return;
-  const {error}=await dbClient.from("exam_papers").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  await loadExamPapers(); renderAdminTab();
+function deleteExamPaper(id,subject,cls,paperType){
+  confirmAction(`Delete <strong>${subject} ${paperType}</strong> for <strong>${cls}</strong>? This cannot be undone.`,async()=>{
+    const {error}=await dbClient.from("exam_papers").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    await loadExamPapers(); renderAdminTab();
+  });
 }
 
 /* ── finance helpers ── */
@@ -2709,17 +2759,21 @@ function renderFinanceDashboard(){
 
   const today=new Date().toISOString().split("T")[0];
 
-  // ── admin: today-only view ──────────────────────────────────────────────────
+  // ── admin: date-picker view ──────────────────────────────────────────────────
   if(_role==='admin'){
-    const todayPayments=paymentLog.filter(p=>p.payment_date===today);
+    const viewDate=_financeDashDate||today;
+    const todayPayments=paymentLog.filter(p=>p.payment_date===viewDate);
     const todayFees=todayPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
-    const todayExpenses=expenseLog.filter(e=>e.expense_date===today).reduce((s,e)=>s+parseFloat(e.amount||0),0);
-    const todaySales=inventoryTxns.filter(t=>t.transaction_type==='sale'&&t.transaction_date===today).reduce((s,t)=>s+parseFloat(t.total_value||0),0);
+    const todayExpenses=expenseLog.filter(e=>e.expense_date===viewDate).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    const todaySales=inventoryTxns.filter(t=>t.transaction_type==='sale'&&t.transaction_date===viewDate).reduce((s,t)=>s+parseFloat(t.total_value||0),0);
     const todayNet=todayFees+todaySales-todayExpenses;
+    const viewLabel=viewDate===today?'Today':'Selected date';
     document.getElementById("content").innerHTML=`
-      <div style="background:var(--bg2);border:.5px solid var(--bd3);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--tx2);margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <div style="background:var(--bg2);border:.5px solid var(--bd3);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--tx2);margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <i class="ti ti-calendar" style="color:var(--navy)"></i>
-        Today — <strong>${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</strong>
+        <span>${viewLabel} — <strong>${new Date(viewDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</strong></span>
+        <input type="date" value="${viewDate}" max="${today}" onchange="_financeDashDate=this.value;renderFinanceDashboard()"
+          style="margin-left:auto;padding:4px 8px;border:1px solid var(--bd3);border-radius:var(--r);background:var(--bg);color:var(--tx);font-size:12px" />
       </div>
       <div class="stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
         <div class="stat"><div class="stat-label">Fees collected today</div><div class="stat-val" style="color:var(--tx-ok)">₦${todayFees.toLocaleString()}</div></div>
@@ -2927,8 +2981,9 @@ function renderFinanceLog(){
                 <div style="font-weight:500">${p.student_name||"—"}</div>
                 <div style="color:var(--tx3)">${p.fee_name||"Payment"} · ${p.payment_method}</div>
               </div>
-              <div style="display:flex;align-items:center;gap:8px">
+              <div style="display:flex;align-items:center;gap:6px">
                 <span style="font-weight:600;color:var(--tx-ok)">₦${parseFloat(p.amount).toLocaleString()}</span>
+                <button class="btn btn-sm" style="padding:3px 8px;font-size:11px" onclick="printReceipt(${p.id})" title="Print receipt"><i class="ti ti-printer"></i></button>
                 ${canDo('ops')?`<button class="btn btn-sm" style="padding:3px 8px;color:var(--tx-err)" onclick="deletePaymentEntry(${p.id})"><i class="ti ti-trash"></i></button>`:""}
               </div>
             </div>`).join("")}
@@ -2984,11 +3039,38 @@ async function submitPaymentLog(){
   renderFinanceLog();
 }
 
-async function deletePaymentEntry(id){
-  if(!confirm("Delete this payment entry?"))return;
-  await dbClient.from("payment_log").delete().eq("id",id);
-  await loadPaymentLog();
-  renderFinanceLog();
+function deletePaymentEntry(id){
+  confirmAction("Delete this payment entry? This cannot be undone.",async()=>{
+    await dbClient.from("payment_log").delete().eq("id",id);
+    await loadPaymentLog();
+    renderFinanceLog();
+  });
+}
+function printReceipt(id){
+  const p=paymentLog.find(x=>x.id===id);
+  if(!p) return;
+  const w=window.open('','_blank','width=420,height=520');
+  w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title>
+    <style>body{font-family:Arial,sans-serif;padding:24px;max-width:380px;margin:0 auto;font-size:13px}
+    h2{text-align:center;font-size:16px;margin-bottom:4px}.school{text-align:center;color:#555;font-size:11px;margin-bottom:16px}
+    .line{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #ddd}
+    .total{display:flex;justify-content:space-between;padding:8px 0;font-weight:700;font-size:15px}
+    .footer{text-align:center;color:#888;font-size:10px;margin-top:14px}</style></head>
+    <body>
+    <h2>Payment Receipt</h2>
+    <p class="school">Debbyfield Schools</p>
+    <div class="line"><span>Student</span><span><b>${p.student_name||'—'}</b></span></div>
+    <div class="line"><span>Fee Type</span><span>${p.fee_name||'Payment'}</span></div>
+    <div class="line"><span>Method</span><span>${p.payment_method||'—'}</span></div>
+    <div class="line"><span>Date</span><span>${p.payment_date||'—'}</span></div>
+    ${p.receipt_no?`<div class="line"><span>Receipt No.</span><span>${p.receipt_no}</span></div>`:''}
+    ${p.note?`<div class="line"><span>Note</span><span>${p.note}</span></div>`:''}
+    <div class="line"><span>Term</span><span>${p.term||currentTerm} · ${p.session||currentSession}</span></div>
+    <div class="total"><span>Amount Paid</span><span>₦${parseFloat(p.amount).toLocaleString()}</span></div>
+    <div class="footer">Printed ${new Date().toLocaleString('en-GB')}</div>
+    <script>window.print();window.onafterprint=()=>window.close();<\/script>
+    </body></html>`);
+  w.document.close();
 }
 
 /* ── finance: term bills ── */
@@ -3241,10 +3323,11 @@ async function submitOwnerLoanEntry(){
   if(error){if(st)st.innerHTML=`<span style="color:var(--tx-err)">Error: ${error.message}</span>`;return;}
   await loadOwnerLoans(); renderFinancePnl();
 }
-async function deleteOwnerLoan(id){
-  if(!confirm("Delete this ledger entry?"))return;
-  await dbClient.from("owner_loans").delete().eq("id",id);
-  await loadOwnerLoans(); renderFinancePnl();
+function deleteOwnerLoan(id){
+  confirmAction("Delete this ledger entry? This cannot be undone.",async()=>{
+    await dbClient.from("owner_loans").delete().eq("id",id);
+    await loadOwnerLoans(); renderFinancePnl();
+  });
 }
 
 /* ── finance: expenses ── */
@@ -3393,10 +3476,11 @@ async function toggleExpensePrivacy(id, currentPrivate, btn){
   }
 }
 
-async function deleteExpense(id){
-  if(!confirm("Delete this expense entry?"))return;
-  await dbClient.from("expense_log").delete().eq("id",id);
-  await loadExpenseLog(); renderExpenses();
+function deleteExpense(id){
+  confirmAction("Delete this expense entry? This cannot be undone.",async()=>{
+    await dbClient.from("expense_log").delete().eq("id",id);
+    await loadExpenseLog(); renderExpenses();
+  });
 }
 
 /* ── principal's desk: asset register ── */
@@ -3496,10 +3580,11 @@ async function submitEditAsset(id){
   await dbClient.from("assets").update(d).eq("id",id);
   closeModal(); await loadAssets(); renderAssets();
 }
-async function deleteAsset(id,name){
-  if(!confirm(`Delete "${name}" from asset register?`))return;
-  await dbClient.from("assets").delete().eq("id",id);
-  await loadAssets(); renderAssets();
+function deleteAsset(id,name){
+  confirmAction(`Delete "<strong>${name}</strong>" from asset register? This cannot be undone.`,async()=>{
+    await dbClient.from("assets").delete().eq("id",id);
+    await loadAssets(); renderAssets();
+  });
 }
 
 /* ── principal's desk: incident log ── */
@@ -3607,10 +3692,11 @@ async function closeFollowup(id){
   await dbClient.from("incident_log").update({follow_up:false}).eq("id",id);
   await loadIncidentLog(); renderIncidentLog();
 }
-async function deleteIncident(id){
-  if(!confirm("Delete this incident log entry?"))return;
-  await dbClient.from("incident_log").delete().eq("id",id);
-  await loadIncidentLog(); renderIncidentLog();
+function deleteIncident(id){
+  confirmAction("Delete this incident log entry? This cannot be undone.",async()=>{
+    await dbClient.from("incident_log").delete().eq("id",id);
+    await loadIncidentLog(); renderIncidentLog();
+  });
 }
 
 /* ── admin: fee setup tab ── */
@@ -3778,10 +3864,11 @@ async function toggleFeeOptional(id, currentIsOptional, btn){
   if(row){row.style.transition="background .15s";row.style.background="rgba(22,163,74,0.12)";setTimeout(()=>row.style.background="",900);}
 }
 
-async function deleteFeeItem(id,name){
-  if(!confirm(`Delete "${name}" fee item?`))return;
-  await dbClient.from("fee_structure").delete().eq("id",id);
-  await loadFeeStructure(); renderAdminTab();
+function deleteFeeItem(id,name){
+  confirmAction(`Delete "<strong>${name}</strong>" fee item? This cannot be undone.`,async()=>{
+    await dbClient.from("fee_structure").delete().eq("id",id);
+    await loadFeeStructure(); renderAdminTab();
+  });
 }
 
 async function prefillMushinFees(){
@@ -4003,7 +4090,7 @@ function edgeTestLabel(t){
 
 function renderEdgeTests(){
   document.getElementById("page-title").textContent="EDGE Tests";
-  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession}`;
+  document.getElementById("page-meta").textContent=`${currentTerm} · ${currentSession} · Excelling, Developing, Growing, Exploring`;
   document.getElementById("topbar-actions").innerHTML="";
   const clsFilter=`<select onchange="_edgeFilterCls=this.value;renderEdgeTestsList()" style="min-width:110px">
     <option value="">All Classes</option>
@@ -4214,11 +4301,12 @@ function openEdgeViewerAdmin(id){
     </div>`);
 }
 
-async function deleteEdgeTest(id){
-  if(!confirm("Delete this EDGE test? This cannot be undone."))return;
-  const {error}=await dbClient.from("edge_tests").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  await loadEdgeTests(); renderAdminTab();
+function deleteEdgeTest(id){
+  confirmAction("Delete this EDGE test? This cannot be undone.",async()=>{
+    const {error}=await dbClient.from("edge_tests").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    await loadEdgeTests(); renderAdminTab();
+  });
 }
 
 /* ── Attendance Register ── */
@@ -4393,11 +4481,12 @@ async function markHoliday(){
   closeModal();
   renderAttendance();
 }
-async function clearHoliday(date){
-  if(!confirm("Remove this holiday?"))return;
-  await dbClient.from("school_holidays").delete().eq("holiday_date",date);
-  await loadHolidays();
-  renderAttendance();
+function clearHoliday(date){
+  confirmAction(`Remove the holiday on <strong>${date}</strong>? Attendance for this day will no longer be marked as holiday.`,async()=>{
+    await dbClient.from("school_holidays").delete().eq("holiday_date",date);
+    await loadHolidays();
+    renderAttendance();
+  });
 }
 
 /* ── Scheme of Work Admin ── */
@@ -4444,11 +4533,12 @@ async function saveScheme(){
   renderAdminTab();
   if(statusEl)statusEl.innerHTML=`<span style="color:var(--tx-ok)"><i class="ti ti-check"></i> Saved!</span>`;
 }
-async function deleteScheme(id){
-  if(!confirm("Delete this scheme?"))return;
-  await dbClient.from("schemes").delete().eq("id",id);
-  await loadSchemes();
-  renderAdminTab();
+function deleteScheme(id){
+  confirmAction("Delete this scheme? This cannot be undone.",async()=>{
+    await dbClient.from("schemes").delete().eq("id",id);
+    await loadSchemes();
+    renderAdminTab();
+  });
 }
 function refreshSchemeSubjects(){
   const cls=document.getElementById("sch-cls")?.value; if(!cls)return;
@@ -4757,11 +4847,12 @@ async function submitEditCandidate(id){
   if(error){alert("Error: "+error.message);return;}
   closeModal(); await loadExternalCandidates(); renderCandidates();
 }
-async function deleteCandidate(id,name){
+function deleteCandidate(id,name){
   if(!canDo('ops')){alert("Operations or Director access required");return;}
-  if(!confirm(`Delete "${name}" and all their scores?`))return;
-  await dbClient.from("external_candidates").delete().eq("id",id);
-  await Promise.all([loadExternalCandidates(),loadCandidateScores()]); renderCandidates();
+  confirmAction(`Delete "<strong>${name}</strong>" and all their exam scores? This cannot be undone.`,async()=>{
+    await dbClient.from("external_candidates").delete().eq("id",id);
+    await Promise.all([loadExternalCandidates(),loadCandidateScores()]); renderCandidates();
+  });
 }
 
 function renderEntranceScores(){
@@ -4961,11 +5052,12 @@ async function submitEditFeederSchool(id){
   if(error){alert("Error: "+error.message);return;}
   closeModal(); await loadFeederSchools(); renderFeederSchools();
 }
-async function deleteFeederSchool(id,name){
+function deleteFeederSchool(id,name){
   if(!canDo('ops')){alert("Operations or Director access required");return;}
-  if(!confirm(`Delete "${name}"? This will not delete their candidates.`))return;
-  await dbClient.from("feeder_schools").delete().eq("id",id);
-  await loadFeederSchools(); renderFeederSchools();
+  confirmAction(`Delete feeder school "<strong>${name}</strong>"? Their candidates will not be deleted.`,async()=>{
+    await dbClient.from("feeder_schools").delete().eq("id",id);
+    await loadFeederSchools(); renderFeederSchools();
+  });
 }
 
 let _emailTargetSchool=null;
@@ -5122,13 +5214,13 @@ function selectLoginRole(role){
   const wrap=document.getElementById('login-pin-wrap');
   if(role==='director'&&!storedPinHash){
     wrap.innerHTML=`<p style="font-size:12px;color:var(--tx2);margin-bottom:10px">No Director PIN set — create one to secure this portal.</p>
-      <div class="field"><label>New Director PIN</label><input type="password" id="login-pin" placeholder="Choose a PIN…" /></div>
-      <div class="field"><label>Confirm PIN</label><input type="password" id="login-pin2" placeholder="Repeat PIN…" onkeydown="if(event.key==='Enter')submitRoleLogin()" /></div>
+      <div class="field"><label>New Director PIN</label><input type="password" id="login-pin" placeholder="Choose a PIN…" style="font-size:16px" /></div>
+      <div class="field"><label>Confirm PIN</label><input type="password" id="login-pin2" placeholder="Repeat PIN…" style="font-size:16px" onkeydown="if(event.key==='Enter')submitRoleLogin()" /></div>
       <button class="btn btn-primary" style="width:100%" onclick="submitRoleLogin()"><i class="ti ti-lock"></i> Create PIN &amp; Sign In</button>
       <div id="login-err" style="margin-top:8px;font-size:12px;color:var(--tx-err)"></div>`;
   } else {
     wrap.innerHTML=`<div class="field"><label>${_ROLE_LABELS[role]||role} PIN</label>
-      <input type="password" id="login-pin" placeholder="Enter PIN…" onkeydown="if(event.key==='Enter')submitRoleLogin()" /></div>
+      <input type="password" id="login-pin" placeholder="Enter PIN…" style="font-size:16px" onkeydown="if(event.key==='Enter')submitRoleLogin()" /></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary" onclick="submitRoleLogin()"><i class="ti ti-login"></i> Sign In</button>
         <button class="btn" onclick="closeModal()">Cancel</button>
@@ -5167,9 +5259,41 @@ async function submitRoleLogin(){
     if(hash!==storedAdminPinHash){if(errEl)errEl.textContent="Incorrect PIN";return;}
     _role='admin'; adminUnlocked=false;
   }
-  closeModal(); renderHub();
+  // save role to sessionStorage so page refresh keeps you signed in
+  try{ sessionStorage.setItem('_portal_role', _role); }catch(e){}
+  startInactivityTimer();
+  closeModal();
+  const dest=_pendingSection; _pendingSection=null;
+  if(dest){ enterSection(dest); } else { renderHub(); }
 }
-function signOut(){ _role=null; adminUnlocked=false; renderHub(); }
+function signOut(){
+  _role=null; adminUnlocked=false;
+  try{ sessionStorage.removeItem('_portal_role'); }catch(e){}
+  stopInactivityTimer();
+  renderHub();
+}
+function startInactivityTimer(){
+  if(!canDo('ops')) return; // only ops / director
+  stopInactivityTimer();
+  const reset=()=>{ clearTimeout(_activityTimer); _activityTimer=setTimeout(()=>{
+    if(canDo('ops')){ signOut(); alert("You have been signed out due to inactivity."); }
+  }, 30*60*1000); };
+  ['click','keydown','mousemove','touchstart'].forEach(ev=>document.addEventListener(ev,reset,{passive:true}));
+  reset();
+}
+function stopInactivityTimer(){ clearTimeout(_activityTimer); _activityTimer=null; }
+
+/* ── in-page confirmation modal ── */
+let _confirmCb=null;
+function confirmAction(msg, onYes){
+  _confirmCb=onYes;
+  openModal("Confirm",`
+    <p style="font-size:14px;color:var(--tx);margin-bottom:20px">${msg}</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn" style="color:var(--tx-err);border-color:var(--tx-err)" onclick="closeModal();if(_confirmCb){_confirmCb();_confirmCb=null;}"><i class="ti ti-trash"></i> Delete</button>
+      <button class="btn" onclick="closeModal();_confirmCb=null">Cancel</button>
+    </div>`);
+}
 
 /* ── inventory / stock helpers ── */
 function stockCurrentQty(itemId){
@@ -5214,12 +5338,15 @@ function renderInventory(){
   const termProfit=canDo('ops')?stockTermProfit():null;
   const termTxns=inventoryTxns.filter(t=>t.term===currentTerm&&t.session===currentSession);
 
-  // sort alphabetically, then filter by search
+  // sort alphabetically, then filter by search + category
   const q=(_invSearch||'').toLowerCase().trim();
   const sorted=[...inventoryItems].sort((a,b)=>a.item_name.localeCompare(b.item_name));
-  const visible=q
-    ?sorted.filter(i=>[i.item_name,i.category,i.class_group,i.publisher,i.distributor].some(v=>v&&v.toLowerCase().includes(q)))
-    :sorted;
+  const categories=[...new Set(inventoryItems.map(i=>i.category).filter(Boolean))].sort();
+  const visible=sorted.filter(i=>{
+    if(_invCatFilter&&i.category!==_invCatFilter) return false;
+    if(!q) return true;
+    return [i.item_name,i.category,i.class_group,i.publisher,i.distributor].some(v=>v&&v.toLowerCase().includes(q));
+  });
 
   const itemRows=visible.map(item=>{
     const qty=stockCurrentQty(item.id);
@@ -5264,11 +5391,16 @@ function renderInventory(){
     <div class="card" style="margin-bottom:16px">
       <div class="card-head" style="gap:10px;flex-wrap:wrap">
         <span class="card-title">Stock Items</span>
-        <div style="flex:1;min-width:180px;max-width:320px">
+        <div style="flex:1;min-width:180px;max-width:280px">
           <input id="inv-search" type="search" placeholder="Search by name, category, class, publisher…"
             value="${_invSearch}" oninput="_invSearch=this.value;renderInventoryList()"
             style="width:100%;padding:6px 10px;border:1px solid var(--bd3);border-radius:var(--r);background:var(--bg-input,var(--bg));color:var(--tx);font-size:13px" />
         </div>
+        <select onchange="_invCatFilter=this.value;renderInventoryList()"
+          style="padding:6px 10px;border:1px solid var(--bd3);border-radius:var(--r);background:var(--bg-input,var(--bg));color:var(--tx);font-size:13px">
+          <option value="" ${!_invCatFilter?'selected':''}>All categories</option>
+          ${categories.map(c=>`<option value="${c}" ${_invCatFilter===c?'selected':''}>${c}</option>`).join('')}
+        </select>
         <span style="font-size:11px;color:var(--tx3)">${visible.length} of ${inventoryItems.length}</span>
       </div>
       ${inventoryItems.length===0
@@ -5313,9 +5445,11 @@ function renderInventoryList(){
   // live-update just the stock list without redrawing the whole page
   const q=(_invSearch||'').toLowerCase().trim();
   const sorted=[...inventoryItems].sort((a,b)=>a.item_name.localeCompare(b.item_name));
-  const visible=q
-    ?sorted.filter(i=>[i.item_name,i.category,i.class_group,i.publisher,i.distributor].some(v=>v&&v.toLowerCase().includes(q)))
-    :sorted;
+  const visible=sorted.filter(i=>{
+    if(_invCatFilter&&i.category!==_invCatFilter) return false;
+    if(!q) return true;
+    return [i.item_name,i.category,i.class_group,i.publisher,i.distributor].some(v=>v&&v.toLowerCase().includes(q));
+  });
   const counter=document.querySelector('#inv-list-table')?.closest('.card')?.querySelector('span[style*="tx3"]');
   if(counter) counter.textContent=`${visible.length} of ${inventoryItems.length}`;
   const tbody=document.querySelector('#inv-list-table tbody');
@@ -5445,15 +5579,17 @@ async function submitEditInventoryItem(id){
 }
 async function deleteInventoryItem(id,name){
   if(!canDo('ops')){alert("Operations or Director access required");return;}
-  if(!confirm(`Delete "${name}" and all its transaction history?`))return;
-  await dbClient.from("inventory_items").delete().eq("id",id);
-  await Promise.all([loadInventoryItems(),loadInventoryTxns()]); renderInventory();
+  confirmAction(`Delete "<strong>${name}</strong>" and all its transaction history? This cannot be undone.`,async()=>{
+    await dbClient.from("inventory_items").delete().eq("id",id);
+    await Promise.all([loadInventoryItems(),loadInventoryTxns()]); renderInventory();
+  });
 }
 async function deleteInventoryTxn(id){
   if(!canDo('ops')){alert("Operations or Director access required");return;}
-  if(!confirm("Delete this transaction?"))return;
-  await dbClient.from("inventory_transactions").delete().eq("id",id);
-  await loadInventoryTxns(); renderInventory();
+  confirmAction("Delete this transaction? This cannot be undone.",async()=>{
+    await dbClient.from("inventory_transactions").delete().eq("id",id);
+    await loadInventoryTxns(); renderInventory();
+  });
 }
 
 function openStockIn(itemId){
@@ -5880,12 +6016,13 @@ async function submitAddTrackDocument(trackName){
   trackDocuments.unshift(data);
   renderTrackDetail(trackName);
 }
-async function deleteTrackDocument(id){
-  if(!confirm("Remove this document?"))return;
-  const{error}=await dbClient.from("track_documents").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  trackDocuments=trackDocuments.filter(d=>d.id!==id);
-  renderTrackDetail(_curArg);
+function deleteTrackDocument(id){
+  confirmAction("Remove this document from the track? This cannot be undone.",async()=>{
+    const{error}=await dbClient.from("track_documents").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    trackDocuments=trackDocuments.filter(d=>d.id!==id);
+    renderTrackDetail(_curArg);
+  });
 }
 
 /* ── activities: memberships ── */
@@ -5954,11 +6091,12 @@ async function submitAddMembership(){
   closeModal(); await loadActivityMemberships(); renderActivityMemberships();
 }
 
-async function deleteMembership(id,name){
-  if(!confirm(`Remove ${name} from this track?`))return;
-  const{error}=await dbClient.from("activity_memberships").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  await loadActivityMemberships(); renderActivityMemberships();
+function deleteMembership(id,name){
+  confirmAction(`Remove <strong>${name}</strong> from this track? This cannot be undone.`,async()=>{
+    const{error}=await dbClient.from("activity_memberships").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    await loadActivityMemberships(); renderActivityMemberships();
+  });
 }
 
 /* ── activities: sessions ── */
@@ -6022,11 +6160,12 @@ async function submitLogSession(){
   closeModal(); await loadActivitySessions(); renderActivitySessions();
 }
 
-async function deleteActivitySession(id){
-  if(!confirm("Delete this session log?"))return;
-  const{error}=await dbClient.from("activity_sessions").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  await loadActivitySessions(); renderActivitySessions();
+function deleteActivitySession(id){
+  confirmAction("Delete this session log? This cannot be undone.",async()=>{
+    const{error}=await dbClient.from("activity_sessions").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    await loadActivitySessions(); renderActivitySessions();
+  });
 }
 
 /* ── activities: competitions ── */
@@ -6107,11 +6246,12 @@ async function submitLogCompetition(){
   closeModal(); await loadActivityCompetitions(); renderActivityCompetitions();
 }
 
-async function deleteCompetition(id){
-  if(!confirm("Delete this competition record?"))return;
-  const{error}=await dbClient.from("activity_competitions").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  await loadActivityCompetitions(); renderActivityCompetitions();
+function deleteCompetition(id){
+  confirmAction("Delete this competition record? This cannot be undone.",async()=>{
+    const{error}=await dbClient.from("activity_competitions").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    await loadActivityCompetitions(); renderActivityCompetitions();
+  });
 }
 
 /* ── school calendar ── */
@@ -6209,11 +6349,12 @@ async function submitAddEvent(){
   closeModal(); await loadSchoolEvents(); renderCalendar();
 }
 
-async function deleteEvent(id){
-  if(!confirm("Delete this event?"))return;
-  const{error}=await dbClient.from("school_events").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  await loadSchoolEvents(); renderCalendar();
+function deleteEvent(id){
+  confirmAction("Delete this event? This cannot be undone.",async()=>{
+    const{error}=await dbClient.from("school_events").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    await loadSchoolEvents(); renderCalendar();
+  });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -6487,11 +6628,12 @@ async function submitTeacher(id){
   closeModal(); await loadTimetableTeachers(); renderTimetableTeachers();
 }
 
-async function deleteTeacher(id){
-  if(!confirm("Remove this teacher from the timetable config?"))return;
-  const{error}=await dbClient.from("timetable_teachers").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  await loadTimetableTeachers(); renderTimetableTeachers();
+function deleteTeacher(id){
+  confirmAction("Remove this teacher from the timetable config? Slots assigned to them will lose the teacher assignment.",async()=>{
+    const{error}=await dbClient.from("timetable_teachers").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    await loadTimetableTeachers(); renderTimetableTeachers();
+  });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -7184,11 +7326,12 @@ async function togglePublishNews(id,val){
   if(error){alert("Error: "+error.message);return;}
   renderSiteNewsAdmin();
 }
-async function deleteSiteNews(id){
-  if(!confirm("Delete this post? This cannot be undone."))return;
-  const{error}=await dbClient.from("site_news").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  renderSiteNewsAdmin();
+function deleteSiteNews(id){
+  confirmAction("Delete this post? This cannot be undone.",async()=>{
+    const{error}=await dbClient.from("site_news").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    renderSiteNewsAdmin();
+  });
 }
 
 /* Gallery */
@@ -7249,11 +7392,12 @@ async function submitGalleryItem(id){
   if(error){alert("Error: "+error.message);return;}
   closeModal(); renderSiteGalleryAdmin();
 }
-async function deleteGalleryItem(id){
-  if(!confirm("Remove this photo from the gallery?"))return;
-  const{error}=await dbClient.from("site_gallery").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  renderSiteGalleryAdmin();
+function deleteGalleryItem(id){
+  confirmAction("Remove this photo from the gallery? This cannot be undone.",async()=>{
+    const{error}=await dbClient.from("site_gallery").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    renderSiteGalleryAdmin();
+  });
 }
 
 /* Contact / admission enquiries */
@@ -7302,11 +7446,12 @@ async function setMessageStatus(id,status){
   if(error){alert("Error: "+error.message);return;}
   renderSiteMessagesAdmin();
 }
-async function deleteSiteMessageItem(id){
-  if(!confirm("Delete this message?"))return;
-  const{error}=await dbClient.from("site_messages").delete().eq("id",id);
-  if(error){alert("Error: "+error.message);return;}
-  renderSiteMessagesAdmin();
+function deleteSiteMessageItem(id){
+  confirmAction("Delete this message? This cannot be undone.",async()=>{
+    const{error}=await dbClient.from("site_messages").delete().eq("id",id);
+    if(error){alert("Error: "+error.message);return;}
+    renderSiteMessagesAdmin();
+  });
 }
 
 /* ── teacher observation log ── */
@@ -7416,10 +7561,11 @@ async function closeTeacherObsFollowup(id){
   await dbClient.from("teacher_obs_log").update({follow_up:false}).eq("id",id);
   await loadTeacherObsLog(); renderTeacherObsLog();
 }
-async function deleteTeacherObs(id){
-  if(!confirm("Delete this observation entry?"))return;
-  await dbClient.from("teacher_obs_log").delete().eq("id",id);
-  await loadTeacherObsLog(); renderTeacherObsLog();
+function deleteTeacherObs(id){
+  confirmAction("Delete this observation entry? This cannot be undone.",async()=>{
+    await dbClient.from("teacher_obs_log").delete().eq("id",id);
+    await loadTeacherObsLog(); renderTeacherObsLog();
+  });
 }
 
 /* ── parent communication log ── */
@@ -7524,10 +7670,11 @@ async function closePcFollowup(id){
   await dbClient.from("parent_contacts").update({follow_up:false}).eq("id",id);
   await loadParentContacts(); renderParentContacts();
 }
-async function deleteParentContact(id){
-  if(!confirm("Delete this contact log entry?"))return;
-  await dbClient.from("parent_contacts").delete().eq("id",id);
-  await loadParentContacts(); renderParentContacts();
+function deleteParentContact(id){
+  confirmAction("Delete this contact log entry? This cannot be undone.",async()=>{
+    await dbClient.from("parent_contacts").delete().eq("id",id);
+    await loadParentContacts(); renderParentContacts();
+  });
 }
 
 /* ── retention dashboard ── */
@@ -7704,10 +7851,11 @@ async function submitAddExternalResult(){
   if(error){alert("Error: "+error.message);return;}
   closeModal(); await loadExternalResults(); renderExternalResults();
 }
-async function deleteExternalResult(id){
-  if(!confirm("Delete this result entry?"))return;
-  await dbClient.from("external_results").delete().eq("id",id);
-  await loadExternalResults(); renderExternalResults();
+function deleteExternalResult(id){
+  confirmAction("Delete this result entry? This cannot be undone.",async()=>{
+    await dbClient.from("external_results").delete().eq("id",id);
+    await loadExternalResults(); renderExternalResults();
+  });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -7784,12 +7932,13 @@ async function submitAddProspectGroup(){
   if(error){alert("Error: "+error.message);return;}
   closeModal(); await loadProspectGroups(); renderProspects();
 }
-async function deleteProspectGroup(id,name){
+function deleteProspectGroup(id,name){
   if(!canDo('ops')){alert("Operations or Director access required");return;}
-  if(!confirm(`Delete group "${name}"? Prospects inside will be unassigned (not deleted).`))return;
-  await dbClient.from('prospect_groups').delete().eq('id',id);
-  if(_prospectGroupFilter===id)_prospectGroupFilter=null;
-  await Promise.all([loadProspectGroups(),loadProspects()]); renderProspects();
+  confirmAction(`Delete group "<strong>${name}</strong>"? Prospects inside will be unassigned (not deleted).`,async()=>{
+    await dbClient.from('prospect_groups').delete().eq('id',id);
+    if(_prospectGroupFilter===id)_prospectGroupFilter=null;
+    await Promise.all([loadProspectGroups(),loadProspects()]); renderProspects();
+  });
 }
 function prospectForm(p={}){
   return`
@@ -7870,11 +8019,12 @@ async function submitEditProspect(id){
   if(error){alert("Error: "+error.message);return;}
   closeModal(); await loadProspects(); renderProspects();
 }
-async function deleteProspect(id,name){
+function deleteProspect(id,name){
   if(!canDo('ops')){alert("Operations or Director access required");return;}
-  if(!confirm(`Delete "${name}"?`))return;
-  await dbClient.from('prospects').delete().eq('id',id);
-  await loadProspects(); renderProspects();
+  confirmAction(`Delete "<strong>${name}</strong>"? This cannot be undone.`,async()=>{
+    await dbClient.from('prospects').delete().eq('id',id);
+    await loadProspects(); renderProspects();
+  });
 }
 
 function _smsRecipients(filter){
@@ -8336,6 +8486,15 @@ function renderPayroll(){
 
   const fmt=n=>n!=null?`₦${Number(n).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
 
+  // pre-flight warning: staff with no monthly salary set
+  const noSalary=staffList.filter(s=>!s.monthly_salary||parseFloat(s.monthly_salary)===0);
+  const preflight=noSalary.length?`
+    <div style="background:var(--bg-warn);border:.5px solid var(--tx-warn);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:12px">
+      <div style="font-weight:600;color:var(--tx-warn);margin-bottom:4px"><i class="ti ti-alert-triangle"></i> ${noSalary.length} staff member${noSalary.length>1?'s':''} have no salary set</div>
+      <div style="color:var(--tx2)">${noSalary.map(s=>`<span style="background:var(--bg2);padding:2px 8px;border-radius:20px;margin:2px;display:inline-block">${s.name}</span>`).join('')}</div>
+      <div style="color:var(--tx3);margin-top:4px">Set monthly salaries in Staff → Staff Directory → edit each staff member before running payroll.</div>
+    </div>`:'';
+
   const runCards=payrollRuns.length===0
     ?`<div class="card"><p style="color:var(--tx3);text-align:center">No payroll runs yet. Create one to get started.</p></div>`
     :payrollRuns.map(run=>{
@@ -8385,7 +8544,7 @@ function renderPayroll(){
         </div>`;
       }).join('');
 
-  document.getElementById("content").innerHTML=runCards;
+  document.getElementById("content").innerHTML=preflight+runCards;
 }
 
 function openNewPayrollRun(){
@@ -8439,21 +8598,32 @@ async function submitNewPayrollRun(){
   closeModal(); renderPayroll();
 }
 
-async function approvePayrollRun(runId){
-  if(!confirm("Approve this payroll run?"))return;
-  await dbClient.from("payroll_runs").update({status:'approved'}).eq("id",runId);
-  await loadPayrollRuns(); renderPayroll();
+function approvePayrollRun(runId){
+  confirmAction("Approve this payroll run? Once approved, it can be marked as paid.",async()=>{
+    await dbClient.from("payroll_runs").update({status:'approved'}).eq("id",runId);
+    await loadPayrollRuns(); renderPayroll();
+  });
 }
 
-async function markPayrollPaid(runId){
+function markPayrollPaid(runId){
   const today=new Date().toISOString().slice(0,10);
-  if(!confirm(`Mark run as paid on ${today}?`))return;
-  await dbClient.from("payroll_runs").update({status:'paid',payment_date:today}).eq("id",runId);
-  await loadPayrollRuns(); renderPayroll();
+  confirmAction(`Mark this payroll run as paid on <strong>${today}</strong>? This records the payment date.`,async()=>{
+    await dbClient.from("payroll_runs").update({status:'paid',payment_date:today}).eq("id",runId);
+    await loadPayrollRuns(); renderPayroll();
+  });
 }
 
 /* ── boot ── */
 loadLocalStore(); loadLocalSubjectConfig(); updateTermDisplay();
+// restore session role (keeps staff signed in across page refreshes)
+try{
+  const saved=sessionStorage.getItem('_portal_role');
+  if(saved&&['admin','operations','owner','director'].includes(saved)){
+    _role=saved;
+    if(saved==='operations'||saved==='director') adminUnlocked=true;
+    startInactivityTimer();
+  }
+}catch(e){}
 dbStatus="loading"; updateDbIndicator(); renderHub();
 (async()=>{
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
